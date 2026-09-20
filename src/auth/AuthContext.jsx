@@ -1,172 +1,209 @@
 /* eslint-disable react-refresh/only-export-components */
-import { createContext, useCallback, useContext, useMemo, useRef, useState } from 'react'
-
-const LOCAL_AUTH_KEY = 'eraport_mock_authenticated'
-const SESSION_AUTH_KEY = 'eraport_mock_session_authenticated'
-const MOCK_DELAY = 450
-
-const mockAdministrator = {
-  id: 'mock-administrator',
-  name: 'Administrator',
-  email: 'admin@sman27garut.sch.id',
-  nip: '196805121993031006',
-  password: 'mock-password',
-  role: 'Super Admin',
-}
+import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react'
+import { authApi } from '../services/apiClient.js'
 
 const AuthContext = createContext(null)
 
-function readAuthenticationFlag() {
-  try {
-    return localStorage.getItem(LOCAL_AUTH_KEY) === 'true' || sessionStorage.getItem(SESSION_AUTH_KEY) === 'true'
-  } catch {
-    return false
-  }
-}
+/**
+ * Format user object from backend response for uniform frontend consumption
+ */
+function normalizeUser(userData) {
+  if (!userData) return null
 
-function storeAuthenticationFlag(rememberMe) {
-  try {
-    if (rememberMe) {
-      localStorage.setItem(LOCAL_AUTH_KEY, 'true')
-      sessionStorage.removeItem(SESSION_AUTH_KEY)
-      return
-    }
+  const roles = userData.roles || []
+  const primaryRoleObj = roles.find((r) => r.is_primary) || roles[0]
+  const displayRole = primaryRoleObj?.display_name || userData.primary_role || 'Pengguna'
 
-    sessionStorage.setItem(SESSION_AUTH_KEY, 'true')
-    localStorage.removeItem(LOCAL_AUTH_KEY)
-  } catch {
-    // State React tetap menjadi sumber kebenaran saat Web Storage tidak tersedia.
-  }
-}
-
-function clearAuthenticationFlags() {
-  try {
-    localStorage.removeItem(LOCAL_AUTH_KEY)
-    sessionStorage.removeItem(SESSION_AUTH_KEY)
-  } catch {
-    // Tidak ada tindakan tambahan yang diperlukan untuk mock frontend.
-  }
-}
-
-function waitForMockResponse() {
-  return new Promise((resolve) => window.setTimeout(resolve, MOCK_DELAY))
-}
-
-function toPublicUser(account) {
   return {
-    id: account.id,
-    name: account.name,
-    email: account.email,
-    nip: account.nip || '',
-    role: account.role,
+    id: userData.id,
+    username: userData.username,
+    name: userData.name,
+    email: userData.email,
+    phone: userData.phone || '',
+    nip: userData.nip || '',
+    isActive: Boolean(userData.is_active),
+    roles,
+    role: displayRole,
+    primaryRole: userData.primary_role || primaryRoleObj?.name || 'pengguna',
   }
-}
-
-function normalizeIdentifier(value) {
-  return String(value || '').trim().toLowerCase()
 }
 
 function AuthProvider({ children }) {
-  const initiallyAuthenticated = useMemo(() => readAuthenticationFlag(), [])
-  const [isAuthenticated, setIsAuthenticated] = useState(initiallyAuthenticated)
-  const [currentUser, setCurrentUser] = useState(
-    initiallyAuthenticated ? toPublicUser(mockAdministrator) : null,
-  )
-  const registeredAccountsRef = useRef([])
+  const [currentUser, setCurrentUser] = useState(null)
+  const [isAuthenticated, setIsAuthenticated] = useState(false)
+  const [isAuthLoading, setIsAuthLoading] = useState(true)
+  const [authError, setAuthError] = useState(null)
 
-  const login = useCallback(async ({ identifier, email, nip, password, rememberMe = false } = {}) => {
-    await waitForMockResponse()
+  /**
+   * Verify session validity with backend /api/v1/auth/me
+   */
+  const checkAuth = useCallback(async () => {
+    setIsAuthLoading(true)
+    setAuthError(null)
 
-    const loginIdentifier = normalizeIdentifier(identifier || email || nip)
-    const accountPool = [mockAdministrator, ...registeredAccountsRef.current]
-    const matchingAccount = accountPool.find((account) => {
-      const matchesEmail = normalizeIdentifier(account.email) === loginIdentifier
-      const matchesNip = account.nip && normalizeIdentifier(account.nip) === loginIdentifier
-      return matchesEmail || matchesNip
+    try {
+      const response = await authApi.me()
+
+      if (response.success && response.data?.user) {
+        const user = normalizeUser(response.data.user)
+        setCurrentUser(user)
+        setIsAuthenticated(true)
+        return { success: true, user }
+      }
+
+      setCurrentUser(null)
+      setIsAuthenticated(false)
+
+      if (response.status === 0) {
+        setAuthError(response.message)
+      }
+
+      return { success: false, status: response.status }
+    } catch {
+      setCurrentUser(null)
+      setIsAuthenticated(false)
+      setAuthError('Gagal memeriksa status autentikasi.')
+      return { success: false, status: 0 }
+    } finally {
+      setIsAuthLoading(false)
+    }
+  }, [])
+
+  // Check auth session on initial app load / refresh
+  useEffect(() => {
+    let isMounted = true
+
+    authApi.me().then((response) => {
+      if (!isMounted) return
+
+      if (response.success && response.data?.user) {
+        const user = normalizeUser(response.data.user)
+        setCurrentUser(user)
+        setIsAuthenticated(true)
+      } else {
+        setCurrentUser(null)
+        setIsAuthenticated(false)
+        if (response.status === 0) {
+          setAuthError(response.message)
+        }
+      }
+      setIsAuthLoading(false)
+    }).catch(() => {
+      if (!isMounted) return
+      setCurrentUser(null)
+      setIsAuthenticated(false)
+      setAuthError('Gagal memeriksa status autentikasi.')
+      setIsAuthLoading(false)
     })
 
-    if (!matchingAccount || matchingAccount.password !== password) {
+    return () => {
+      isMounted = false
+    }
+  }, [])
+
+  /**
+   * Real user login via Laravel Sanctum
+   */
+  const login = useCallback(async ({ identifier, password } = {}) => {
+    setAuthError(null)
+
+    if (!identifier || !password) {
       return {
         success: false,
-        message: 'Email atau kata sandi tidak sesuai. Silakan periksa kembali data Anda.',
+        message: 'Identifier (Email/Username/NIP) dan kata sandi wajib diisi.',
       }
     }
 
-    const authenticatedUser = toPublicUser(matchingAccount)
-    storeAuthenticationFlag(rememberMe)
-    setCurrentUser(authenticatedUser)
-    setIsAuthenticated(true)
+    const response = await authApi.login(identifier, password)
 
-    return { success: true, user: authenticatedUser }
-  }, [])
-
-  const register = useCallback(async ({ name, fullName, email, nip = '', password } = {}) => {
-    await waitForMockResponse()
-
-    const normalizedEmail = normalizeIdentifier(email)
-    const normalizedNip = String(nip || '').trim()
-    const accountPool = [mockAdministrator, ...registeredAccountsRef.current]
-    const isDuplicate = accountPool.some((account) => {
-      const emailExists = normalizeIdentifier(account.email) === normalizedEmail
-      const nipExists = normalizedNip && String(account.nip || '').trim() === normalizedNip
-      return emailExists || nipExists
-    })
-
-    if (!normalizedEmail || !password) {
-      return { success: false, message: 'Email dan kata sandi wajib diisi.' }
-    }
-
-    if (isDuplicate) {
-      return { success: false, message: 'Akun dengan email atau NIP tersebut sudah tersedia.' }
-    }
-
-    const account = {
-      id: `mock-user-${Date.now()}`,
-      name: String(fullName || name || 'Pengguna e-Raport').trim(),
-      email: normalizedEmail,
-      nip: normalizedNip,
-      password,
-      role: 'Pengguna',
-    }
-
-    registeredAccountsRef.current.push(account)
-
-    return {
-      success: true,
-      message: 'Akun mock berhasil dibuat. Silakan masuk menggunakan akun tersebut.',
-      user: toPublicUser(account),
-    }
-  }, [])
-
-  const forgotPassword = useCallback(async (email) => {
-    await waitForMockResponse()
-
-    if (!normalizeIdentifier(email)) {
-      return { success: false, message: 'Email wajib diisi.' }
+    if (response.success && response.data?.user) {
+      const user = normalizeUser(response.data.user)
+      setCurrentUser(user)
+      setIsAuthenticated(true)
+      return {
+        success: true,
+        message: response.message || 'Login berhasil.',
+        user,
+      }
     }
 
     return {
-      success: true,
-      message: 'Instruksi pemulihan mock telah disiapkan. Integrasi email akan tersedia bersama backend.',
+      success: false,
+      status: response.status,
+      message: response.message || 'Kredensial yang diberikan tidak valid.',
     }
   }, [])
 
-  const logout = useCallback(() => {
-    clearAuthenticationFlags()
-    setCurrentUser(null)
-    setIsAuthenticated(false)
+  /**
+   * Real user logout via Laravel Sanctum
+   */
+  const logout = useCallback(async () => {
+    try {
+      await authApi.logout()
+    } catch {
+      // Continue clearing local state even if network fails
+    } finally {
+      setCurrentUser(null)
+      setIsAuthenticated(false)
+      setAuthError(null)
+    }
+    return { success: true }
   }, [])
+
+  /**
+   * Register placeholder (informative: self-registration disabled by school policy)
+   */
+  const register = useCallback(async () => {
+    return {
+      success: false,
+      message: 'Pendaftaran akun mandiri belum diaktifkan oleh pihak sekolah. Silakan hubungi Administrator Sistem untuk pembuatan akun.',
+    }
+  }, [])
+
+  /**
+   * Forgot password placeholder (informative: self-recovery disabled by school policy)
+   */
+  const forgotPassword = useCallback(async () => {
+    return {
+      success: false,
+      message: 'Layanan pemulihan kata sandi mandiri belum diaktifkan. Silakan hubungi Administrator atau Staf Kurikulum SMAN 27 Garut.',
+    }
+  }, [])
+
+  /**
+   * Helper to check if current user has a specific role by name
+   */
+  const hasRole = useCallback((roleName) => {
+    if (!currentUser?.roles) return false
+    return currentUser.roles.some((r) => r.name === roleName)
+  }, [currentUser])
 
   const value = useMemo(
     () => ({
       isAuthenticated,
+      isAuthLoading,
       user: currentUser,
+      roles: currentUser?.roles || [],
+      hasRole,
       login,
+      logout,
       register,
       forgotPassword,
-      logout,
+      checkAuth,
+      authError,
     }),
-    [currentUser, forgotPassword, isAuthenticated, login, logout, register],
+    [
+      authError,
+      checkAuth,
+      currentUser,
+      forgotPassword,
+      hasRole,
+      isAuthenticated,
+      isAuthLoading,
+      login,
+      logout,
+      register,
+    ],
   )
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>

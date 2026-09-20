@@ -239,9 +239,9 @@ function LoginForm({ login, navigate, routeNotice }) {
     const identifier = form.identifier.trim()
 
     if (!identifier) {
-      nextErrors.identifier = 'Email atau NIP wajib diisi.'
-    } else if (!emailPattern.test(identifier) && !nipPattern.test(identifier)) {
-      nextErrors.identifier = 'Masukkan alamat email atau NIP yang valid.'
+      nextErrors.identifier = 'Email, Username, atau NIP wajib diisi.'
+    } else if (!emailPattern.test(identifier) && !nipPattern.test(identifier) && identifier.length < 3) {
+      nextErrors.identifier = 'Masukkan minimal 3 karakter.'
     }
 
     if (!form.password) nextErrors.password = 'Kata sandi wajib diisi.'
@@ -272,7 +272,7 @@ function LoginForm({ login, navigate, routeNotice }) {
 
       navigate('/dashboard', { replace: true })
     } catch {
-      setFormError('Email atau kata sandi tidak sesuai. Silakan periksa kembali data Anda.')
+      setFormError('Tidak dapat terhubung ke server backend. Pastikan server aktif.')
     } finally {
       setIsLoading(false)
     }
@@ -297,12 +297,12 @@ function LoginForm({ login, navigate, routeNotice }) {
       <TextField
         id="auth-identifier"
         name="identifier"
-        label="EMAIL / NIP"
+        label="EMAIL / USERNAME / NIP"
         icon="mail"
         value={form.identifier}
         onChange={updateField}
         error={errors.identifier}
-        placeholder="Masukkan email atau NIP"
+        placeholder="Masukkan email, username, atau NIP"
         autoComplete="username"
       />
 
@@ -569,10 +569,22 @@ const modeContent = {
 function AuthPage({ mode = 'login' }) {
   const navigate = useNavigate()
   const location = useLocation()
-  const { forgotPassword, isAuthenticated, login, register } = useAuth()
+  const { forgotPassword, isAuthenticated, isAuthLoading, login, register } = useAuth()
   const currentMode = modeContent[mode] ? mode : 'login'
   const content = modeContent[currentMode]
   const routeNotice = currentMode === 'login' ? location.state?.authNotice : ''
+
+  if (isAuthLoading) {
+    return (
+      <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '100vh', background: '#f8fafc' }}>
+        <div style={{ textAlign: 'center', color: '#64748b' }}>
+          <div style={{ width: '32px', height: '32px', border: '3px solid #e2e8f0', borderTopColor: '#0284c7', borderRadius: '50%', animation: 'spin 0.8s linear infinite', margin: '0 auto 12px' }} />
+          <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
+          <p style={{ fontSize: '0.9rem', fontWeight: 500 }}>Memuat halaman...</p>
+        </div>
+      </div>
+    )
+  }
 
   if (isAuthenticated) {
     return <Navigate to="/dashboard" replace />

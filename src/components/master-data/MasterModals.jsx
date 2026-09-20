@@ -18,17 +18,46 @@ function MasterModalFrame({ children, description, onClose, size = 'regular', ti
 
 export function MasterEntityModal({ entityLabel, fields, initialData = {}, mode = 'add', onClose, onSave }) {
   const [formData, setFormData] = useState(() => Object.fromEntries(fields.map((field) => [field.key, initialData[field.key] ?? field.defaultValue ?? ''])))
+  const [errorMessage, setErrorMessage] = useState('')
+  const [isSubmitting, setIsSubmitting] = useState(false)
   const sections = [...new Set(fields.map((field) => field.section ?? 'Informasi Utama'))]
 
-  const submit = (event) => {
+  const handleChange = (key, value) => {
+    setFormData((current) => ({ ...current, [key]: value }))
+    if (errorMessage) setErrorMessage('')
+  }
+
+  const submit = async (event) => {
     event.preventDefault()
-    onSave(formData)
+    setErrorMessage('')
+    setIsSubmitting(true)
+    try {
+      const result = await onSave(formData)
+      if (result && result.success === false) {
+        setErrorMessage(result.error || 'Terjadi kesalahan saat memvalidasi data.')
+      }
+    } catch {
+      setErrorMessage('Terjadi kendala jaringan saat menyimpan data.')
+    } finally {
+      setIsSubmitting(false)
+    }
   }
 
   return (
-    <MasterModalFrame description="Data hanya disimpan pada local state selama tahap frontend." onClose={onClose} size={fields.length > 7 ? 'large' : 'regular'} title={`${mode === 'edit' ? 'Edit' : 'Tambah'} ${entityLabel}`}>
+    <MasterModalFrame
+      description={mode === 'edit' ? 'Perbarui informasi siswa pada database sekolah.' : 'Lengkapi formulir untuk menambahkan data siswa ke sistem.'}
+      onClose={onClose}
+      size={fields.length > 7 ? 'large' : 'regular'}
+      title={`${mode === 'edit' ? 'Edit' : 'Tambah'} ${entityLabel}`}
+    >
       <form className="master-entity-form" onSubmit={submit}>
         <div className="master-form-scroll">
+          {errorMessage && (
+            <div className="master-form-error-alert" role="alert">
+              <Icon name="info" />
+              <span>{errorMessage}</span>
+            </div>
+          )}
           {sections.map((section) => (
             <fieldset key={section}>
               <legend>{section}</legend>
@@ -37,7 +66,7 @@ export function MasterEntityModal({ entityLabel, fields, initialData = {}, mode 
                   <label className={field.fullWidth ? 'full-width' : ''} key={field.key}>
                     <span>{field.label}{field.required && <b>*</b>}</span>
                     {field.type === 'select' ? (
-                      <select required={field.required} value={formData[field.key]} onChange={(event) => setFormData((current) => ({ ...current, [field.key]: event.target.value }))}>
+                      <select required={field.required} value={formData[field.key]} onChange={(event) => handleChange(field.key, event.target.value)}>
                         <option value="">Pilih {field.label}</option>
                         {(field.options ?? []).map((option) => {
                           const value = typeof option === 'string' ? option : option.value
@@ -46,9 +75,9 @@ export function MasterEntityModal({ entityLabel, fields, initialData = {}, mode 
                         })}
                       </select>
                     ) : field.type === 'textarea' ? (
-                      <textarea required={field.required} value={formData[field.key]} onChange={(event) => setFormData((current) => ({ ...current, [field.key]: event.target.value }))} />
+                      <textarea required={field.required} value={formData[field.key]} onChange={(event) => handleChange(field.key, event.target.value)} />
                     ) : (
-                      <input required={field.required} type={field.type ?? 'text'} value={formData[field.key]} onChange={(event) => setFormData((current) => ({ ...current, [field.key]: event.target.value }))} />
+                      <input required={field.required} type={field.type ?? 'text'} value={formData[field.key]} onChange={(event) => handleChange(field.key, event.target.value)} />
                     )}
                   </label>
                 ))}
@@ -56,9 +85,65 @@ export function MasterEntityModal({ entityLabel, fields, initialData = {}, mode 
             </fieldset>
           ))}
         </div>
-        <footer><Button className="master-button secondary" onClick={onClose}>Batal</Button><Button className="master-button primary" type="submit"><Icon name="save" />Simpan Data</Button></footer>
+        <footer>
+          <Button className="master-button secondary" disabled={isSubmitting} onClick={onClose} type="button">Batal</Button>
+          <Button className="master-button primary" disabled={isSubmitting} type="submit">
+            <Icon name="save" />{isSubmitting ? 'Menyimpan...' : 'Simpan Data'}
+          </Button>
+        </footer>
       </form>
     </MasterModalFrame>
+  )
+}
+
+export function MasterDeleteModal({ entityLabel = 'Siswa', item, onClose, onConfirm }) {
+  const [isDeleting, setIsDeleting] = useState(false)
+  if (!item) return null
+
+  const handleConfirm = async () => {
+    setIsDeleting(true)
+    try {
+      await onConfirm(item)
+    } finally {
+      setIsDeleting(false)
+    }
+  }
+
+  return (
+    <div className="master-modal-backdrop" role="presentation">
+      <section
+        aria-labelledby="master-delete-title"
+        aria-modal="true"
+        className="master-modal master-confirmation"
+        role="dialog"
+      >
+        <header>
+          <div>
+            <h3 id="master-delete-title">Hapus Data {entityLabel}?</h3>
+            <p>Data siswa akan diarsipkan (soft delete) dari sistem.</p>
+          </div>
+          <button aria-label="Tutup konfirmasi" disabled={isDeleting} onClick={onClose} type="button">&times;</button>
+        </header>
+
+        <div className="master-confirm-body danger">
+          <span className="confirm-icon-danger"><Icon name="trash" /></span>
+          <div>
+            <h4>{item.name}</h4>
+            <p>
+              NIS: <strong>{item.nis || '-'}</strong> | NISN: <strong>{item.nisn || '-'}</strong> | Kelas: <strong>{item.className || '-'}</strong>
+            </p>
+            <small>Apakah Anda yakin ingin menghapus data siswa ini dari daftar aktif?</small>
+          </div>
+        </div>
+
+        <footer className="master-modal-footer">
+          <Button className="master-button secondary" disabled={isDeleting} onClick={onClose} type="button">Batal</Button>
+          <Button className="master-button danger" disabled={isDeleting} onClick={handleConfirm} type="button">
+            <Icon name="trash" />{isDeleting ? 'Menghapus...' : `Ya, Hapus ${entityLabel}`}
+          </Button>
+        </footer>
+      </section>
+    </div>
   )
 }
 
