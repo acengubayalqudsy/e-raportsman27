@@ -14,13 +14,27 @@ class UserSeeder extends Seeder
      */
     public function run(): void
     {
+        if (!app()->environment(['local', 'testing'])) {
+            $this->command?->warn('Development users were not seeded outside local/testing.');
+            return;
+        }
+
+        $adminPassword = env('DEV_ADMIN_PASSWORD');
+        $guruPassword = env('DEV_GURU_PASSWORD');
+        $inactivePassword = env('DEV_INACTIVE_PASSWORD');
+
+        if (!$adminPassword || !$guruPassword || !$inactivePassword) {
+            $this->command?->warn('Development users skipped. Set DEV_ADMIN_PASSWORD, DEV_GURU_PASSWORD, and DEV_INACTIVE_PASSWORD.');
+            return;
+        }
+
         // 1. Development Administrator Account
         $admin = User::firstOrCreate(
             ['username' => 'dev_admin'],
             [
                 'name' => 'Dev Administrator (Testing)',
                 'email' => 'dev_admin@sman27garut.local',
-                'password' => Hash::make('DevAdmin@2026!'),
+                'password' => Hash::make($adminPassword),
                 'phone' => '081200000001',
                 'is_active' => true,
             ]
@@ -36,7 +50,7 @@ class UserSeeder extends Seeder
             [
                 'name' => 'Dev Guru & Wali Kelas (Testing)',
                 'email' => 'dev_guru@sman27garut.local',
-                'password' => Hash::make('DevGuru@2026!'),
+                'password' => Hash::make($guruPassword),
                 'phone' => '081200000002',
                 'is_active' => true,
             ]
@@ -56,7 +70,7 @@ class UserSeeder extends Seeder
             [
                 'name' => 'Dev Akun Nonaktif (Testing)',
                 'email' => 'dev_nonaktif@sman27garut.local',
-                'password' => Hash::make('DevNonaktif@2026!'),
+                'password' => Hash::make($inactivePassword),
                 'phone' => '081200000003',
                 'is_active' => false,
             ]

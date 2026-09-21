@@ -120,7 +120,7 @@ export function MasterDeleteModal({ entityLabel = 'Siswa', item, onClose, onConf
         <header>
           <div>
             <h3 id="master-delete-title">Hapus Data {entityLabel}?</h3>
-            <p>Data siswa akan diarsipkan (soft delete) dari sistem.</p>
+            <p>Data {entityLabel} akan diarsipkan (soft delete) dari sistem.</p>
           </div>
           <button aria-label="Tutup konfirmasi" disabled={isDeleting} onClick={onClose} type="button">&times;</button>
         </header>
@@ -128,11 +128,21 @@ export function MasterDeleteModal({ entityLabel = 'Siswa', item, onClose, onConf
         <div className="master-confirm-body danger">
           <span className="confirm-icon-danger"><Icon name="trash" /></span>
           <div>
-            <h4>{item.name}</h4>
-            <p>
-              NIS: <strong>{item.nis || '-'}</strong> | NISN: <strong>{item.nisn || '-'}</strong> | Kelas: <strong>{item.className || '-'}</strong>
-            </p>
-            <small>Apakah Anda yakin ingin menghapus data siswa ini dari daftar aktif?</small>
+            <h4>{item.name || item.code}</h4>
+            {item.nis ? (
+              <p>
+                NIS: <strong>{item.nis || '-'}</strong> | NISN: <strong>{item.nisn || '-'}</strong> | Kelas: <strong>{item.className || '-'}</strong>
+              </p>
+            ) : item.nip ? (
+              <p>
+                NIP: <strong>{item.nip || '-'}</strong> | Mapel: <strong>{item.subject || '-'}</strong>
+              </p>
+            ) : (
+              <p>
+                Kode/Identitas: <strong>{item.code || item.name || '-'}</strong> {item.grade ? `| Tingkat: ${item.grade}` : ''}
+              </p>
+            )}
+            <small>Apakah Anda yakin ingin menghapus data {entityLabel} ini dari daftar aktif?</small>
           </div>
         </div>
 

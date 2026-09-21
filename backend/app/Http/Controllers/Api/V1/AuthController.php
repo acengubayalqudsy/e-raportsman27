@@ -36,10 +36,13 @@ class AuthController extends Controller
             ], 429);
         }
 
-        // Find user by username or email
+        // NIP is resolved through the linked teacher profile; passwords remain on users only.
         $user = User::where('username', $validated['identifier'])
             ->orWhere('email', $validated['identifier'])
-            ->with('roles')
+            ->orWhereHas('teacher', function ($query) use ($validated) {
+                $query->where('nip', $validated['identifier']);
+            })
+            ->with(['roles', 'teacher'])
             ->first();
 
         // Check credentials uniformly without leaking account existence
@@ -175,6 +178,7 @@ class AuthController extends Controller
             'name' => $user->name,
             'email' => $user->email,
             'phone' => $user->phone,
+            'nip' => $user->teacher?->nip,
             'is_active' => $user->is_active,
             'last_login_at' => $user->last_login_at?->toIso8601String(),
             'roles' => $user->roles->map(function ($role) {

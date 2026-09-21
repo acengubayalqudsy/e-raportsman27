@@ -2,9 +2,12 @@ import { useState } from 'react'
 import { Link, useLocation } from 'react-router-dom'
 import Icon from '../common/Icon.jsx'
 import MobileMoreSheet from './MobileMoreSheet.jsx'
+import { useAuth } from '../../auth/AuthContext.jsx'
+import { canAccessModule } from '../../constants/roles.js'
 
 function MobileBottomNav() {
   const location = useLocation()
+  const { roles } = useAuth()
   const [isMoreOpen, setIsMoreOpen] = useState(false)
 
   const isBerandaActive = location.pathname === '/' || location.pathname.startsWith('/dashboard')
@@ -28,7 +31,7 @@ function MobileBottomNav() {
       <nav className="mobile-bottom-nav" aria-label="Navigasi Bawah Mobile">
         <div className="mobile-bottom-nav-inner">
           {/* Tab 1: Beranda */}
-          <Link
+          {canAccessModule(roles, 'akademik') && <Link
             to="/dashboard"
             className={`mobile-nav-item ${isBerandaActive ? 'active' : ''}`}
             aria-label="Beranda"
@@ -37,10 +40,10 @@ function MobileBottomNav() {
               <Icon name="home" />
             </div>
             <span className="mobile-nav-label">Beranda</span>
-          </Link>
+          </Link>}
 
           {/* Tab 2: Akademik */}
-          <Link
+          {canAccessModule(roles, 'penilaian') && <Link
             to="/akademik"
             className={`mobile-nav-item ${isAkademikActive ? 'active' : ''}`}
             aria-label="Akademik"
@@ -49,10 +52,10 @@ function MobileBottomNav() {
               <Icon name="academic" />
             </div>
             <span className="mobile-nav-label">Akademik</span>
-          </Link>
+          </Link>}
 
           {/* Tab 3: FAB Penilaian (Tombol Tengah Menonjol) */}
-          <Link
+          {canAccessModule(roles, 'absensi') && <Link
             to="/penilaian"
             className={`mobile-nav-fab-item ${isPenilaianActive ? 'active' : ''}`}
             aria-label="Penilaian"
@@ -61,7 +64,7 @@ function MobileBottomNav() {
               <Icon name="grade" />
             </div>
             <span className="mobile-nav-label">Penilaian</span>
-          </Link>
+          </Link>}
 
           {/* Tab 4: Absensi */}
           <Link
@@ -91,7 +94,7 @@ function MobileBottomNav() {
       </nav>
 
       {/* Bottom Sheet Menu Lainnya */}
-      <MobileMoreSheet isOpen={isMoreOpen} onClose={() => setIsMoreOpen(false)} />
+      <MobileMoreSheet isOpen={isMoreOpen} onClose={() => setIsMoreOpen(false)} roles={roles} />
     </>
   )
 }

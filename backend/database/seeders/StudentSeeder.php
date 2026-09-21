@@ -12,6 +12,11 @@ class StudentSeeder extends Seeder
      */
     public function run(): void
     {
+        // Enforce execution only on explicitly permitted local and testing environments
+        if (!app()->environment(['local', 'testing', 'development'])) {
+            return;
+        }
+
         $students = [
             // X Merdeka 1
             [
@@ -451,11 +456,18 @@ class StudentSeeder extends Seeder
         ];
 
         foreach ($students as $studentData) {
-            // Re-run safe: only insert if NIS does not exist yet
-            Student::firstOrCreate(
-                ['nis' => $studentData['nis']],
-                $studentData
-            );
+            // Check withTrashed() to detect both active and soft-deleted records.
+            // This prevents unique constraint violations on deleted records,
+            // avoids duplicate NIS/NISN creation, avoids overwriting user edits,
+            // and never restores soft-deleted students unexpectedly.
+            $exists = Student::withTrashed()
+                ->where('nis', $studentData['nis'])
+                ->orWhere('nisn', $studentData['nisn'])
+                ->exists();
+
+            if (! $exists) {
+                Student::create($studentData);
+            }
         }
     }
 }

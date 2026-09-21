@@ -1,8 +1,9 @@
-import { Navigate, Outlet, useLocation } from 'react-router-dom'
+import { Link, Navigate, Outlet, useLocation } from 'react-router-dom'
 import { useAuth } from './AuthContext.jsx'
+import { canAccessModule, moduleFromPath } from '../constants/roles.js'
 
 function ProtectedRoute() {
-  const { isAuthenticated, isAuthLoading } = useAuth()
+  const { isAuthenticated, isAuthLoading, roles } = useAuth()
   const location = useLocation()
 
   if (isAuthLoading) {
@@ -19,6 +20,16 @@ function ProtectedRoute() {
 
   if (!isAuthenticated) {
     return <Navigate to="/login" replace state={{ from: location }} />
+  }
+
+  if (!canAccessModule(roles, moduleFromPath(location.pathname))) {
+    return (
+      <main className="route-status" role="alert">
+        <h1>Akses ditolak</h1>
+        <p>Anda tidak memiliki kewenangan untuk membuka halaman ini.</p>
+        <Link to="/dashboard">Kembali ke Dashboard</Link>
+      </main>
+    )
   }
 
   return <Outlet />

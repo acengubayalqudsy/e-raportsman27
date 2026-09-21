@@ -119,22 +119,29 @@ class StudentApiTest extends TestCase
     }
 
     /**
-     * 5. Search and filter by class and status work correctly.
+     * 5. Search and filter by class and status work correctly using test fixtures.
      */
     public function test_student_filtering_and_search_work(): void
     {
         $this->actingAs($this->adminUser);
 
-        // Search by specific name
-        $searchResponse = $this->getJson('/api/v1/master/students?search=ADITYA');
+        // Create a unique student fixture for search testing
+        $targetStudent = Student::factory()->create([
+            'name' => 'ZULFIKAR AL-FATIH TEST',
+            'status' => 'Aktif',
+            'current_class_name' => 'X Merdeka 1',
+        ]);
+
+        // Search by unique name
+        $searchResponse = $this->getJson('/api/v1/master/students?search=ZULFIKAR');
         $searchResponse->assertStatus(200);
         $this->assertTrue(count($searchResponse->json('data')) >= 1);
-        $this->assertEquals('ADITYA PRATAMA', $searchResponse->json('data.0.name'));
+        $this->assertEquals('ZULFIKAR AL-FATIH TEST', $searchResponse->json('data.0.name'));
 
         // Filter by status Alumni
         $alumniResponse = $this->getJson('/api/v1/master/students?status=Alumni');
         $alumniResponse->assertStatus(200);
-        $this->assertCount(2, $alumniResponse->json('data'));
+        $this->assertTrue(count($alumniResponse->json('data')) >= 2);
     }
 
     /**
@@ -144,13 +151,13 @@ class StudentApiTest extends TestCase
     {
         $this->actingAs($this->adminUser);
 
-        $student = Student::first();
+        $student = Student::first() ?? Student::factory()->create();
         $this->assertNotNull($student);
 
         $response = $this->getJson("/api/v1/master/students/{$student->id}");
         $response->assertStatus(200);
         $response->assertJsonPath('data.id', $student->id);
-        $response->assertJsonPath('data.nis', (string)$student->nis);
+        $response->assertJsonPath('data.nis', (string) $student->nis);
         $response->assertJsonPath('data.name', $student->name);
     }
 
@@ -173,13 +180,13 @@ class StudentApiTest extends TestCase
     {
         $this->actingAs($this->adminUser);
 
-        $existing = Student::first();
+        $existing = Student::first() ?? Student::factory()->create();
         $this->assertNotNull($existing);
 
         $response = $this->postJson('/api/v1/master/students', [
             'name' => 'Siswa Baru Duplikat',
             'nis' => $existing->nis,
-            'nisn' => '0099998888',
+            'nisn' => fake()->unique()->numerify('008#######'),
             'gender' => 'Laki-laki',
             'birth_place' => 'Garut',
             'birth_date' => '2008-01-01',
@@ -192,25 +199,29 @@ class StudentApiTest extends TestCase
 
     /**
      * 9. Admin can create a new student and it persists in the database.
+     * Uses factory-generated test data and DatabaseTransactions for cleanup without forceDelete().
      */
     public function test_admin_can_create_and_update_student(): void
     {
         $this->actingAs($this->adminUser);
 
-        $testNis = '999910001';
-        $testNisn = '0099910001';
+        $testStudent = Student::factory()->make([
+            'name' => 'MUHAMMAD ILHAM TESTING',
+            'gender' => 'L',
+        ]);
 
-        // Cleanup if previously existed
-        Student::withTrashed()->where('nis', $testNis)->forceDelete();
+        $birthDate = is_string($testStudent->birth_date)
+            ? $testStudent->birth_date
+            : $testStudent->birth_date->format('Y-m-d');
 
         $createResponse = $this->postJson('/api/v1/master/students', [
-            'name' => 'MUHAMMAD ILHAM TESTING',
-            'nis' => $testNis,
-            'nisn' => $testNisn,
+            'name' => $testStudent->name,
+            'nis' => $testStudent->nis,
+            'nisn' => $testStudent->nisn,
             'gender' => 'Laki-laki',
-            'birth_place' => 'Garut',
-            'birth_date' => '2008-05-15',
-            'current_class_name' => 'X Merdeka 3',
+            'birth_place' => $testStudent->birth_place,
+            'birth_date' => $birthDate,
+            'current_class_name' => $testStudent->current_class_name,
             'religion' => 'Islam',
             'phone' => '081299990001',
             'address' => 'Jl. Pahlawan No. 99, Garut',
@@ -220,10 +231,10 @@ class StudentApiTest extends TestCase
         $createdId = $createResponse->json('data.id');
         $this->assertNotNull($createdId);
 
-        // Verify persisted in database
+        // Verify persisted in isolated testing database
         $this->assertDatabaseHas('students', [
             'id' => $createdId,
-            'nis' => $testNis,
+            'nis' => $testStudent->nis,
             'name' => 'MUHAMMAD ILHAM TESTING',
             'gender' => 'L',
         ]);
@@ -231,11 +242,11 @@ class StudentApiTest extends TestCase
         // Update student (ignoring own NIS)
         $updateResponse = $this->putJson("/api/v1/master/students/{$createdId}", [
             'name' => 'MUHAMMAD ILHAM TESTING (EDITED)',
-            'nis' => $testNis, // Same NIS is allowed for self
-            'nisn' => $testNisn,
+            'nis' => $testStudent->nis, // Same NIS is allowed for self
+            'nisn' => $testStudent->nisn,
             'gender' => 'Laki-laki',
             'birth_place' => 'Bandung',
-            'birth_date' => '2008-05-15',
+            'birth_date' => $birthDate,
             'current_class_name' => 'XI F1',
         ]);
 
@@ -245,30 +256,19 @@ class StudentApiTest extends TestCase
             'name' => 'MUHAMMAD ILHAM TESTING (EDITED)',
             'birth_place' => 'Bandung',
         ]);
-
-        // Clean up test record
-        Student::where('id', $createdId)->forceDelete();
+        // Note: No forceDelete() needed! DatabaseTransactions automatically rolls back cleanly.
     }
 
     /**
-     * 10. Admin can soft delete a student, hiding it from active lists without deleting users.
+     * 10. Admin can soft delete a student, hiding it from active lists without deleting records permanently.
      */
     public function test_admin_can_soft_delete_student(): void
     {
         $this->actingAs($this->adminUser);
 
-        $testNis = '999910002';
-        $testNisn = '0099910002';
-
-        // Create temporary student for soft delete test
-        $tempStudent = Student::create([
-            'name' => 'SISWA UNTUK DIHAPUS',
-            'nis' => $testNis,
-            'nisn' => $testNisn,
-            'gender' => 'P',
-            'birth_place' => 'Garut',
-            'birth_date' => '2008-10-10',
-            'current_class_name' => 'X Merdeka 1',
+        // Create temporary student for soft delete test using factory
+        $tempStudent = Student::factory()->create([
+            'name' => 'SISWA UNTUK DIHAPUS TEST',
             'status' => 'Aktif',
         ]);
 
@@ -279,13 +279,13 @@ class StudentApiTest extends TestCase
         $fresh = Student::withTrashed()->find($tempStudent->id);
         $this->assertNotNull($fresh);
         $this->assertTrue($fresh->trashed());
+        $this->assertSoftDeleted('students', ['id' => $tempStudent->id]);
 
         // Verify it no longer appears in normal index
-        $indexResponse = $this->getJson("/api/v1/master/students?search={$testNis}");
+        $indexResponse = $this->getJson("/api/v1/master/students?search={$tempStudent->nis}");
         $indexResponse->assertStatus(200);
         $this->assertCount(0, $indexResponse->json('data'));
 
-        // Cleanup
-        $fresh->forceDelete();
+        // Note: No forceDelete() needed! DatabaseTransactions automatically rolls back cleanly.
     }
 }

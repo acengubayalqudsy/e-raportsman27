@@ -3,13 +3,17 @@ import { Link, useLocation } from 'react-router-dom'
 import Icon from '../common/Icon.jsx'
 import sman27Logo from '../../assets/logo/sman-27-garut-logo.png'
 import { navItems } from '../../data/navigation.js'
+import { useAuth } from '../../auth/AuthContext.jsx'
+import { canAccessModule } from '../../constants/roles.js'
 
 function Sidebar({ collapsed, onNavigate }) {
   const location = useLocation()
+  const { roles } = useAuth()
+  const visibleNavItems = navItems.filter((item) => canAccessModule(roles, item.key))
 
   // Helper to determine the active section key based on pathname
   const getActiveSectionKey = (pathname) => {
-    const matched = navItems.find((item) => {
+    const matched = visibleNavItems.find((item) => {
       if (item.basePath) {
         return pathname.startsWith(item.basePath)
       }
@@ -22,7 +26,7 @@ function Sidebar({ collapsed, onNavigate }) {
   // Initialize expanded menu to the active section on initial load if it has children
   const [expandedMenu, setExpandedMenu] = useState(() => {
     const activeKey = getActiveSectionKey(location.pathname)
-    const activeItem = navItems.find((item) => item.key === activeKey)
+    const activeItem = visibleNavItems.find((item) => item.key === activeKey)
     return activeItem?.children && activeItem.children.length > 0 ? activeKey : null
   })
 
@@ -32,7 +36,7 @@ function Sidebar({ collapsed, onNavigate }) {
     const prevSectionKey = getActiveSectionKey(prevPathname)
     const currentSectionKey = getActiveSectionKey(location.pathname)
     if (currentSectionKey !== prevSectionKey) {
-      const currentItem = navItems.find((item) => item.key === currentSectionKey)
+      const currentItem = visibleNavItems.find((item) => item.key === currentSectionKey)
       if (currentItem?.children && currentItem.children.length > 0) {
         setExpandedMenu(currentSectionKey)
       } else {
@@ -90,7 +94,7 @@ function Sidebar({ collapsed, onNavigate }) {
 
       <div className="sidebar-scroll">
         <nav className="side-nav" aria-label="Navigasi utama">
-          {navItems.map((item) => {
+          {visibleNavItems.map((item) => {
             const active = isItemActive(item)
             const hasChildren = item.children && item.children.length > 0
             const isExpanded = hasChildren && expandedMenu === item.key

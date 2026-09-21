@@ -1,14 +1,19 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import Button from '../common/Button.jsx'
 import Icon from '../common/Icon.jsx'
 import SearchInput from '../common/SearchInput.jsx'
 import {
   masterOptions,
   masterSchemas,
-  masterTeachers,
-  teacherSummary,
+  teacherSummary as defaultTeacherSummary,
 } from '../../data/masterData.js'
-import { MasterDetailModal, MasterEntityModal, MasterImportModal } from './MasterModals.jsx'
+import teacherService from '../../services/teacherService.js'
+import {
+  MasterDeleteModal,
+  MasterDetailModal,
+  MasterEntityModal,
+  MasterImportModal,
+} from './MasterModals.jsx'
 import MasterPagination from './MasterPagination.jsx'
 import MasterSummary from './MasterSummary.jsx'
 
@@ -20,8 +25,10 @@ const summarySparklines = [
   'M0 28 C7 18 12 22 19 15 C26 8 31 19 38 13 C44 7 48 5 52 9',
 ]
 
+// NIP is optional for honorer teachers in accordance with Phase 4 rules
 const teacherFormFields = masterSchemas.guru.formFields.map((field) => ({
   ...field,
+  required: field.key === 'nip' ? false : field.required,
   section: ['name', 'nip', 'nuptk', 'gender', 'birthPlace', 'birthDate'].includes(field.key)
     ? 'Identitas Guru'
     : ['phone', 'email', 'address'].includes(field.key)
@@ -44,31 +51,8 @@ const initialFilters = {
   subject: 'Semua Mata Pelajaran',
 }
 
-function formatBirth(place, dateValue) {
-  if (!dateValue) return place || '-'
-  const date = new Date(`${dateValue}T00:00:00`)
-  const formatted = new Intl.DateTimeFormat('id-ID', {
-    day: '2-digit',
-    month: 'short',
-    year: 'numeric',
-  }).format(date).replaceAll('.', '')
-
-  return `${place || 'Garut'}, ${formatted}`
-}
-
-function getInitials(name) {
-  return name
-    .replace(/,.*$/, '')
-    .split(' ')
-    .filter(Boolean)
-    .map((part) => part[0])
-    .slice(0, 2)
-    .join('')
-    .toUpperCase()
-}
-
 function formatPercentage(value, total) {
-  if (total === 0) return '0%'
+  if (!total || total === 0) return '0%'
 
   return `${new Intl.NumberFormat('id-ID', {
     minimumFractionDigits: 2,
@@ -81,33 +65,39 @@ function createDetailSections(teacher) {
     {
       title: 'Identitas Guru',
       items: [
-        { label: 'NIP', value: teacher.nip },
-        { label: 'NUPTK', value: teacher.nuptk },
-        { label: 'Tempat, Tanggal Lahir', value: teacher.birth },
-        { label: 'Jenis Kelamin', value: teacher.gender },
-        { label: 'Status', value: teacher.status },
+        { label: 'NIP', value: teacher.nip || '-' },
+        { label: 'NUPTK', value: teacher.nuptk || '-' },
+        { label: 'Tempat, Tanggal Lahir', value: teacher.birth || '-' },
+        { label: 'Jenis Kelamin', value: teacher.gender || '-' },
+        { label: 'Status', value: teacher.status || 'Aktif' },
       ],
     },
     {
       title: 'Kontak & Domisili',
       items: [
-        { label: 'Nomor Telepon', value: teacher.phone },
-        { label: 'Email', value: teacher.email },
-        { label: 'Alamat', value: teacher.address },
+        { label: 'Nomor Telepon', value: teacher.phone || '-' },
+        { label: 'Email', value: teacher.email || '-' },
+        { label: 'Alamat', value: teacher.address || '-' },
       ],
     },
     {
       title: 'Data Kepegawaian',
       items: [
-        { label: 'Status Kepegawaian', value: teacher.employmentStatus },
-        { label: 'Mata Pelajaran Utama', value: teacher.subject },
+        { label: 'Status Kepegawaian', value: teacher.employmentStatus || '-' },
+        { label: 'Mata Pelajaran Utama', value: teacher.subject || '-' },
+        { label: 'Jenis Ketenagaan', value: teacher.type || 'Guru' },
       ],
     },
   ]
 }
 
 function MasterTeacherView({ onNotify }) {
-  const [teachers, setTeachers] = useState(() => masterTeachers.map((teacher) => ({ ...teacher })))
+  const [teachers, setTeachers] = useState([])
+  const [stats, setStats] = useState(null)
+  const [meta, setMeta] = useState({ current_page: 1, last_page: 1, per_page: 8, total: 0 })
+  const [isLoading, setIsLoading] = useState(true)
+  const [fetchError, setFetchError] = useState(null)
+
   const [filters, setFilters] = useState(initialFilters)
   const [searchQuery, setSearchQuery] = useState('')
   const [currentPage, setCurrentPage] = useState(1)
@@ -116,50 +106,99 @@ function MasterTeacherView({ onNotify }) {
   const [openMenuId, setOpenMenuId] = useState(null)
   const [modal, setModal] = useState(null)
 
-  const filteredTeachers = useMemo(() => {
-    const query = searchQuery.trim().toLowerCase()
+  const [refreshTrigger, setRefreshTrigger] = useState(0)
 
-    return teachers.filter((teacher) => {
-      const matchesSearch = !query || [teacher.name, teacher.nip, teacher.nuptk]
-        .some((value) => String(value ?? '').toLowerCase().includes(query))
-      const matchesStatus = filters.status === 'Semua Status' || teacher.status === filters.status
-      const matchesGender = filters.gender === 'Semua' || teacher.gender === filters.gender
-      const matchesEmployment = filters.employmentStatus === 'Semua Kepegawaian'
-        || teacher.employmentStatus === filters.employmentStatus
-      const matchesSubject = filters.subject === 'Semua Mata Pelajaran' || teacher.subject === filters.subject
+  // 1. Fetch statistics from REST API
+  useEffect(() => {
+    let isMounted = true
 
-      return matchesSearch && matchesStatus && matchesGender && matchesEmployment && matchesSubject
-    })
-  }, [filters, searchQuery, teachers])
+    teacherService
+      .getTeacherStats()
+      .then((result) => {
+        if (!isMounted) return
+        if (result.success && result.data) {
+          setStats(result.data)
+        }
+      })
+      .catch(() => {
+        // Silently catch stats failure
+      })
 
+    return () => {
+      isMounted = false
+    }
+  }, [refreshTrigger])
+
+  // 2. Fetch paginated teachers list with search and filters from MariaDB
+  useEffect(() => {
+    let isMounted = true
+    const timeoutId = window.setTimeout(() => {
+      setIsLoading(true)
+
+      teacherService
+      .getTeachers({
+        page: currentPage,
+        per_page: rowsPerPage,
+        search: searchQuery,
+        status: filters.status,
+        gender: filters.gender,
+        employmentStatus: filters.employmentStatus,
+        subject: filters.subject,
+      })
+      .then((result) => {
+        if (!isMounted) return
+        if (result.success) {
+          setTeachers(result.data)
+          setMeta(result.meta)
+          setFetchError(null)
+        } else {
+          setFetchError(result.error || 'Gagal memuat data guru dari server.')
+        }
+        setIsLoading(false)
+      })
+      .catch(() => {
+        if (!isMounted) return
+        setFetchError('Terjadi kegagalan jaringan saat menghubungi server backend.')
+        setIsLoading(false)
+      })
+    }, 0)
+
+    return () => {
+      isMounted = false
+      window.clearTimeout(timeoutId)
+    }
+  }, [currentPage, rowsPerPage, searchQuery, filters, refreshTrigger])
+
+  // Calculate live summary items from database stats
   const summaryItems = useMemo(() => {
-    const total = teachers.length
-    const counts = {
-      'Total Guru': total,
-      'Guru Aktif': teachers.filter((teacher) => teacher.status === 'Aktif').length,
-      'Laki-laki': teachers.filter((teacher) => teacher.gender === 'Laki-laki').length,
-      Perempuan: teachers.filter((teacher) => teacher.gender === 'Perempuan').length,
-      'Guru ASN': teachers.filter((teacher) => teacher.employmentStatus === 'ASN').length,
+    if (!stats) {
+      return defaultTeacherSummary.map((item, index) => ({
+        ...item,
+        value: '...',
+        sparkline: summarySparklines[index % summarySparklines.length],
+      }))
     }
 
-    return teacherSummary.map((item, index) => {
+    const total = stats.total || 0
+    const counts = {
+      'Total Guru': total,
+      'Guru Aktif': stats.active || 0,
+      'Laki-laki': stats.male || 0,
+      Perempuan: stats.female || 0,
+      'Guru ASN': stats.asn || 0,
+    }
+
+    return defaultTeacherSummary.map((item, index) => {
       const value = counts[item.title] ?? 0
       const caption = item.title === 'Total Guru' ? item.caption : formatPercentage(value, total)
       return {
         ...item,
         caption,
-        sparkline: summarySparklines[index],
+        sparkline: summarySparklines[index % summarySparklines.length],
         value: value.toLocaleString('id-ID'),
       }
     })
-  }, [teachers])
-
-  const totalPages = Math.max(1, Math.ceil(filteredTeachers.length / rowsPerPage))
-  const safePage = Math.min(currentPage, totalPages)
-  const startIndex = (safePage - 1) * rowsPerPage
-  const visibleTeachers = filteredTeachers.slice(startIndex, startIndex + rowsPerPage)
-  const allVisibleSelected = visibleTeachers.length > 0
-    && visibleTeachers.every((teacher) => selectedRows.has(teacher.id))
+  }, [stats])
 
   const updateFilter = (key, value) => {
     setFilters((current) => ({ ...current, [key]: value }))
@@ -175,10 +214,12 @@ function MasterTeacherView({ onNotify }) {
     })
   }
 
+  const allVisibleSelected = teachers.length > 0 && teachers.every((teacher) => selectedRows.has(teacher.id))
+
   const toggleVisibleTeachers = () => {
     setSelectedRows((current) => {
       const next = new Set(current)
-      visibleTeachers.forEach((teacher) => {
+      teachers.forEach((teacher) => {
         if (allVisibleSelected) next.delete(teacher.id)
         else next.add(teacher.id)
       })
@@ -196,48 +237,64 @@ function MasterTeacherView({ onNotify }) {
     setModal({ type: 'edit', teacher })
   }
 
-  const saveTeacher = (formData) => {
+  const openDelete = (teacher) => {
+    setOpenMenuId(null)
+    setModal({ type: 'delete', teacher })
+  }
+
+  // Create or Update teacher
+  const saveTeacher = async (formData) => {
     const source = modal?.teacher
-    const name = formData.name.trim()
-    const nextTeacher = {
-      ...(source ?? {}),
-      ...formData,
-      id: source?.id ?? Math.max(0, ...teachers.map((teacher) => teacher.id)) + 1,
-      name,
-      avatar: getInitials(name),
-      birth: formatBirth(formData.birthPlace, formData.birthDate),
-      gender: formData.gender || source?.gender || 'Laki-laki',
-      genderCode: (formData.gender || source?.gender) === 'Perempuan' ? 'P' : 'L',
-      employmentStatus: formData.employmentStatus || source?.employmentStatus || 'ASN',
-      subject: formData.subject || source?.subject || masterOptions.subjects[0],
-      status: formData.status || source?.status || 'Aktif',
+    if (source) {
+      const result = await teacherService.updateTeacher(source.id, formData)
+      if (!result.success) {
+        return result
+      }
+      setModal(null)
+      onNotify(`Data guru ${result.data?.name || formData.name} berhasil diperbarui di database.`)
+      setRefreshTrigger((k) => k + 1)
+      return result
     }
 
-    setTeachers((current) => source
-      ? current.map((teacher) => teacher.id === source.id ? nextTeacher : teacher)
-      : [nextTeacher, ...current])
+    const result = await teacherService.createTeacher(formData)
+    if (!result.success) {
+      return result
+    }
     setModal(null)
+    onNotify(`Guru baru ${result.data?.name || formData.name} berhasil ditambahkan ke database.`)
     setCurrentPage(1)
-    onNotify(`Data ${nextTeacher.name} berhasil ${source ? 'diperbarui' : 'ditambahkan'}.`)
+    setRefreshTrigger((k) => k + 1)
+    return result
   }
 
-  const toggleTeacherStatus = (teacher) => {
+  // Confirm soft delete teacher
+  const confirmDelete = async (teacher) => {
+    const result = await teacherService.deleteTeacher(teacher.id)
+    if (result.success) {
+      setModal(null)
+      onNotify(`Data guru ${teacher.name} berhasil dihapus dari sistem.`)
+      setRefreshTrigger((k) => k + 1)
+    } else {
+      onNotify(`Gagal menghapus data guru: ${result.error}`)
+    }
+  }
+
+  // Toggle active/inactive status
+  const toggleTeacherStatus = async (teacher) => {
     const nextStatus = teacher.status === 'Aktif' ? 'Tidak Aktif' : 'Aktif'
-    setTeachers((current) => current.map((item) => (
-      item.id === teacher.id ? { ...item, status: nextStatus } : item
-    )))
     setOpenMenuId(null)
-    onNotify(`Status ${teacher.name} diubah menjadi ${nextStatus}.`)
-  }
 
-  const changeBulkStatus = () => {
-    setTeachers((current) => current.map((teacher) => (
-      selectedRows.has(teacher.id)
-        ? { ...teacher, status: teacher.status === 'Aktif' ? 'Tidak Aktif' : 'Aktif' }
-        : teacher
-    )))
-    onNotify(`Status ${selectedRows.size} data guru berhasil diperbarui.`)
-    setSelectedRows(new Set())
+    const result = await teacherService.updateTeacher(teacher.id, {
+      ...teacher,
+      status: nextStatus,
+    })
+
+    if (result.success) {
+      onNotify(`Status ${teacher.name} diubah menjadi ${nextStatus}.`)
+      setRefreshTrigger((k) => k + 1)
+    } else {
+      onNotify(`Gagal mengubah status: ${result.error}`)
+    }
   }
 
   return (
@@ -303,7 +360,6 @@ function MasterTeacherView({ onNotify }) {
           <div className="master-bulk-toolbar">
             <strong>{selectedRows.size} guru dipilih</strong>
             <span>
-              <button onClick={changeBulkStatus} type="button">Ubah Status</button>
               <button
                 onClick={() => onNotify(`${selectedRows.size} data guru siap diekspor.`)}
                 type="button"
@@ -315,7 +371,28 @@ function MasterTeacherView({ onNotify }) {
           </div>
         )}
 
-        <div className="master-table-heading"><h3>Daftar Guru</h3></div>
+        {fetchError && (
+          <div className="master-fetch-error-banner" role="alert">
+            <Icon name="info" />
+            <div className="master-fetch-error-content">
+              <strong>Gagal Memuat Data</strong>
+              <p>{fetchError}</p>
+            </div>
+            <Button
+              className="master-button secondary"
+              onClick={() => setRefreshTrigger((k) => k + 1)}
+              type="button"
+            >
+              <Icon name="refresh" />
+              Coba Lagi
+            </Button>
+          </div>
+        )}
+
+        <div className="master-table-heading">
+          <h3>Daftar Guru ({meta.total} Total)</h3>
+        </div>
+
         <div className="master-table-scroll">
           <table className="master-teacher-table">
             <thead>
@@ -339,7 +416,15 @@ function MasterTeacherView({ onNotify }) {
               </tr>
             </thead>
             <tbody>
-              {visibleTeachers.length === 0 ? (
+              {isLoading ? (
+                <tr>
+                  <td className="master-empty-row" colSpan="9">
+                    <div style={{ display: 'inline-block', width: '20px', height: '20px', border: '2px solid #e2e8f0', borderTopColor: '#0284c7', borderRadius: '50%', animation: 'spin 0.8s linear infinite', marginBottom: '8px' }} />
+                    <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
+                    <p style={{ color: '#64748b' }}>Memuat data guru dari database...</p>
+                  </td>
+                </tr>
+              ) : teachers.length === 0 ? (
                 <tr>
                   <td className="master-empty-row" colSpan="9">
                     <Icon name="search" />
@@ -347,82 +432,102 @@ function MasterTeacherView({ onNotify }) {
                     <span>Coba ubah filter atau kata pencarian.</span>
                   </td>
                 </tr>
-              ) : visibleTeachers.map((teacher, index) => (
-                <tr key={teacher.id}>
-                  <td>
-                    <input
-                      aria-label={`Pilih ${teacher.name}`}
-                      checked={selectedRows.has(teacher.id)}
-                      onChange={() => toggleTeacher(teacher.id)}
-                      type="checkbox"
-                    />
-                  </td>
-                  <td>{startIndex + index + 1}</td>
-                  <td className="master-name-cell">{teacher.name}</td>
-                  <td className="master-nip-cell">
-                    <strong>{teacher.nip}</strong>
-                    <small>{teacher.nuptk}</small>
-                  </td>
-                  <td>
-                    <span className={`master-gender ${teacher.genderCode === 'P' ? 'female' : 'male'}`}>
-                      {teacher.genderCode}
-                    </span>
-                  </td>
-                  <td>{teacher.subject}</td>
-                  <td>
-                    <span className={`master-employment-status ${teacher.employmentStatus.toLowerCase()}`}>
-                      {teacher.employmentStatus}
-                    </span>
-                  </td>
-                  <td>
-                    <span className={`master-data-status ${teacher.status.toLowerCase().replaceAll(' ', '-')}`}>
-                      {teacher.status}
-                    </span>
-                  </td>
-                  <td>
-                    <div className="master-row-actions">
-                      <button aria-label={`Lihat ${teacher.name}`} onClick={() => openDetail(teacher)} type="button">
-                        <Icon name="eye" />
-                      </button>
-                      <button aria-label={`Edit ${teacher.name}`} onClick={() => openEdit(teacher)} type="button">
-                        <Icon name="edit" />
-                      </button>
-                      <span>
-                        <button
-                          aria-label={`Aksi lainnya ${teacher.name}`}
-                          onClick={() => setOpenMenuId((current) => current === teacher.id ? null : teacher.id)}
-                          type="button"
-                        >
-                          <Icon name="more" />
-                        </button>
-                        {openMenuId === teacher.id && (
-                          <span className="master-action-menu">
-                            <button onClick={() => openDetail(teacher)} type="button">Lihat Detail</button>
-                            <button onClick={() => openEdit(teacher)} type="button">Edit Data</button>
-                            <button onClick={() => toggleTeacherStatus(teacher)} type="button">
-                              {teacher.status === 'Aktif' ? 'Nonaktifkan' : 'Aktifkan'}
+              ) : (
+                teachers.map((teacher, index) => {
+                  const rowNumber = (meta.current_page - 1) * meta.per_page + index + 1
+                  const nipDisplay = teacher.nip && teacher.nip !== '-' ? teacher.nip : '-'
+                  const nuptkDisplay = teacher.nuptk && teacher.nuptk !== '-' ? teacher.nuptk : '-'
+                  const genderCode = teacher.gender_code || (teacher.gender === 'Perempuan' ? 'P' : 'L')
+                  const employmentClass = (teacher.employment_status || 'asn').toLowerCase()
+                  const statusClass = (teacher.status || 'aktif').toLowerCase().replaceAll(' ', '-')
+
+                  return (
+                    <tr key={teacher.id}>
+                      <td>
+                        <input
+                          aria-label={`Pilih ${teacher.name}`}
+                          checked={selectedRows.has(teacher.id)}
+                          onChange={() => toggleTeacher(teacher.id)}
+                          type="checkbox"
+                        />
+                      </td>
+                      <td>{rowNumber}</td>
+                      <td className="master-name-cell">
+                        <strong>{teacher.name}</strong>
+                      </td>
+                      <td className="master-nip-cell">
+                        <strong>{nipDisplay}</strong>
+                        <small>{nuptkDisplay}</small>
+                      </td>
+                      <td>
+                        <span className={`master-gender ${genderCode === 'P' ? 'female' : 'male'}`}>
+                          {genderCode}
+                        </span>
+                      </td>
+                      <td>{teacher.subject || '-'}</td>
+                      <td>
+                        <span className={`master-employment-status ${employmentClass}`}>
+                          {teacher.employment_status || '-'}
+                        </span>
+                      </td>
+                      <td>
+                        <span className={`master-data-status ${statusClass}`}>
+                          {teacher.status || 'Aktif'}
+                        </span>
+                      </td>
+                      <td>
+                        <div className="master-row-actions">
+                          <button aria-label={`Lihat ${teacher.name}`} onClick={() => openDetail(teacher)} type="button">
+                            <Icon name="eye" />
+                          </button>
+                          <button aria-label={`Edit ${teacher.name}`} onClick={() => openEdit(teacher)} type="button">
+                            <Icon name="edit" />
+                          </button>
+                          <span>
+                            <button
+                              aria-label={`Aksi lainnya ${teacher.name}`}
+                              onClick={() => setOpenMenuId((current) => current === teacher.id ? null : teacher.id)}
+                              type="button"
+                            >
+                              <Icon name="more" />
                             </button>
+                            {openMenuId === teacher.id && (
+                              <span className="master-action-menu">
+                                <button onClick={() => openDetail(teacher)} type="button">Lihat Detail</button>
+                                <button onClick={() => openEdit(teacher)} type="button">Edit Data</button>
+                                <button onClick={() => toggleTeacherStatus(teacher)} type="button">
+                                  {teacher.status === 'Aktif' ? 'Nonaktifkan' : 'Aktifkan'}
+                                </button>
+                                <button
+                                  onClick={() => openDelete(teacher)}
+                                  style={{ color: '#dc2626' }}
+                                  type="button"
+                                >
+                                  Hapus Data
+                                </button>
+                              </span>
+                            )}
                           </span>
-                        )}
-                      </span>
-                    </div>
-                  </td>
-                </tr>
-              ))}
+                        </div>
+                      </td>
+                    </tr>
+                  )
+                })
+              )}
             </tbody>
           </table>
         </div>
 
         <MasterPagination
-          currentPage={safePage}
+          currentPage={meta.current_page}
           onPageChange={setCurrentPage}
           onRowsPerPageChange={(value) => {
             setRowsPerPage(value)
             setCurrentPage(1)
           }}
-          rowsPerPage={rowsPerPage}
-          totalItems={filteredTeachers.length}
-          totalPages={totalPages}
+          rowsPerPage={meta.per_page}
+          totalItems={meta.total}
+          totalPages={meta.last_page}
         />
       </section>
 
@@ -436,6 +541,7 @@ function MasterTeacherView({ onNotify }) {
           }}
         />
       )}
+
       {['add', 'edit'].includes(modal?.type) && (
         <MasterEntityModal
           entityLabel="Guru"
@@ -446,6 +552,7 @@ function MasterTeacherView({ onNotify }) {
           onSave={saveTeacher}
         />
       )}
+
       {modal?.type === 'detail' && (
         <MasterDetailModal
           entityLabel="Guru"
@@ -453,6 +560,15 @@ function MasterTeacherView({ onNotify }) {
           onClose={() => setModal(null)}
           onEdit={() => setModal({ type: 'edit', teacher: modal.teacher })}
           sections={createDetailSections(modal.teacher)}
+        />
+      )}
+
+      {modal?.type === 'delete' && (
+        <MasterDeleteModal
+          entityLabel="Guru"
+          item={modal.teacher}
+          onClose={() => setModal(null)}
+          onConfirm={confirmDelete}
         />
       )}
     </>

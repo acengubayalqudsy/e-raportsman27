@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Models\Role;
+use App\Models\Teacher;
 use App\Models\User;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
@@ -66,6 +67,33 @@ class AuthTest extends TestCase
             ]);
 
         $this->assertAuthenticatedAs(User::where('username', 'dev_admin')->first());
+    }
+
+    public function test_linked_teacher_can_login_with_nip(): void
+    {
+        $user = User::where('username', 'dev_guru_walikelas')->firstOrFail();
+        $teacher = $user->teacher ?: Teacher::factory()->create(['user_id' => $user->id]);
+        $teacher->update(['nip' => '198001012005011099']);
+
+        $this->postJson('/api/v1/auth/login', [
+            'identifier' => '198001012005011099',
+            'password' => 'DevGuru@2026!',
+        ])->assertOk()
+            ->assertJsonPath('data.user.nip', '198001012005011099');
+    }
+
+    public function test_non_admin_school_roles_cannot_access_admin_master_data(): void
+    {
+        foreach (['walikelas', 'kepala_sekolah'] as $roleName) {
+            $role = Role::where('name', $roleName)->firstOrFail();
+            $user = User::factory()->create();
+            $user->roles()->attach($role->id, ['is_primary' => true]);
+
+            $this->actingAs($user)
+                ->getJson('/api/v1/master/students')
+                ->assertForbidden();
+
+        }
     }
 
     /**

@@ -16,6 +16,7 @@
 !/storage/logs/.gitignore
 /vendor
 .env
+.env.testing
 .env.backup
 .env.production
 .phpunit.result.cache

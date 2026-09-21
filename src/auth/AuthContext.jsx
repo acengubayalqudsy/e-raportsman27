@@ -33,6 +33,25 @@ function AuthProvider({ children }) {
   const [isAuthenticated, setIsAuthenticated] = useState(false)
   const [isAuthLoading, setIsAuthLoading] = useState(true)
   const [authError, setAuthError] = useState(null)
+  const [authorizationError, setAuthorizationError] = useState(null)
+
+  useEffect(() => {
+    const handleSessionExpired = () => {
+      setCurrentUser(null)
+      setIsAuthenticated(false)
+      setAuthError('Sesi Anda telah berakhir. Silakan masuk kembali.')
+    }
+    const handleForbidden = (event) => {
+      setAuthorizationError(event.detail?.message || 'Anda tidak memiliki izin untuk tindakan ini.')
+    }
+
+    window.addEventListener('auth:session-expired', handleSessionExpired)
+    window.addEventListener('auth:forbidden', handleForbidden)
+    return () => {
+      window.removeEventListener('auth:session-expired', handleSessionExpired)
+      window.removeEventListener('auth:forbidden', handleForbidden)
+    }
+  }, [])
 
   /**
    * Verify session validity with backend /api/v1/auth/me
@@ -40,6 +59,7 @@ function AuthProvider({ children }) {
   const checkAuth = useCallback(async () => {
     setIsAuthLoading(true)
     setAuthError(null)
+    setAuthorizationError(null)
 
     try {
       const response = await authApi.me()
@@ -146,6 +166,7 @@ function AuthProvider({ children }) {
       setCurrentUser(null)
       setIsAuthenticated(false)
       setAuthError(null)
+      setAuthorizationError(null)
     }
     return { success: true }
   }, [])
@@ -191,9 +212,11 @@ function AuthProvider({ children }) {
       forgotPassword,
       checkAuth,
       authError,
+      authorizationError,
     }),
     [
       authError,
+      authorizationError,
       checkAuth,
       currentUser,
       forgotPassword,

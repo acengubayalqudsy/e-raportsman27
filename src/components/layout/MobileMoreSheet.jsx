@@ -1,6 +1,7 @@
 import { useEffect } from 'react'
 import { Link, useLocation } from 'react-router-dom'
 import Icon from '../common/Icon.jsx'
+import { canAccessModule } from '../../constants/roles.js'
 
 const moreMenuItems = [
   {
@@ -47,7 +48,7 @@ const moreMenuItems = [
   },
 ]
 
-function MobileMoreSheet({ isOpen, onClose }) {
+function MobileMoreSheet({ isOpen, onClose, roles = [] }) {
   const location = useLocation()
 
   useEffect(() => {
@@ -97,7 +98,7 @@ function MobileMoreSheet({ isOpen, onClose }) {
         </div>
 
         <div className="mobile-sheet-grid">
-          {moreMenuItems.map((item) => {
+          {moreMenuItems.filter((item) => canAccessModule(roles, item.key)).map((item) => {
             const active = isRouteActive(item.route)
             return (
               <Link

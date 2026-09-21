@@ -1,39 +1,21 @@
-import { useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import Button from '../common/Button.jsx'
 import Icon from '../common/Icon.jsx'
 import SearchInput from '../common/SearchInput.jsx'
 import MasterPagination from '../master-data/MasterPagination.jsx'
 import {
   academicOptions,
-  homeroomAssignments,
-  rombelStudents,
   roomAssignments,
-  teacherAssignments,
 } from '../../data/akademik.js'
-import { masterStudents, masterTeachers } from '../../data/masterData.js'
 import AcademicModal from './AcademicModal.jsx'
 import AcademicSummary from './AcademicSummary.jsx'
-
-const defaultYear = academicOptions.academicYears.includes('2024/2025')
-  ? '2024/2025'
-  : academicOptions.academicYears[0]
-const defaultSemester = academicOptions.semesters.includes('Genap')
-  ? 'Genap'
-  : academicOptions.semesters[0]
-const defaultClass = academicOptions.classes.includes('X Merdeka 3')
-  ? 'X Merdeka 3'
-  : academicOptions.classes[0]
+import rombelService from '../../services/rombelService.js'
+import assignmentService from '../../services/assignmentService.js'
+import academicService from '../../services/academicService.js'
+import teacherService from '../../services/teacherService.js'
 
 function toStatusClass(value) {
   return String(value ?? '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '')
-}
-
-function getNextId(items) {
-  return Math.max(0, ...items.map((item) => Number(item.id) || 0)) + 1
-}
-
-function getTeacherRecord(name) {
-  return masterTeachers.find((teacher) => teacher.name.replace(/,\s*.+$/, '') === name)
 }
 
 function AcademicSearch({ ariaLabel, onChange, placeholder, value }) {
@@ -45,94 +27,19 @@ function AcademicSearch({ ariaLabel, onChange, placeholder, value }) {
   )
 }
 
-function AcademicField({ label, onChange, options, value }) {
+function AcademicField({ label, onChange, options, value, disabled = false }) {
   return (
     <label className="academic-field">
       <span>{label}</span>
-      <select onChange={onChange} value={value}>
-        {options.map((option) => <option key={option}>{option}</option>)}
+      <select disabled={disabled} onChange={onChange} value={value}>
+        {options.map((option) => {
+          const val = typeof option === 'object' ? option.value : option
+          const lbl = typeof option === 'object' ? option.label : option
+          return <option key={val} value={val}>{lbl}</option>
+        })}
       </select>
     </label>
   )
-}
-
-function AcademicEntityModal({
-  description,
-  fields,
-  initialData = {},
-  onClose,
-  onSave,
-  submitLabel = 'Simpan Data',
-  title,
-  warning,
-}) {
-  const [formData, setFormData] = useState(() => Object.fromEntries(
-    fields.map((field) => [field.key, initialData[field.key] ?? field.defaultValue ?? '']),
-  ))
-
-  const submit = (event) => {
-    event.preventDefault()
-    onSave(formData)
-  }
-
-  return (
-    <AcademicModal description={description} onClose={onClose} title={title}>
-      <form className="academic-entity-form" onSubmit={submit}>
-        <div className="academic-form-grid">
-          {fields.map((field) => (
-            <label className={field.fullWidth ? 'full-width' : ''} key={field.key}>
-              <span>{field.label}{field.required && <b>*</b>}</span>
-              {field.type === 'select' ? (
-                <select
-                  required={field.required}
-                  value={formData[field.key]}
-                  onChange={(event) => setFormData((current) => ({ ...current, [field.key]: event.target.value }))}
-                >
-                  <option value="">Pilih {field.label}</option>
-                  {(field.options ?? []).map((option) => <option key={option}>{option}</option>)}
-                </select>
-              ) : (
-                <input
-                  min={field.type === 'number' ? 1 : undefined}
-                  required={field.required}
-                  type={field.type ?? 'text'}
-                  value={formData[field.key]}
-                  onChange={(event) => setFormData((current) => ({ ...current, [field.key]: event.target.value }))}
-                />
-              )}
-            </label>
-          ))}
-        </div>
-        {warning && <div className="academic-conflict-alert"><Icon name="info" /><span><strong>Bentrok Ruangan</strong>{warning}</span></div>}
-        <footer>
-          <Button className="academic-button secondary" onClick={onClose}>Batal</Button>
-          <Button className="academic-button primary" type="submit"><Icon name="save" />{submitLabel}</Button>
-        </footer>
-      </form>
-    </AcademicModal>
-  )
-}
-
-function useAcademicPagination(items) {
-  const [currentPage, setCurrentPage] = useState(1)
-  const [rowsPerPage, setRowsPerPage] = useState(8)
-  const totalPages = Math.max(1, Math.ceil(items.length / rowsPerPage))
-  const safePage = Math.min(currentPage, totalPages)
-  const startIndex = (safePage - 1) * rowsPerPage
-
-  return {
-    currentPage: safePage,
-    pageItems: items.slice(startIndex, startIndex + rowsPerPage),
-    resetPage: () => setCurrentPage(1),
-    rowsPerPage,
-    setCurrentPage,
-    setRowsPerPage: (value) => {
-      setRowsPerPage(value)
-      setCurrentPage(1)
-    },
-    startIndex,
-    totalPages,
-  }
 }
 
 function PaginationFooter({ itemLabel, pagination, totalItems }) {
@@ -149,71 +56,300 @@ function PaginationFooter({ itemLabel, pagination, totalItems }) {
   )
 }
 
+// =============================================================================
+// 1. ACADEMIC ROMBEL VIEW (Keanggotaan Rombel per Semester)
+// =============================================================================
 export function AcademicRombelView({ onNotify }) {
-  const [members, setMembers] = useState(() => rombelStudents.map((student) => ({ ...student })))
-  const [filters, setFilters] = useState({
-    academicYear: defaultYear,
-    semester: defaultSemester,
-    grade: 'X',
-    className: defaultClass,
-  })
+  const [years, setYears] = useState([])
+  const [semesters, setSemesters] = useState([])
+  const [classes, setClasses] = useState([])
+  const [loadingRefs, setLoadingRefs] = useState(true)
+
+  const [selectedYearId, setSelectedYearId] = useState('')
+  const [selectedSemesterId, setSelectedSemesterId] = useState('')
+  const [selectedGrade, setSelectedGrade] = useState('X')
+  const [selectedClassId, setSelectedClassId] = useState('')
   const [searchQuery, setSearchQuery] = useState('')
+
+  const [members, setMembers] = useState([])
+  const [loadingMembers, setLoadingMembers] = useState(false)
+  const [currentPage, setCurrentPage] = useState(1)
+  const [rowsPerPage, setRowsPerPage] = useState(10)
+  const [totalItems, setTotalItems] = useState(0)
+  const [stats, setStats] = useState(null)
+
+  // Modals state
   const [addOpen, setAddOpen] = useState(false)
+  const [availableStudents, setAvailableStudents] = useState([])
+  const [selectedStudentId, setSelectedStudentId] = useState('')
+  const [joinDate, setJoinDate] = useState(new Date().toISOString().split('T')[0])
+  const [addNotes, setAddNotes] = useState('')
+  const [modalSubmitting, setModalSubmitting] = useState(false)
+  const [modalError, setModalError] = useState('')
 
-  const contextMembers = useMemo(() => members.filter((student) => (
-    student.academicYear === filters.academicYear
-      && student.semester === filters.semester
-      && student.className === filters.className
-  )), [filters.academicYear, filters.className, filters.semester, members])
+  // Transfer modal
+  const [transferTarget, setTransferTarget] = useState(null)
+  const [targetClassId, setTargetClassId] = useState('')
+  const [transferDate, setTransferDate] = useState(new Date().toISOString().split('T')[0])
+  const [transferReason, setTransferReason] = useState('')
 
-  const filteredMembers = useMemo(() => {
-    const query = searchQuery.trim().toLowerCase()
-    return contextMembers.filter((student) => !query || [student.nis, student.nisn, student.name]
-      .some((value) => String(value ?? '').toLowerCase().includes(query)))
-  }, [contextMembers, searchQuery])
-  const availableStudents = useMemo(() => {
-    const memberIds = new Set(members.map((student) => student.studentId))
-    return masterStudents.filter((student) => student.status === 'Aktif' && !memberIds.has(student.id))
-  }, [members])
+  // Sync modal
+  const [syncOpen, setSyncOpen] = useState(false)
+  const [syncPreview, setSyncPreview] = useState(null)
+  const [syncLoading, setSyncLoading] = useState(false)
 
-  const pagination = useAcademicPagination(filteredMembers)
-  const updateFilter = (key, value) => {
-    setFilters((current) => key === 'grade'
-      ? {
-          ...current,
-          grade: value,
-          className: academicOptions.classes.find((name) => name.split(' ')[0] === value) ?? current.className,
+  // 1. Fetch reference data
+  useEffect(() => {
+    let mounted = true
+    async function loadRefs() {
+      try {
+        const [yrRes, semRes, clsRes] = await Promise.all([
+          academicService.getAcademicYears({ per_page: 50 }),
+          academicService.getSemesters({ per_page: 50 }),
+          academicService.getClasses({ per_page: 100 }),
+        ])
+
+        if (!mounted) return
+        const yrList = yrRes.success ? yrRes.data : []
+        const semList = semRes.success ? semRes.data : []
+        const clsList = clsRes.success ? clsRes.data : []
+
+        setYears(yrList)
+        setSemesters(semList)
+        setClasses(clsList)
+
+        // Select defaults
+        const activeYr = yrList.find((y) => y.status === 'Aktif') || yrList[0]
+        if (activeYr) {
+          setSelectedYearId(String(activeYr.id))
+          const activeSem = semList.find((s) => s.academic_year_id === activeYr.id && s.status === 'Aktif')
+            || semList.find((s) => s.academic_year_id === activeYr.id)
+            || semList[0]
+          if (activeSem) setSelectedSemesterId(String(activeSem.id))
+
+          const firstClass = clsList.find((c) => c.academic_year_id === activeYr.id && c.grade === 'X')
+            || clsList.find((c) => c.grade === 'X')
+            || clsList[0]
+          if (firstClass) setSelectedClassId(String(firstClass.id))
         }
-      : { ...current, [key]: value })
-    pagination.resetPage()
-  }
-
-  const addMember = (formData) => {
-    const student = availableStudents.find((item) => item.name === formData.studentName)
-    if (!student) return
-    const next = {
-      id: getNextId(members),
-      membershipId: `RMB-${String(getNextId(members)).padStart(3, '0')}`,
-      studentId: student.id,
-      nis: student.nis,
-      nisn: student.nisn,
-      name: student.name,
-      gender: student.gender,
-      genderCode: student.genderCode,
-      status: 'Aktif',
-      className: filters.className,
-      academicYear: filters.academicYear,
-      semester: filters.semester,
+      } catch (err) {
+        console.error('Failed to load academic refs', err)
+      } finally {
+        if (mounted) setLoadingRefs(false)
+      }
     }
-    setMembers((current) => [next, ...current])
-    setAddOpen(false)
-    pagination.resetPage()
-    onNotify(`${next.name} berhasil ditambahkan ke ${filters.className}.`)
+    loadRefs()
+    return () => { mounted = false }
+  }, [])
+
+  // Filtered lists for dropdowns
+  const availableSemesters = useMemo(() => {
+    if (!selectedYearId) return semesters
+    return semesters.filter((s) => String(s.academic_year_id) === String(selectedYearId))
+  }, [semesters, selectedYearId])
+
+  const availableClasses = useMemo(() => {
+    return classes.filter((c) => {
+      const matchYear = !selectedYearId || String(c.academic_year_id) === String(selectedYearId)
+      const matchGrade = !selectedGrade || c.grade === selectedGrade
+      return matchYear && matchGrade
+    })
+  }, [classes, selectedYearId, selectedGrade])
+
+  const selectedClassObj = useMemo(() => {
+    return classes.find((c) => String(c.id) === String(selectedClassId))
+  }, [classes, selectedClassId])
+
+  // 2. Fetch Members & Stats
+  const loadMembers = useCallback(async () => {
+    if (!selectedClassId || !selectedSemesterId) return
+    setLoadingMembers(true)
+    try {
+      const [res, statsRes] = await Promise.all([
+        rombelService.getMembers({
+          class_id: selectedClassId,
+          semester_id: selectedSemesterId,
+          search: searchQuery,
+          page: currentPage,
+          per_page: rowsPerPage,
+        }),
+        rombelService.getStats({
+          academic_year_id: selectedYearId,
+          semester_id: selectedSemesterId,
+        }),
+      ])
+
+      if (res.success) {
+        setMembers(res.data)
+        setTotalItems(res.meta?.total || res.data.length)
+      } else {
+        setMembers([])
+        setTotalItems(0)
+      }
+
+      if (statsRes.success) {
+        setStats(statsRes.data)
+      }
+    } catch (err) {
+      console.error('Error fetching rombel members:', err)
+      setMembers([])
+    } finally {
+      setLoadingMembers(false)
+    }
+  }, [selectedClassId, selectedSemesterId, selectedYearId, searchQuery, currentPage, rowsPerPage])
+
+  useEffect(() => {
+    const timeoutId = window.setTimeout(() => void loadMembers(), 0)
+    return () => window.clearTimeout(timeoutId)
+  }, [loadMembers])
+
+  // Open Add Student Modal
+  const handleOpenAdd = async () => {
+    setModalError('')
+    setSelectedStudentId('')
+    setAddNotes('')
+    setAddOpen(true)
+    try {
+      const res = await rombelService.getAvailableStudents({
+        semester_id: selectedSemesterId,
+        limit: 100,
+      })
+      if (res.success) {
+        setAvailableStudents(res.data)
+      }
+    } catch (err) {
+      console.error('Error fetching available students:', err)
+    }
   }
 
-  const removeMember = (student) => {
-    setMembers((current) => current.filter((item) => item.id !== student.id))
-    onNotify(`${student.name} dikeluarkan dari ${filters.className} pada local state.`)
+  // Submit Add Student
+  const handleAddSubmit = async (e) => {
+    e.preventDefault()
+    if (!selectedStudentId) {
+      setModalError('Pilih siswa yang akan didaftarkan.')
+      return
+    }
+    setModalSubmitting(true)
+    setModalError('')
+
+    const res = await rombelService.enrollMembers({
+      semester_id: Number(selectedSemesterId),
+      class_id: Number(selectedClassId),
+      student_ids: [Number(selectedStudentId)],
+      join_date: joinDate,
+      notes: addNotes,
+    })
+
+    setModalSubmitting(false)
+    if (res.success) {
+      setAddOpen(false)
+      onNotify(res.message || 'Siswa berhasil ditambahkan ke rombel.')
+      loadMembers()
+    } else {
+      setModalError(res.message || 'Gagal mendaftarkan siswa.')
+    }
+  }
+
+  // Open Transfer Modal
+  const handleOpenTransfer = (member) => {
+    setTransferTarget(member)
+    setTargetClassId('')
+    setTransferDate(new Date().toISOString().split('T')[0])
+    setTransferReason('')
+    setModalError('')
+  }
+
+  // Submit Transfer
+  const handleTransferSubmit = async (e) => {
+    e.preventDefault()
+    if (!targetClassId) {
+      setModalError('Pilih rombel tujuan mutasi.')
+      return
+    }
+    if (String(targetClassId) === String(selectedClassId)) {
+      setModalError('Rombel tujuan tidak boleh sama dengan rombel asal.')
+      return
+    }
+
+    setModalSubmitting(true)
+    setModalError('')
+
+    const res = await rombelService.transferMember(transferTarget.id, {
+      target_class_id: Number(targetClassId),
+      transfer_date: transferDate,
+      reason: transferReason,
+    })
+
+    setModalSubmitting(false)
+    if (res.success) {
+      setTransferTarget(null)
+      onNotify(res.message || 'Siswa berhasil dimutasi ke rombel tujuan.')
+      loadMembers()
+    } else {
+      setModalError(res.message || 'Gagal memutasi siswa.')
+    }
+  }
+
+  // Remove member
+  const handleRemoveMember = async (member) => {
+    const studentName = member.student?.name || 'Siswa'
+    if (!window.confirm(`Yakin ingin mengeluarkan ${studentName} dari rombel ini?`)) {
+      return
+    }
+    const res = await rombelService.removeMember(member.id)
+    if (res.success) {
+      onNotify(res.message || `${studentName} berhasil dikeluarkan dari rombel.`)
+      loadMembers()
+    } else {
+      alert(res.message || 'Gagal mengeluarkan siswa.')
+    }
+  }
+
+  // Open Sync Preview
+  const handleOpenSync = async () => {
+    setSyncOpen(true)
+    setSyncLoading(true)
+    try {
+      const res = await rombelService.getSyncPreview(selectedSemesterId)
+      if (res.success) {
+        setSyncPreview(res.data)
+      } else {
+        setSyncPreview(null)
+      }
+    } catch (err) {
+      console.error('Error loading sync preview:', err)
+    } finally {
+      setSyncLoading(false)
+    }
+  }
+
+  // Commit Sync
+  const handleCommitSync = async () => {
+    setSyncLoading(true)
+    try {
+      const res = await rombelService.commitSync(selectedSemesterId)
+      if (res.success) {
+        setSyncOpen(false)
+        onNotify(res.message || 'Sinkronisasi rombel ke data siswa berhasil.')
+        loadMembers()
+      } else {
+        alert(res.message || 'Gagal mengeksekusi sinkronisasi.')
+      }
+    } catch (err) {
+      console.error('Error executing sync:', err)
+      alert('Terjadi kesalahan saat sinkronisasi.')
+    } finally {
+      setSyncLoading(false)
+    }
+  }
+
+  const totalPages = Math.max(1, Math.ceil(totalItems / rowsPerPage))
+  const pagination = {
+    currentPage,
+    rowsPerPage,
+    totalPages,
+    setCurrentPage,
+    setRowsPerPage: (val) => { setRowsPerPage(val); setCurrentPage(1) },
   }
 
   return (
@@ -221,84 +357,1054 @@ export function AcademicRombelView({ onNotify }) {
       <section className="academic-workspace">
         <div className="academic-toolbar">
           <div className="academic-filter-grid four-fields">
-            <AcademicField label="Tahun Ajaran" onChange={(event) => updateFilter('academicYear', event.target.value)} options={academicOptions.academicYears} value={filters.academicYear} />
-            <AcademicField label="Semester" onChange={(event) => updateFilter('semester', event.target.value)} options={academicOptions.semesters} value={filters.semester} />
-            <AcademicField label="Tingkat" onChange={(event) => updateFilter('grade', event.target.value)} options={academicOptions.grades} value={filters.grade} />
-            <AcademicField label="Kelas" onChange={(event) => updateFilter('className', event.target.value)} options={academicOptions.classes.filter((name) => name.split(' ')[0] === filters.grade)} value={filters.className} />
+            <AcademicField
+              disabled={loadingRefs}
+              label="Tahun Ajaran"
+              onChange={(e) => {
+                setSelectedYearId(e.target.value)
+                setCurrentPage(1)
+              }}
+              options={years.map((y) => ({ value: String(y.id), label: `${y.name} (${y.status})` }))}
+              value={selectedYearId}
+            />
+            <AcademicField
+              disabled={loadingRefs}
+              label="Semester"
+              onChange={(e) => {
+                setSelectedSemesterId(e.target.value)
+                setCurrentPage(1)
+              }}
+              options={availableSemesters.map((s) => ({ value: String(s.id), label: `${s.name} (${s.status})` }))}
+              value={selectedSemesterId}
+            />
+            <AcademicField
+              label="Tingkat"
+              onChange={(e) => {
+                setSelectedGrade(e.target.value)
+                const matched = classes.find((c) => String(c.academic_year_id) === String(selectedYearId) && c.grade === e.target.value)
+                if (matched) setSelectedClassId(String(matched.id))
+                setCurrentPage(1)
+              }}
+              options={['X', 'XI', 'XII']}
+              value={selectedGrade}
+            />
+            <AcademicField
+              disabled={loadingRefs}
+              label="Kelas / Rombel"
+              onChange={(e) => {
+                setSelectedClassId(e.target.value)
+                setCurrentPage(1)
+              }}
+              options={availableClasses.map((c) => ({ value: String(c.id), label: `${c.name} (Kapasitas: ${c.capacity})` }))}
+              value={selectedClassId}
+            />
           </div>
-          <AcademicSearch ariaLabel="Cari siswa" onChange={(event) => { setSearchQuery(event.target.value); pagination.resetPage() }} placeholder="Cari siswa (NIS/Nama)..." value={searchQuery} />
+          <AcademicSearch
+            ariaLabel="Cari siswa"
+            onChange={(e) => { setSearchQuery(e.target.value); setCurrentPage(1) }}
+            placeholder="Cari siswa (NIS/Nama)..."
+            value={searchQuery}
+          />
         </div>
 
         <div className="academic-actions">
-          <div className="academic-context-title"><span><Icon name="users" /></span><div><h3>{filters.className}</h3><p>{contextMembers.length} siswa &middot; {filters.academicYear} &middot; Semester {filters.semester}</p></div></div>
-          <Button className="academic-button primary" onClick={() => setAddOpen(true)}><Icon name="plus" />Kelola Anggota Rombel</Button>
+          <div className="academic-context-title">
+            <span><Icon name="users" /></span>
+            <div>
+              <h3>{selectedClassObj ? selectedClassObj.name : 'Rombongan Belajar'}</h3>
+              <p>
+                {stats?.total_members ?? totalItems} Siswa Terdaftar &middot; Kapasitas: {selectedClassObj?.capacity ?? 36}
+                {stats?.remaining_capacity !== undefined && ` (Sisa: ${stats.remaining_capacity})`}
+              </p>
+            </div>
+          </div>
+          <div style={{ display: 'flex', gap: '8px' }}>
+            <Button className="academic-button secondary" onClick={handleOpenSync} type="button">
+              <Icon name="refresh" /> Sinkronkan Data Siswa
+            </Button>
+            <Button className="academic-button primary" onClick={handleOpenAdd} type="button">
+              <Icon name="plus" /> Tambah Siswa ke Rombel
+            </Button>
+          </div>
         </div>
 
         <div className="academic-table-scroll">
           <table className="academic-table academic-rombel-table">
-            <thead><tr><th>No</th><th>NIS</th><th>Nama Siswa</th><th>JK</th><th>Status</th><th>Aksi</th></tr></thead>
-            <tbody>{pagination.pageItems.length === 0 ? (
-              <tr><td className="academic-empty-row" colSpan="6"><Icon name="search" /><strong>Data siswa tidak ditemukan</strong><span>Coba ubah kelas atau kata pencarian.</span></td></tr>
-            ) : pagination.pageItems.map((student, index) => (
-              <tr key={student.id}><td>{pagination.startIndex + index + 1}</td><td>{student.nis}</td><td className="academic-name-cell">{student.name}</td><td><span className={`academic-gender ${student.genderCode === 'P' ? 'female' : 'male'}`}>{student.genderCode}</span></td><td><span className={`academic-status ${toStatusClass(student.status)}`}>{student.status}</span></td><td><div className="academic-row-actions"><button aria-label={`Keluarkan ${student.name}`} onClick={() => removeMember(student)} type="button"><Icon name="reset" /></button></div></td></tr>
-            ))}</tbody>
+            <thead>
+              <tr>
+                <th>No</th>
+                <th>NIS</th>
+                <th>NISN</th>
+                <th>Nama Siswa</th>
+                <th>JK</th>
+                <th>Tgl Masuk</th>
+                <th>Status</th>
+                <th>Aksi</th>
+              </tr>
+            </thead>
+            <tbody>
+              {loadingMembers ? (
+                <tr>
+                  <td className="academic-empty-row" colSpan="8">
+                    <span>Memuat data anggota rombel...</span>
+                  </td>
+                </tr>
+              ) : members.length === 0 ? (
+                <tr>
+                  <td className="academic-empty-row" colSpan="8">
+                    <Icon name="search" />
+                    <strong>Data siswa tidak ditemukan</strong>
+                    <span>Belum ada siswa terdaftar di rombel ini atau hasil pencarian nihil.</span>
+                  </td>
+                </tr>
+              ) : members.map((member, index) => {
+                const s = member.student || {}
+                const genderCode = s.gender === 'L' || s.gender === 'Laki-laki' ? 'L' : 'P'
+                return (
+                  <tr key={member.id}>
+                    <td>{(currentPage - 1) * rowsPerPage + index + 1}</td>
+                    <td>{s.nis || '-'}</td>
+                    <td>{s.nisn || '-'}</td>
+                    <td className="academic-name-cell">
+                      <strong>{s.name}</strong>
+                      {member.notes && <small style={{ display: 'block', color: '#64748b' }}>{member.notes}</small>}
+                    </td>
+                    <td>
+                      <span className={`academic-gender ${genderCode === 'P' ? 'female' : 'male'}`}>
+                        {genderCode}
+                      </span>
+                    </td>
+                    <td>{member.join_date ? member.join_date.substring(0, 10) : '-'}</td>
+                    <td>
+                      <span className={`academic-status ${toStatusClass(member.status)}`}>
+                        {member.status}
+                      </span>
+                    </td>
+                    <td>
+                      <div className="academic-row-actions">
+                        <button
+                          aria-label={`Mutasi ${s.name}`}
+                          onClick={() => handleOpenTransfer(member)}
+                          title="Mutasi / Pindah Rombel"
+                          type="button"
+                        >
+                          <Icon name="edit" />
+                        </button>
+                        <button
+                          aria-label={`Keluarkan ${s.name}`}
+                          onClick={() => handleRemoveMember(member)}
+                          title="Keluarkan dari Rombel"
+                          type="button"
+                        >
+                          <Icon name="reset" />
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                )
+              })}
+            </tbody>
           </table>
         </div>
-        <PaginationFooter itemLabel="siswa" pagination={pagination} totalItems={filteredMembers.length} />
+        <PaginationFooter itemLabel="siswa" pagination={pagination} totalItems={totalItems} />
       </section>
 
-      {addOpen && <AcademicEntityModal description={`Pilih siswa dari Master Data untuk dimasukkan ke ${filters.className}.`} fields={[{ key: 'studentName', label: 'Siswa', type: 'select', options: availableStudents.map((student) => student.name), required: true, fullWidth: true }]} onClose={() => setAddOpen(false)} onSave={addMember} submitLabel="Tambah Siswa" title="Tambah Anggota Rombel" />}
+      {/* MODAL 1: TAMBAH SISWA KE ROMBEL */}
+      {addOpen && (
+        <AcademicModal
+          description={`Pilih siswa aktif yang belum terdaftar di semester ini untuk dimasukkan ke ${selectedClassObj?.name}.`}
+          onClose={() => setAddOpen(false)}
+          title="Tambah Anggota Rombel"
+        >
+          <form className="academic-entity-form" onSubmit={handleAddSubmit}>
+            <div className="academic-form-grid">
+              <label className="full-width">
+                <span>Pilih Siswa (Belum Terdaftar di Semester Ini)<b>*</b></span>
+                <select
+                  required
+                  value={selectedStudentId}
+                  onChange={(e) => setSelectedStudentId(e.target.value)}
+                >
+                  <option value="">-- Pilih Siswa --</option>
+                  {availableStudents.map((st) => (
+                    <option key={st.id} value={st.id}>
+                      {st.nis} - {st.name} ({st.gender === 'L' ? 'Laki-laki' : 'Perempuan'})
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label>
+                <span>Tanggal Masuk<b>*</b></span>
+                <input
+                  required
+                  type="date"
+                  value={joinDate}
+                  onChange={(e) => setJoinDate(e.target.value)}
+                />
+              </label>
+              <label>
+                <span>Catatan</span>
+                <input
+                  placeholder="Keterangan tambahan..."
+                  type="text"
+                  value={addNotes}
+                  onChange={(e) => setAddNotes(e.target.value)}
+                />
+              </label>
+            </div>
+            {modalError && (
+              <div className="academic-conflict-alert" style={{ background: '#fef2f2', borderColor: '#fca5a5', color: '#991b1b' }}>
+                <Icon name="info" />
+                <span>{modalError}</span>
+              </div>
+            )}
+            <footer>
+              <Button className="academic-button secondary" onClick={() => setAddOpen(false)} type="button">
+                Batal
+              </Button>
+              <Button className="academic-button primary" disabled={modalSubmitting} type="submit">
+                <Icon name="save" /> {modalSubmitting ? 'Menyimpan...' : 'Daftarkan Siswa'}
+              </Button>
+            </footer>
+          </form>
+        </AcademicModal>
+      )}
+
+      {/* MODAL 2: MUTASI SISWA */}
+      {transferTarget && (
+        <AcademicModal
+          description={`Pindahkan siswa ${transferTarget.student?.name} dari ${selectedClassObj?.name} ke rombel lain pada semester yang sama.`}
+          onClose={() => setTransferTarget(null)}
+          title="Mutasi / Pindah Rombel Siswa"
+        >
+          <form className="academic-entity-form" onSubmit={handleTransferSubmit}>
+            <div className="academic-form-grid">
+              <label className="full-width">
+                <span>Rombel Tujuan<b>*</b></span>
+                <select
+                  required
+                  value={targetClassId}
+                  onChange={(e) => setTargetClassId(e.target.value)}
+                >
+                  <option value="">-- Pilih Rombel Tujuan --</option>
+                  {classes
+                    .filter((c) => String(c.id) !== String(selectedClassId) && String(c.academic_year_id) === String(selectedYearId))
+                    .map((c) => (
+                      <option key={c.id} value={c.id}>
+                        {c.name} ({c.grade} - Kapasitas: {c.capacity})
+                      </option>
+                    ))}
+                </select>
+              </label>
+              <label>
+                <span>Tanggal Mutasi<b>*</b></span>
+                <input
+                  required
+                  type="date"
+                  value={transferDate}
+                  onChange={(e) => setTransferDate(e.target.value)}
+                />
+              </label>
+              <label>
+                <span>Alasan Mutasi</span>
+                <input
+                  placeholder="Contoh: Pindah peminatan / rekomendasi BK"
+                  type="text"
+                  value={transferReason}
+                  onChange={(e) => setTransferReason(e.target.value)}
+                />
+              </label>
+            </div>
+            {modalError && (
+              <div className="academic-conflict-alert" style={{ background: '#fef2f2', borderColor: '#fca5a5', color: '#991b1b' }}>
+                <Icon name="info" />
+                <span>{modalError}</span>
+              </div>
+            )}
+            <footer>
+              <Button className="academic-button secondary" onClick={() => setTransferTarget(null)} type="button">
+                Batal
+              </Button>
+              <Button className="academic-button primary" disabled={modalSubmitting} type="submit">
+                <Icon name="save" /> {modalSubmitting ? 'Memproses...' : 'Konfirmasi Mutasi'}
+              </Button>
+            </footer>
+          </form>
+        </AcademicModal>
+      )}
+
+      {/* MODAL 3: SINKRONISASI DATA SISWA PREVIEW */}
+      {syncOpen && (
+        <AcademicModal
+          description="Sinkronisasi memperbarui kolom 'current_class_name' pada Data Siswa sesuai rombel aktif semester ini."
+          onClose={() => setSyncOpen(false)}
+          title="Sinkronisasi Rombel ke Data Siswa"
+          wide
+        >
+          <div style={{ padding: '4px 0 16px' }}>
+            {syncLoading ? (
+              <p style={{ textAlign: 'center', padding: '24px 0', color: '#64748b' }}>
+                Memeriksa status sinkronisasi rombel...
+              </p>
+            ) : syncPreview ? (
+              <div>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '12px', marginBottom: '16px' }}>
+                  <div style={{ padding: '12px', background: '#f8fafc', borderRadius: '8px', border: '1px solid #e2e8f0', textAlign: 'center' }}>
+                    <span style={{ fontSize: '11px', color: '#64748b', textTransform: 'uppercase', fontWeight: 600 }}>Total Terdaftar</span>
+                    <h4 style={{ margin: '4px 0 0', fontSize: '20px', color: '#0f172a' }}>{syncPreview.total_members}</h4>
+                  </div>
+                  <div style={{ padding: '12px', background: '#f0fdf4', borderRadius: '8px', border: '1px solid #bbf7d0', textAlign: 'center' }}>
+                    <span style={{ fontSize: '11px', color: '#166534', textTransform: 'uppercase', fontWeight: 600 }}>Sudah Sinkron</span>
+                    <h4 style={{ margin: '4px 0 0', fontSize: '20px', color: '#15803d' }}>{syncPreview.in_sync}</h4>
+                  </div>
+                  <div style={{ padding: '12px', background: '#fffbeb', borderRadius: '8px', border: '1px solid #fef3c7', textAlign: 'center' }}>
+                    <span style={{ fontSize: '11px', color: '#92400e', textTransform: 'uppercase', fontWeight: 600 }}>Perlu Diperbarui</span>
+                    <h4 style={{ margin: '4px 0 0', fontSize: '20px', color: '#b45309' }}>{syncPreview.out_of_sync}</h4>
+                  </div>
+                </div>
+
+                {syncPreview.out_of_sync > 0 ? (
+                  <div>
+                    <p style={{ fontSize: '13px', color: '#334155', fontWeight: 600, marginBottom: '8px' }}>
+                      Daftar Siswa yang Akan Diperbarui:
+                    </p>
+                    <div style={{ maxHeight: '200px', overflowY: 'auto', border: '1px solid #e2e8f0', borderRadius: '6px' }}>
+                      <table className="academic-table" style={{ margin: 0, fontSize: '12px' }}>
+                        <thead>
+                          <tr>
+                            <th>NIS</th>
+                            <th>Nama Siswa</th>
+                            <th>Kelas Lama</th>
+                            <th>Kelas Baru (Rombel)</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {syncPreview.students_to_update?.map((row) => (
+                            <tr key={row.student_id}>
+                              <td>{row.nis}</td>
+                              <td>{row.name}</td>
+                              <td style={{ color: '#dc2626' }}>{row.current_class || 'Belum Ada'}</td>
+                              <td style={{ color: '#16a34a', fontWeight: 600 }}>{row.new_class}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                ) : (
+                  <p style={{ color: '#16a34a', fontWeight: 600, textAlign: 'center', padding: '16px 0' }}>
+                    Semua data siswa sudah sinkron dengan rombel semester aktif!
+                  </p>
+                )}
+              </div>
+            ) : (
+              <p style={{ color: '#ef4444', textAlign: 'center' }}>Gagal memuat pratinjau sinkronisasi.</p>
+            )}
+          </div>
+          <footer>
+            <Button className="academic-button secondary" onClick={() => setSyncOpen(false)} type="button">
+              Tutup
+            </Button>
+            {syncPreview?.out_of_sync > 0 && (
+              <Button
+                className="academic-button primary"
+                disabled={syncLoading}
+                onClick={handleCommitSync}
+                type="button"
+              >
+                <Icon name="refresh" /> {syncLoading ? 'Memproses...' : 'Eksekusi Sinkronisasi'}
+              </Button>
+            )}
+          </footer>
+        </AcademicModal>
+      )}
     </>
   )
 }
 
-export function AcademicTeacherAssignmentView({ onNotify }) {
-  const [assignments, setAssignments] = useState(() => teacherAssignments.map((item) => ({ ...item })))
-  const [filters, setFilters] = useState({ academicYear: defaultYear, semester: defaultSemester, className: 'Semua Kelas', subject: 'Semua Mata Pelajaran', teacher: 'Semua Guru' })
-  const [searchQuery, setSearchQuery] = useState('')
-  const [modal, setModal] = useState(null)
+// =============================================================================
+// 2. ACADEMIC HOMEROOM VIEW (Penugasan Wali Kelas per Semester)
+// =============================================================================
+export function AcademicHomeroomView({ onNotify }) {
+  const [years, setYears] = useState([])
+  const [semesters, setSemesters] = useState([])
+  const [classes, setClasses] = useState([])
+  const [teachers, setTeachers] = useState([])
+  const [loadingRefs, setLoadingRefs] = useState(true)
 
-  const filteredAssignments = useMemo(() => {
-    const query = searchQuery.trim().toLowerCase()
-    return assignments.filter((item) => {
-      const matchesSearch = !query || [item.teacher, item.subject, item.className].some((value) => String(value).toLowerCase().includes(query))
-      return matchesSearch
-        && item.academicYear === filters.academicYear
-        && item.semester === filters.semester
-        && (filters.className === 'Semua Kelas' || item.className === filters.className)
-        && (filters.subject === 'Semua Mata Pelajaran' || item.subject === filters.subject)
-        && (filters.teacher === 'Semua Guru' || item.teacher === filters.teacher)
+  const [selectedYearId, setSelectedYearId] = useState('')
+  const [selectedSemesterId, setSelectedSemesterId] = useState('')
+  const [selectedGrade, setSelectedGrade] = useState('Semua Tingkat')
+  const [selectedClassId, setSelectedClassId] = useState('Semua Kelas')
+  const [searchQuery, setSearchQuery] = useState('')
+
+  const [assignments, setAssignments] = useState([])
+  const [loadingAssignments, setLoadingAssignments] = useState(false)
+  const [currentPage, setCurrentPage] = useState(1)
+  const [rowsPerPage, setRowsPerPage] = useState(10)
+  const [totalItems, setTotalItems] = useState(0)
+  const [stats, setStats] = useState(null)
+
+  const [modal, setModal] = useState(null) // { type: 'add' | 'edit', item?: object }
+  const [formClassId, setFormClassId] = useState('')
+  const [formTeacherId, setFormTeacherId] = useState('')
+  const [formSkNumber, setFormSkNumber] = useState('')
+  const [formStatus, setFormStatus] = useState('Aktif')
+  const [formNotes, setFormNotes] = useState('')
+  const [modalSubmitting, setModalSubmitting] = useState(false)
+  const [modalError, setModalError] = useState('')
+
+  // 1. Fetch Refs
+  useEffect(() => {
+    let mounted = true
+    async function loadRefs() {
+      try {
+        const [yrRes, semRes, clsRes, tchRes] = await Promise.all([
+          academicService.getAcademicYears({ per_page: 50 }),
+          academicService.getSemesters({ per_page: 50 }),
+          academicService.getClasses({ per_page: 100 }),
+          teacherService.getTeachers({ per_page: 200, status: 'Aktif' }),
+        ])
+
+        if (!mounted) return
+        const yrList = yrRes.success ? yrRes.data : []
+        const semList = semRes.success ? semRes.data : []
+        const clsList = clsRes.success ? clsRes.data : []
+        const tchList = tchRes.success ? tchRes.data : []
+
+        setYears(yrList)
+        setSemesters(semList)
+        setClasses(clsList)
+        setTeachers(tchList)
+
+        const activeYr = yrList.find((y) => y.status === 'Aktif') || yrList[0]
+        if (activeYr) {
+          setSelectedYearId(String(activeYr.id))
+          const activeSem = semList.find((s) => s.academic_year_id === activeYr.id && s.status === 'Aktif')
+            || semList.find((s) => s.academic_year_id === activeYr.id)
+            || semList[0]
+          if (activeSem) setSelectedSemesterId(String(activeSem.id))
+        }
+      } catch (err) {
+        console.error('Failed to load homeroom refs', err)
+      } finally {
+        if (mounted) setLoadingRefs(false)
+      }
+    }
+    loadRefs()
+    return () => { mounted = false }
+  }, [])
+
+  const availableSemesters = useMemo(() => {
+    if (!selectedYearId) return semesters
+    return semesters.filter((s) => String(s.academic_year_id) === String(selectedYearId))
+  }, [semesters, selectedYearId])
+
+  const availableClasses = useMemo(() => {
+    return classes.filter((c) => {
+      const matchYear = !selectedYearId || String(c.academic_year_id) === String(selectedYearId)
+      const matchGrade = selectedGrade === 'Semua Tingkat' || c.grade === selectedGrade
+      return matchYear && matchGrade
     })
-  }, [assignments, filters, searchQuery])
-  const pagination = useAcademicPagination(filteredAssignments)
-  const updateFilter = (key, value) => { setFilters((current) => ({ ...current, [key]: value })); pagination.resetPage() }
+  }, [classes, selectedYearId, selectedGrade])
+
+  // 2. Fetch Homerooms & Stats
+  const loadHomerooms = useCallback(async () => {
+    if (!selectedSemesterId) return
+    setLoadingAssignments(true)
+    try {
+      const params = {
+        semester_id: selectedSemesterId,
+        search: searchQuery,
+        page: currentPage,
+        per_page: rowsPerPage,
+      }
+      if (selectedYearId) params.academic_year_id = selectedYearId
+      if (selectedClassId && selectedClassId !== 'Semua Kelas') params.class_id = selectedClassId
+
+      const [res, statsRes] = await Promise.all([
+        assignmentService.getHomerooms(params),
+        assignmentService.getHomeroomStats({
+          academic_year_id: selectedYearId,
+          semester_id: selectedSemesterId,
+        }),
+      ])
+
+      if (res.success) {
+        setAssignments(res.data)
+        setTotalItems(res.meta?.total || res.data.length)
+      } else {
+        setAssignments([])
+        setTotalItems(0)
+      }
+
+      if (statsRes.success) {
+        setStats(statsRes.data)
+      }
+    } catch (err) {
+      console.error('Error fetching homerooms:', err)
+      setAssignments([])
+    } finally {
+      setLoadingAssignments(false)
+    }
+  }, [selectedSemesterId, selectedYearId, selectedClassId, searchQuery, currentPage, rowsPerPage])
+
+  useEffect(() => {
+    const timeoutId = window.setTimeout(() => void loadHomerooms(), 0)
+    return () => window.clearTimeout(timeoutId)
+  }, [loadHomerooms])
+
+  // Open Modal Add / Edit
+  const openModal = (type, item = null) => {
+    setModal({ type, item })
+    setModalError('')
+    if (type === 'edit' && item) {
+      setFormClassId(String(item.class_id))
+      setFormTeacherId(String(item.teacher_id))
+      setFormSkNumber(item.sk_number || '')
+      setFormStatus(item.status || 'Aktif')
+      setFormNotes(item.notes || '')
+    } else {
+      setFormClassId(availableClasses[0]?.id ? String(availableClasses[0].id) : '')
+      setFormTeacherId(teachers[0]?.id ? String(teachers[0].id) : '')
+      setFormSkNumber('')
+      setFormStatus('Aktif')
+      setFormNotes('')
+    }
+  }
+
+  // Submit Modal
+  const handleModalSubmit = async (e) => {
+    e.preventDefault()
+    setModalSubmitting(true)
+    setModalError('')
+
+    if (modal.type === 'add') {
+      const res = await assignmentService.assignHomeroom({
+        academic_year_id: Number(selectedYearId),
+        semester_id: Number(selectedSemesterId),
+        class_id: Number(formClassId),
+        teacher_id: Number(formTeacherId),
+        sk_number: formSkNumber,
+        notes: formNotes,
+      })
+
+      setModalSubmitting(false)
+      if (res.success) {
+        setModal(null)
+        onNotify(res.message || 'Wali kelas berhasil ditugaskan.')
+        loadHomerooms()
+      } else {
+        setModalError(res.message || 'Gagal menugaskan wali kelas.')
+      }
+    } else {
+      const res = await assignmentService.updateHomeroom(modal.item.id, {
+        teacher_id: Number(formTeacherId),
+        sk_number: formSkNumber,
+        status: formStatus,
+        notes: formNotes,
+      })
+
+      setModalSubmitting(false)
+      if (res.success) {
+        setModal(null)
+        onNotify(res.message || 'Penugasan wali kelas berhasil diperbarui.')
+        loadHomerooms()
+      } else {
+        setModalError(res.message || 'Gagal memperbarui wali kelas.')
+      }
+    }
+  }
+
+  // Delete Homeroom
+  const handleDeleteHomeroom = async (item) => {
+    const className = item.school_class?.name || 'Kelas'
+    const teacherName = item.teacher?.name || 'Guru'
+    if (!window.confirm(`Hapus penugasan wali kelas ${teacherName} untuk ${className}?`)) {
+      return
+    }
+    const res = await assignmentService.deleteHomeroom(item.id)
+    if (res.success) {
+      onNotify(res.message || 'Penugasan wali kelas berhasil dihapus.')
+      loadHomerooms()
+    } else {
+      alert(res.message || 'Gagal menghapus penugasan wali kelas.')
+    }
+  }
 
   const summary = [
-    { title: 'Total Penugasan', value: assignments.length, caption: 'Penugasan aktif', icon: 'clipboard', tone: 'green' },
-    { title: 'Guru Ditugaskan', value: new Set(assignments.map((item) => item.teacher)).size, caption: 'Guru pengampu', icon: 'users', tone: 'blue' },
-    { title: 'Mata Pelajaran', value: new Set(assignments.map((item) => item.subject)).size, caption: 'Mapel terjadwal', icon: 'book', tone: 'orange' },
-    { title: 'Rombel Aktif', value: new Set(assignments.map((item) => item.className)).size, caption: 'Kelas terlayani', icon: 'academic', tone: 'purple' },
+    { title: 'Total Kelas', value: stats?.total_classes ?? classes.length, caption: 'Rombongan belajar', icon: 'academic', tone: 'blue' },
+    { title: 'Sudah Berwali', value: stats?.assigned_classes ?? assignments.length, caption: 'Memiliki wali kelas', icon: 'checkCircle', tone: 'green' },
+    { title: 'Belum Berwali', value: stats?.unassigned_classes ?? 0, caption: 'Perlu penugasan', icon: 'clock', tone: 'orange' },
+    { title: 'Guru Wali Kelas', value: stats?.total_teachers ?? new Set(assignments.map((a) => a.teacher_id)).size, caption: 'Guru bertugas', icon: 'users', tone: 'purple' },
   ]
 
-  const saveAssignment = (formData) => {
-    const source = modal?.item
-    const teacherRecord = getTeacherRecord(formData.teacher)
-    const next = {
-      ...(source ?? {}),
-      ...formData,
-      id: source?.id ?? getNextId(assignments),
-      teacherId: teacherRecord?.id ?? source?.teacherId,
-      nip: teacherRecord?.nip ?? source?.nip ?? '-',
-      academicYear: filters.academicYear,
-      semester: filters.semester,
-      weeklyHours: Number(formData.weeklyHours),
-      hoursLabel: `${Number(formData.weeklyHours)} JP`,
-      status: 'Aktif',
+  const totalPages = Math.max(1, Math.ceil(totalItems / rowsPerPage))
+  const pagination = {
+    currentPage,
+    rowsPerPage,
+    totalPages,
+    setCurrentPage,
+    setRowsPerPage: (val) => { setRowsPerPage(val); setCurrentPage(1) },
+  }
+
+  return (
+    <>
+      <AcademicSummary items={summary} />
+      <section className="academic-workspace">
+        <div className="academic-toolbar">
+          <div className="academic-filter-grid four-fields">
+            <AcademicField
+              disabled={loadingRefs}
+              label="Tahun Ajaran"
+              onChange={(e) => { setSelectedYearId(e.target.value); setCurrentPage(1) }}
+              options={years.map((y) => ({ value: String(y.id), label: `${y.name} (${y.status})` }))}
+              value={selectedYearId}
+            />
+            <AcademicField
+              disabled={loadingRefs}
+              label="Semester"
+              onChange={(e) => { setSelectedSemesterId(e.target.value); setCurrentPage(1) }}
+              options={availableSemesters.map((s) => ({ value: String(s.id), label: `${s.name} (${s.status})` }))}
+              value={selectedSemesterId}
+            />
+            <AcademicField
+              label="Tingkat"
+              onChange={(e) => { setSelectedGrade(e.target.value); setCurrentPage(1) }}
+              options={['Semua Tingkat', 'X', 'XI', 'XII']}
+              value={selectedGrade}
+            />
+            <AcademicField
+              disabled={loadingRefs}
+              label="Kelas"
+              onChange={(e) => { setSelectedClassId(e.target.value); setCurrentPage(1) }}
+              options={[{ value: 'Semua Kelas', label: 'Semua Kelas' }, ...availableClasses.map((c) => ({ value: String(c.id), label: c.name }))]}
+              value={selectedClassId}
+            />
+          </div>
+          <AcademicSearch
+            ariaLabel="Cari kelas atau wali kelas"
+            onChange={(e) => { setSearchQuery(e.target.value); setCurrentPage(1) }}
+            placeholder="Cari kelas / wali kelas..."
+            value={searchQuery}
+          />
+        </div>
+
+        <div className="academic-actions">
+          <div>
+            <h3>Penugasan Wali Kelas</h3>
+            <p>Satu kelas hanya memiliki 1 wali kelas aktif per semester</p>
+          </div>
+          <Button className="academic-button primary" onClick={() => openModal('add')} type="button">
+            <Icon name="plus" /> Atur Wali Kelas
+          </Button>
+        </div>
+
+        <div className="academic-table-scroll">
+          <table className="academic-table academic-homeroom-table">
+            <thead>
+              <tr>
+                <th>No</th>
+                <th>Kelas</th>
+                <th>Wali Kelas</th>
+                <th>NIP</th>
+                <th>No. SK</th>
+                <th>Status</th>
+                <th>Aksi</th>
+              </tr>
+            </thead>
+            <tbody>
+              {loadingAssignments ? (
+                <tr>
+                  <td className="academic-empty-row" colSpan="7">
+                    <span>Memuat penugasan wali kelas...</span>
+                  </td>
+                </tr>
+              ) : assignments.length === 0 ? (
+                <tr>
+                  <td className="academic-empty-row" colSpan="7">
+                    <Icon name="search" />
+                    <strong>Penugasan tidak ditemukan</strong>
+                    <span>Belum ada penugasan wali kelas untuk filter yang dipilih.</span>
+                  </td>
+                </tr>
+              ) : assignments.map((item, index) => {
+                const cls = item.school_class || {}
+                const tch = item.teacher || {}
+                return (
+                  <tr key={item.id}>
+                    <td>{(currentPage - 1) * rowsPerPage + index + 1}</td>
+                    <td className="academic-name-cell">
+                      <strong>{cls.name}</strong>
+                      <small style={{ display: 'block', color: '#64748b' }}>Tingkat {cls.grade}</small>
+                    </td>
+                    <td><strong>{tch.name}</strong></td>
+                    <td>{tch.nip || '-'}</td>
+                    <td>{item.sk_number || '-'}</td>
+                    <td>
+                      <span className={`academic-status ${toStatusClass(item.status)}`}>
+                        {item.status}
+                      </span>
+                    </td>
+                    <td>
+                      <div className="academic-row-actions">
+                        <button
+                          aria-label={`Edit wali kelas ${cls.name}`}
+                          onClick={() => openModal('edit', item)}
+                          title="Edit Penugasan"
+                          type="button"
+                        >
+                          <Icon name="edit" />
+                        </button>
+                        <button
+                          aria-label={`Hapus wali kelas ${cls.name}`}
+                          onClick={() => handleDeleteHomeroom(item)}
+                          title="Hapus Penugasan"
+                          type="button"
+                        >
+                          <Icon name="trash" />
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                )
+              })}
+            </tbody>
+          </table>
+        </div>
+        <PaginationFooter itemLabel="penugasan" pagination={pagination} totalItems={totalItems} />
+      </section>
+
+      {/* MODAL TAMBAH / EDIT WALI KELAS */}
+      {modal && (
+        <AcademicModal
+          description="Aturan bisnis: Satu kelas hanya 1 wali kelas aktif, dan 1 guru tidak boleh merangkap wali kelas pada semester yang sama."
+          onClose={() => setModal(null)}
+          title={`${modal.type === 'edit' ? 'Edit' : 'Atur'} Wali Kelas`}
+        >
+          <form className="academic-entity-form" onSubmit={handleModalSubmit}>
+            <div className="academic-form-grid">
+              <label>
+                <span>Kelas / Rombel<b>*</b></span>
+                <select
+                  disabled={modal.type === 'edit'}
+                  required
+                  value={formClassId}
+                  onChange={(e) => setFormClassId(e.target.value)}
+                >
+                  <option value="">-- Pilih Kelas --</option>
+                  {availableClasses.map((c) => (
+                    <option key={c.id} value={c.id}>{c.name} ({c.grade})</option>
+                  ))}
+                </select>
+              </label>
+              <label>
+                <span>Guru Wali Kelas<b>*</b></span>
+                <select
+                  required
+                  value={formTeacherId}
+                  onChange={(e) => setFormTeacherId(e.target.value)}
+                >
+                  <option value="">-- Pilih Guru --</option>
+                  {teachers.map((t) => (
+                    <option key={t.id} value={t.id}>
+                      {t.name} {t.nip ? `(${t.nip})` : ''}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label>
+                <span>Nomor SK Tugas</span>
+                <input
+                  placeholder="Contoh: SK/2024/001"
+                  type="text"
+                  value={formSkNumber}
+                  onChange={(e) => setFormSkNumber(e.target.value)}
+                />
+              </label>
+              {modal.type === 'edit' ? (
+                <label>
+                  <span>Status Penugasan<b>*</b></span>
+                  <select
+                    required
+                    value={formStatus}
+                    onChange={(e) => setFormStatus(e.target.value)}
+                  >
+                    <option value="Aktif">Aktif</option>
+                    <option value="Nonaktif">Nonaktif</option>
+                    <option value="Digantikan">Digantikan</option>
+                  </select>
+                </label>
+              ) : (
+                <label>
+                  <span>Catatan</span>
+                  <input
+                    placeholder="Catatan penugasan..."
+                    type="text"
+                    value={formNotes}
+                    onChange={(e) => setFormNotes(e.target.value)}
+                  />
+                </label>
+              )}
+            </div>
+            {modalError && (
+              <div className="academic-conflict-alert" style={{ background: '#fef2f2', borderColor: '#fca5a5', color: '#991b1b' }}>
+                <Icon name="info" />
+                <span>{modalError}</span>
+              </div>
+            )}
+            <footer>
+              <Button className="academic-button secondary" onClick={() => setModal(null)} type="button">
+                Batal
+              </Button>
+              <Button className="academic-button primary" disabled={modalSubmitting} type="submit">
+                <Icon name="save" /> {modalSubmitting ? 'Menyimpan...' : 'Simpan Penugasan'}
+              </Button>
+            </footer>
+          </form>
+        </AcademicModal>
+      )}
+    </>
+  )
+}
+
+// =============================================================================
+// 3. ACADEMIC TEACHER ASSIGNMENT VIEW (Penugasan Mengajar Guru per Mapel & Rombel)
+// =============================================================================
+export function AcademicTeacherAssignmentView({ onNotify }) {
+  const [years, setYears] = useState([])
+  const [semesters, setSemesters] = useState([])
+  const [classes, setClasses] = useState([])
+  const [subjects, setSubjects] = useState([])
+  const [teachers, setTeachers] = useState([])
+  const [loadingRefs, setLoadingRefs] = useState(true)
+
+  const [selectedYearId, setSelectedYearId] = useState('')
+  const [selectedSemesterId, setSelectedSemesterId] = useState('')
+  const [selectedClassId, setSelectedClassId] = useState('Semua Kelas')
+  const [selectedSubjectId, setSelectedSubjectId] = useState('Semua Mata Pelajaran')
+  const [selectedTeacherId, setSelectedTeacherId] = useState('Semua Guru')
+  const [searchQuery, setSearchQuery] = useState('')
+
+  const [assignments, setAssignments] = useState([])
+  const [loadingAssignments, setLoadingAssignments] = useState(false)
+  const [currentPage, setCurrentPage] = useState(1)
+  const [rowsPerPage, setRowsPerPage] = useState(10)
+  const [totalItems, setTotalItems] = useState(0)
+  const [stats, setStats] = useState(null)
+
+  const [modal, setModal] = useState(null)
+  const [formTeacherId, setFormTeacherId] = useState('')
+  const [formSubjectId, setFormSubjectId] = useState('')
+  const [formClassId, setFormClassId] = useState('')
+  const [formWeeklyHours, setFormWeeklyHours] = useState(2)
+  const [formRole, setFormRole] = useState('Utama')
+  const [formStatus, setFormStatus] = useState('Aktif')
+  const [formNotes, setFormNotes] = useState('')
+  const [modalSubmitting, setModalSubmitting] = useState(false)
+  const [modalError, setModalError] = useState('')
+
+  // 1. Fetch Refs
+  useEffect(() => {
+    let mounted = true
+    async function loadRefs() {
+      try {
+        const [yrRes, semRes, clsRes, sbjRes, tchRes] = await Promise.all([
+          academicService.getAcademicYears({ per_page: 50 }),
+          academicService.getSemesters({ per_page: 50 }),
+          academicService.getClasses({ per_page: 100 }),
+          academicService.getSubjects({ per_page: 200 }),
+          teacherService.getTeachers({ per_page: 200, status: 'Aktif' }),
+        ])
+
+        if (!mounted) return
+        const yrList = yrRes.success ? yrRes.data : []
+        const semList = semRes.success ? semRes.data : []
+        const clsList = clsRes.success ? clsRes.data : []
+        const sbjList = sbjRes.success ? sbjRes.data : []
+        const tchList = tchRes.success ? tchRes.data : []
+
+        setYears(yrList)
+        setSemesters(semList)
+        setClasses(clsList)
+        setSubjects(sbjList)
+        setTeachers(tchList)
+
+        const activeYr = yrList.find((y) => y.status === 'Aktif') || yrList[0]
+        if (activeYr) {
+          setSelectedYearId(String(activeYr.id))
+          const activeSem = semList.find((s) => s.academic_year_id === activeYr.id && s.status === 'Aktif')
+            || semList.find((s) => s.academic_year_id === activeYr.id)
+            || semList[0]
+          if (activeSem) setSelectedSemesterId(String(activeSem.id))
+        }
+      } catch (err) {
+        console.error('Failed to load course assignment refs', err)
+      } finally {
+        if (mounted) setLoadingRefs(false)
+      }
     }
-    setAssignments((current) => source ? current.map((item) => item.id === source.id ? next : item) : [next, ...current])
-    setModal(null)
-    pagination.resetPage()
-    onNotify(`Penugasan ${next.teacher} untuk ${next.subject} berhasil disimpan.`)
+    loadRefs()
+    return () => { mounted = false }
+  }, [])
+
+  const availableSemesters = useMemo(() => {
+    if (!selectedYearId) return semesters
+    return semesters.filter((s) => String(s.academic_year_id) === String(selectedYearId))
+  }, [semesters, selectedYearId])
+
+  const availableClasses = useMemo(() => {
+    if (!selectedYearId) return classes
+    return classes.filter((c) => String(c.academic_year_id) === String(selectedYearId))
+  }, [classes, selectedYearId])
+
+  // 2. Fetch Assignments & Stats
+  const loadCourseAssignments = useCallback(async () => {
+    if (!selectedSemesterId) return
+    setLoadingAssignments(true)
+    try {
+      const params = {
+        semester_id: selectedSemesterId,
+        search: searchQuery,
+        page: currentPage,
+        per_page: rowsPerPage,
+      }
+      if (selectedYearId) params.academic_year_id = selectedYearId
+      if (selectedClassId && selectedClassId !== 'Semua Kelas') params.class_id = selectedClassId
+      if (selectedSubjectId && selectedSubjectId !== 'Semua Mata Pelajaran') params.subject_id = selectedSubjectId
+      if (selectedTeacherId && selectedTeacherId !== 'Semua Guru') params.teacher_id = selectedTeacherId
+
+      const [res, statsRes] = await Promise.all([
+        assignmentService.getCourseAssignments(params),
+        assignmentService.getCourseAssignmentStats({
+          academic_year_id: selectedYearId,
+          semester_id: selectedSemesterId,
+        }),
+      ])
+
+      if (res.success) {
+        setAssignments(res.data)
+        setTotalItems(res.meta?.total || res.data.length)
+      } else {
+        setAssignments([])
+        setTotalItems(0)
+      }
+
+      if (statsRes.success) {
+        setStats(statsRes.data)
+      }
+    } catch (err) {
+      console.error('Error fetching course assignments:', err)
+      setAssignments([])
+    } finally {
+      setLoadingAssignments(false)
+    }
+  }, [selectedSemesterId, selectedYearId, selectedClassId, selectedSubjectId, selectedTeacherId, searchQuery, currentPage, rowsPerPage])
+
+  useEffect(() => {
+    const timeoutId = window.setTimeout(() => void loadCourseAssignments(), 0)
+    return () => window.clearTimeout(timeoutId)
+  }, [loadCourseAssignments])
+
+  // Open Modal
+  const openModal = (type, item = null) => {
+    setModal({ type, item })
+    setModalError('')
+    if (type === 'edit' && item) {
+      setFormTeacherId(String(item.teacher_id))
+      setFormSubjectId(String(item.subject_id))
+      setFormClassId(String(item.class_id))
+      setFormWeeklyHours(item.weekly_hours || 2)
+      setFormRole(item.role || 'Utama')
+      setFormStatus(item.status || 'Aktif')
+      setFormNotes(item.notes || '')
+    } else {
+      setFormTeacherId(teachers[0]?.id ? String(teachers[0].id) : '')
+      setFormSubjectId(subjects[0]?.id ? String(subjects[0].id) : '')
+      setFormClassId(availableClasses[0]?.id ? String(availableClasses[0].id) : '')
+      setFormWeeklyHours(2)
+      setFormRole('Utama')
+      setFormStatus('Aktif')
+      setFormNotes('')
+    }
+  }
+
+  // Submit Modal
+  const handleModalSubmit = async (e) => {
+    e.preventDefault()
+    setModalSubmitting(true)
+    setModalError('')
+
+    if (modal.type === 'add') {
+      const res = await assignmentService.assignCourse({
+        academic_year_id: Number(selectedYearId),
+        semester_id: Number(selectedSemesterId),
+        class_id: Number(formClassId),
+        subject_id: Number(formSubjectId),
+        teacher_id: Number(formTeacherId),
+        weekly_hours: Number(formWeeklyHours),
+        role: formRole,
+        notes: formNotes,
+      })
+
+      setModalSubmitting(false)
+      if (res.success) {
+        setModal(null)
+        onNotify(res.message || 'Penugasan mengajar berhasil ditambahkan.')
+        loadCourseAssignments()
+      } else {
+        setModalError(res.message || 'Gagal menambahkan penugasan.')
+      }
+    } else {
+      const res = await assignmentService.updateCourseAssignment(modal.item.id, {
+        weekly_hours: Number(formWeeklyHours),
+        role: formRole,
+        status: formStatus,
+        notes: formNotes,
+      })
+
+      setModalSubmitting(false)
+      if (res.success) {
+        setModal(null)
+        onNotify(res.message || 'Penugasan mengajar berhasil diperbarui.')
+        loadCourseAssignments()
+      } else {
+        setModalError(res.message || 'Gagal memperbarui penugasan.')
+      }
+    }
+  }
+
+  // Delete Assignment
+  const handleDeleteAssignment = async (item) => {
+    const tch = item.teacher?.name || 'Guru'
+    const sbj = item.subject?.name || 'Mapel'
+    const cls = item.school_class?.name || 'Kelas'
+    if (!window.confirm(`Hapus penugasan ${tch} untuk mapel ${sbj} di ${cls}?`)) {
+      return
+    }
+    const res = await assignmentService.deleteCourseAssignment(item.id)
+    if (res.success) {
+      onNotify(res.message || 'Penugasan mengajar berhasil dihapus.')
+      loadCourseAssignments()
+    } else {
+      alert(res.message || 'Gagal menghapus penugasan.')
+    }
+  }
+
+  const summary = [
+    { title: 'Total Penugasan', value: stats?.total_assignments ?? assignments.length, caption: 'Penugasan aktif', icon: 'clipboard', tone: 'green' },
+    { title: 'Guru Ditugaskan', value: stats?.assigned_teachers ?? new Set(assignments.map((a) => a.teacher_id)).size, caption: 'Guru pengampu', icon: 'users', tone: 'blue' },
+    { title: 'Mata Pelajaran', value: stats?.assigned_subjects ?? new Set(assignments.map((a) => a.subject_id)).size, caption: 'Mapel terampu', icon: 'book', tone: 'orange' },
+    { title: 'Total Jam / Minggu', value: `${stats?.total_weekly_hours ?? 0} JP`, caption: 'Beban mengajar', icon: 'academic', tone: 'purple' },
+  ]
+
+  const totalPages = Math.max(1, Math.ceil(totalItems / rowsPerPage))
+  const pagination = {
+    currentPage,
+    rowsPerPage,
+    totalPages,
+    setCurrentPage,
+    setRowsPerPage: (val) => { setRowsPerPage(val); setCurrentPage(1) },
   }
 
   return (
@@ -307,87 +1413,289 @@ export function AcademicTeacherAssignmentView({ onNotify }) {
       <section className="academic-workspace">
         <div className="academic-toolbar">
           <div className="academic-filter-grid five-fields">
-            <AcademicField label="Tahun Ajaran" onChange={(event) => updateFilter('academicYear', event.target.value)} options={academicOptions.academicYears} value={filters.academicYear} />
-            <AcademicField label="Semester" onChange={(event) => updateFilter('semester', event.target.value)} options={academicOptions.semesters} value={filters.semester} />
-            <AcademicField label="Kelas" onChange={(event) => updateFilter('className', event.target.value)} options={['Semua Kelas', ...academicOptions.classes]} value={filters.className} />
-            <AcademicField label="Mata Pelajaran" onChange={(event) => updateFilter('subject', event.target.value)} options={['Semua Mata Pelajaran', ...academicOptions.subjects]} value={filters.subject} />
-            <AcademicField label="Guru" onChange={(event) => updateFilter('teacher', event.target.value)} options={['Semua Guru', ...academicOptions.teachers]} value={filters.teacher} />
+            <AcademicField
+              disabled={loadingRefs}
+              label="Tahun Ajaran"
+              onChange={(e) => { setSelectedYearId(e.target.value); setCurrentPage(1) }}
+              options={years.map((y) => ({ value: String(y.id), label: `${y.name} (${y.status})` }))}
+              value={selectedYearId}
+            />
+            <AcademicField
+              disabled={loadingRefs}
+              label="Semester"
+              onChange={(e) => { setSelectedSemesterId(e.target.value); setCurrentPage(1) }}
+              options={availableSemesters.map((s) => ({ value: String(s.id), label: `${s.name} (${s.status})` }))}
+              value={selectedSemesterId}
+            />
+            <AcademicField
+              disabled={loadingRefs}
+              label="Kelas"
+              onChange={(e) => { setSelectedClassId(e.target.value); setCurrentPage(1) }}
+              options={[{ value: 'Semua Kelas', label: 'Semua Kelas' }, ...availableClasses.map((c) => ({ value: String(c.id), label: c.name }))]}
+              value={selectedClassId}
+            />
+            <AcademicField
+              disabled={loadingRefs}
+              label="Mata Pelajaran"
+              onChange={(e) => { setSelectedSubjectId(e.target.value); setCurrentPage(1) }}
+              options={[{ value: 'Semua Mata Pelajaran', label: 'Semua Mata Pelajaran' }, ...subjects.map((sb) => ({ value: String(sb.id), label: `${sb.code} - ${sb.name}` }))]}
+              value={selectedSubjectId}
+            />
+            <AcademicField
+              disabled={loadingRefs}
+              label="Guru"
+              onChange={(e) => { setSelectedTeacherId(e.target.value); setCurrentPage(1) }}
+              options={[{ value: 'Semua Guru', label: 'Semua Guru' }, ...teachers.map((tc) => ({ value: String(tc.id), label: tc.name }))]}
+              value={selectedTeacherId}
+            />
           </div>
-          <AcademicSearch ariaLabel="Cari guru atau mata pelajaran" onChange={(event) => { setSearchQuery(event.target.value); pagination.resetPage() }} placeholder="Cari guru / mata pelajaran..." value={searchQuery} />
+          <AcademicSearch
+            ariaLabel="Cari guru atau mata pelajaran"
+            onChange={(e) => { setSearchQuery(e.target.value); setCurrentPage(1) }}
+            placeholder="Cari guru / mata pelajaran..."
+            value={searchQuery}
+          />
         </div>
-        <div className="academic-actions"><div><h3>Daftar Penugasan Guru</h3><p>Relasi guru, mata pelajaran, dan rombongan belajar</p></div><Button className="academic-button primary" onClick={() => setModal({ type: 'add' })}><Icon name="plus" />Tambah Penugasan</Button></div>
-        <div className="academic-table-scroll"><table className="academic-table academic-assignment-table"><thead><tr><th>No</th><th>Guru</th><th>Mata Pelajaran</th><th>Kelas</th><th>Jam/Minggu</th><th>Status</th><th>Aksi</th></tr></thead><tbody>{pagination.pageItems.length === 0 ? <tr><td className="academic-empty-row" colSpan="7"><Icon name="search" /><strong>Penugasan tidak ditemukan</strong><span>Coba ubah filter atau kata pencarian.</span></td></tr> : pagination.pageItems.map((item, index) => <tr key={item.id}><td>{pagination.startIndex + index + 1}</td><td className="academic-name-cell"><strong>{item.teacher}</strong><small>{item.nip}</small></td><td>{item.subject}</td><td>{item.className}</td><td><span className="academic-hours">{item.hoursLabel ?? `${item.weeklyHours} JP`}</span></td><td><span className={`academic-status ${toStatusClass(item.status)}`}>{item.status}</span></td><td><div className="academic-row-actions"><button aria-label={`Edit ${item.teacher}`} onClick={() => setModal({ type: 'edit', item })} type="button"><Icon name="edit" /></button></div></td></tr>)}</tbody></table></div>
-        <PaginationFooter itemLabel="penugasan" pagination={pagination} totalItems={filteredAssignments.length} />
+
+        <div className="academic-actions">
+          <div>
+            <h3>Daftar Penugasan Guru</h3>
+            <p>Penugasan guru mengajar per rombel, mata pelajaran, dan semester</p>
+          </div>
+          <Button className="academic-button primary" onClick={() => openModal('add')} type="button">
+            <Icon name="plus" /> Tambah Penugasan
+          </Button>
+        </div>
+
+        <div className="academic-table-scroll">
+          <table className="academic-table academic-assignment-table">
+            <thead>
+              <tr>
+                <th>No</th>
+                <th>Guru</th>
+                <th>Mata Pelajaran</th>
+                <th>Kelas</th>
+                <th>Jam/Minggu</th>
+                <th>Peran</th>
+                <th>Status</th>
+                <th>Aksi</th>
+              </tr>
+            </thead>
+            <tbody>
+              {loadingAssignments ? (
+                <tr>
+                  <td className="academic-empty-row" colSpan="8">
+                    <span>Memuat penugasan mengajar...</span>
+                  </td>
+                </tr>
+              ) : assignments.length === 0 ? (
+                <tr>
+                  <td className="academic-empty-row" colSpan="8">
+                    <Icon name="search" />
+                    <strong>Penugasan tidak ditemukan</strong>
+                    <span>Belum ada data penugasan mengajar sesuai filter yang dipilih.</span>
+                  </td>
+                </tr>
+              ) : assignments.map((item, index) => {
+                const tch = item.teacher || {}
+                const sbj = item.subject || {}
+                const cls = item.school_class || {}
+                return (
+                  <tr key={item.id}>
+                    <td>{(currentPage - 1) * rowsPerPage + index + 1}</td>
+                    <td className="academic-name-cell">
+                      <strong>{tch.name}</strong>
+                      <small style={{ display: 'block', color: '#64748b' }}>{tch.nip || '-'}</small>
+                    </td>
+                    <td>
+                      <strong>{sbj.name}</strong>
+                      <small style={{ display: 'block', color: '#64748b' }}>{sbj.code}</small>
+                    </td>
+                    <td>{cls.name}</td>
+                    <td>
+                      <span className="academic-hours">{item.weekly_hours} JP</span>
+                    </td>
+                    <td>
+                      <span style={{
+                        padding: '3px 8px',
+                        borderRadius: '4px',
+                        fontSize: '11px',
+                        fontWeight: 600,
+                        background: item.role === 'Utama' ? '#eff6ff' : '#f8fafc',
+                        color: item.role === 'Utama' ? '#1d4ed8' : '#475569',
+                      }}>
+                        {item.role}
+                      </span>
+                    </td>
+                    <td>
+                      <span className={`academic-status ${toStatusClass(item.status)}`}>
+                        {item.status}
+                      </span>
+                    </td>
+                    <td>
+                      <div className="academic-row-actions">
+                        <button
+                          aria-label={`Edit penugasan ${tch.name}`}
+                          onClick={() => openModal('edit', item)}
+                          title="Edit Penugasan"
+                          type="button"
+                        >
+                          <Icon name="edit" />
+                        </button>
+                        <button
+                          aria-label={`Hapus penugasan ${tch.name}`}
+                          onClick={() => handleDeleteAssignment(item)}
+                          title="Hapus Penugasan"
+                          type="button"
+                        >
+                          <Icon name="trash" />
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                )
+              })}
+            </tbody>
+          </table>
+        </div>
+        <PaginationFooter itemLabel="penugasan" pagination={pagination} totalItems={totalItems} />
       </section>
-      {modal && <AcademicEntityModal description="Tetapkan guru, mata pelajaran, dan rombongan belajar." fields={[{ key: 'teacher', label: 'Guru', type: 'select', options: academicOptions.teachers, required: true }, { key: 'subject', label: 'Mata Pelajaran', type: 'select', options: academicOptions.subjects, required: true }, { key: 'className', label: 'Rombongan Belajar', type: 'select', options: academicOptions.classes, required: true }, { key: 'weeklyHours', label: 'Jumlah Jam / Minggu', type: 'number', defaultValue: 2, required: true }]} initialData={modal.item} onClose={() => setModal(null)} onSave={saveAssignment} submitLabel="Simpan Penugasan" title={`${modal.type === 'edit' ? 'Edit' : 'Tambah'} Penugasan Guru`} />}
+
+      {/* MODAL TAMBAH / EDIT PENUGASAN MENGAJAR */}
+      {modal && (
+        <AcademicModal
+          description="Aturan bisnis: Satu rombel/mapel/semester hanya memiliki 1 guru dengan peran 'Utama'."
+          onClose={() => setModal(null)}
+          title={`${modal.type === 'edit' ? 'Edit' : 'Tambah'} Penugasan Guru`}
+        >
+          <form className="academic-entity-form" onSubmit={handleModalSubmit}>
+            <div className="academic-form-grid">
+              <label>
+                <span>Guru Pengampu<b>*</b></span>
+                <select
+                  disabled={modal.type === 'edit'}
+                  required
+                  value={formTeacherId}
+                  onChange={(e) => setFormTeacherId(e.target.value)}
+                >
+                  <option value="">-- Pilih Guru --</option>
+                  {teachers.map((t) => (
+                    <option key={t.id} value={t.id}>{t.name} {t.nip ? `(${t.nip})` : ''}</option>
+                  ))}
+                </select>
+              </label>
+              <label>
+                <span>Mata Pelajaran<b>*</b></span>
+                <select
+                  disabled={modal.type === 'edit'}
+                  required
+                  value={formSubjectId}
+                  onChange={(e) => setFormSubjectId(e.target.value)}
+                >
+                  <option value="">-- Pilih Mapel --</option>
+                  {subjects.map((s) => (
+                    <option key={s.id} value={s.id}>{s.code} - {s.name}</option>
+                  ))}
+                </select>
+              </label>
+              <label>
+                <span>Rombongan Belajar<b>*</b></span>
+                <select
+                  disabled={modal.type === 'edit'}
+                  required
+                  value={formClassId}
+                  onChange={(e) => setFormClassId(e.target.value)}
+                >
+                  <option value="">-- Pilih Kelas --</option>
+                  {availableClasses.map((c) => (
+                    <option key={c.id} value={c.id}>{c.name} ({c.grade})</option>
+                  ))}
+                </select>
+              </label>
+              <label>
+                <span>Jumlah Jam / Minggu (JP)<b>*</b></span>
+                <input
+                  min={1}
+                  required
+                  type="number"
+                  value={formWeeklyHours}
+                  onChange={(e) => setFormWeeklyHours(e.target.value)}
+                />
+              </label>
+              <label>
+                <span>Peran Guru<b>*</b></span>
+                <select
+                  required
+                  value={formRole}
+                  onChange={(e) => setFormRole(e.target.value)}
+                >
+                  <option value="Utama">Utama</option>
+                  <option value="Pendamping">Pendamping</option>
+                  <option value="Pengganti">Pengganti</option>
+                </select>
+              </label>
+              {modal.type === 'edit' ? (
+                <label>
+                  <span>Status Penugasan<b>*</b></span>
+                  <select
+                    required
+                    value={formStatus}
+                    onChange={(e) => setFormStatus(e.target.value)}
+                  >
+                    <option value="Aktif">Aktif</option>
+                    <option value="Nonaktif">Nonaktif</option>
+                    <option value="Selesai">Selesai</option>
+                  </select>
+                </label>
+              ) : (
+                <label>
+                  <span>Catatan</span>
+                  <input
+                    placeholder="Catatan tambahan..."
+                    type="text"
+                    value={formNotes}
+                    onChange={(e) => setFormNotes(e.target.value)}
+                  />
+                </label>
+              )}
+            </div>
+            {modalError && (
+              <div className="academic-conflict-alert" style={{ background: '#fef2f2', borderColor: '#fca5a5', color: '#991b1b' }}>
+                <Icon name="info" />
+                <span>{modalError}</span>
+              </div>
+            )}
+            <footer>
+              <Button className="academic-button secondary" onClick={() => setModal(null)} type="button">
+                Batal
+              </Button>
+              <Button className="academic-button primary" disabled={modalSubmitting} type="submit">
+                <Icon name="save" /> {modalSubmitting ? 'Menyimpan...' : 'Simpan Penugasan'}
+              </Button>
+            </footer>
+          </form>
+        </AcademicModal>
+      )}
     </>
   )
 }
 
-export function AcademicHomeroomView({ onNotify }) {
-  const [assignments, setAssignments] = useState(() => homeroomAssignments.map((item) => ({ ...item })))
-  const [filters, setFilters] = useState({ academicYear: defaultYear, grade: 'Semua Tingkat', className: 'Semua Kelas' })
-  const [searchQuery, setSearchQuery] = useState('')
-  const [modal, setModal] = useState(null)
-  const filteredAssignments = useMemo(() => {
-    const query = searchQuery.trim().toLowerCase()
-    return assignments.filter((item) => item.academicYear === filters.academicYear
-      && (filters.grade === 'Semua Tingkat' || item.grade === filters.grade)
-      && (filters.className === 'Semua Kelas' || item.className === filters.className)
-      && (!query || [item.className, item.teacher, item.nip].some((value) => String(value).toLowerCase().includes(query))))
-  }, [assignments, filters, searchQuery])
-  const pagination = useAcademicPagination(filteredAssignments)
-  const updateFilter = (key, value) => { setFilters((current) => ({ ...current, [key]: value })); pagination.resetPage() }
-
-  const saveAssignment = (formData) => {
-    const source = modal?.item
-    const existing = assignments.find((item) => item.className === formData.className && item.academicYear === filters.academicYear)
-    if (source && existing && existing.id !== source.id) {
-      onNotify(`${formData.className} sudah memiliki wali kelas. Pilih kelas lain.`)
-      return
-    }
-    const target = source ?? existing
-    const teacherRecord = getTeacherRecord(formData.teacher)
-    const next = {
-      ...(target ?? {}),
-      ...formData,
-      id: target?.id ?? getNextId(assignments),
-      grade: formData.className.split(' ')[0],
-      teacherId: teacherRecord?.id ?? target?.teacherId,
-      nip: teacherRecord?.nip ?? target?.nip ?? '-',
-      studentCount: Number(formData.studentCount) || target?.studentCount || 0,
-      academicYear: filters.academicYear,
-      status: 'Aktif',
-    }
-    setAssignments((current) => target ? current.map((item) => item.id === target.id ? next : item) : [next, ...current])
-    setModal(null)
-    pagination.resetPage()
-    onNotify(`${next.teacher} ditetapkan sebagai wali kelas ${next.className}.`)
-  }
-
-  return (
-    <>
-      <section className="academic-workspace">
-        <div className="academic-toolbar">
-          <div className="academic-filter-grid three-fields"><AcademicField label="Tahun Ajaran" onChange={(event) => updateFilter('academicYear', event.target.value)} options={academicOptions.academicYears} value={filters.academicYear} /><AcademicField label="Tingkat" onChange={(event) => updateFilter('grade', event.target.value)} options={['Semua Tingkat', ...academicOptions.grades]} value={filters.grade} /><AcademicField label="Kelas" onChange={(event) => updateFilter('className', event.target.value)} options={['Semua Kelas', ...academicOptions.classes]} value={filters.className} /></div>
-          <AcademicSearch ariaLabel="Cari kelas atau wali kelas" onChange={(event) => { setSearchQuery(event.target.value); pagination.resetPage() }} placeholder="Cari kelas / wali kelas..." value={searchQuery} />
-        </div>
-        <div className="academic-actions"><div><h3>Penugasan Wali Kelas</h3><p>Wali kelas berasal dari Data Guru</p></div><Button className="academic-button primary" onClick={() => setModal({ type: 'add' })}><Icon name="plus" />Atur Wali Kelas</Button></div>
-        <div className="academic-table-scroll"><table className="academic-table academic-homeroom-table"><thead><tr><th>No</th><th>Kelas</th><th>Wali Kelas</th><th>NIP</th><th>Jumlah Siswa</th><th>Tahun Ajaran</th><th>Aksi</th></tr></thead><tbody>{pagination.pageItems.length === 0 ? <tr><td className="academic-empty-row" colSpan="7"><Icon name="search" /><strong>Penugasan tidak ditemukan</strong><span>Coba ubah filter atau kata pencarian.</span></td></tr> : pagination.pageItems.map((item, index) => <tr key={item.id}><td>{pagination.startIndex + index + 1}</td><td className="academic-name-cell">{item.className}</td><td>{item.teacher}</td><td>{item.nip}</td><td><span className="academic-count-badge">{item.studentCount} siswa</span></td><td>{item.academicYear}</td><td><div className="academic-row-actions"><button aria-label={`Edit wali kelas ${item.className}`} onClick={() => setModal({ type: 'edit', item })} type="button"><Icon name="edit" /></button></div></td></tr>)}</tbody></table></div>
-        <PaginationFooter itemLabel="kelas" pagination={pagination} totalItems={filteredAssignments.length} />
-      </section>
-      {modal && <AcademicEntityModal description="Satu kelas hanya memiliki satu wali kelas pada tahun ajaran aktif." fields={[{ key: 'className', label: 'Rombongan Belajar', type: 'select', options: academicOptions.classes, required: true }, { key: 'teacher', label: 'Guru', type: 'select', options: academicOptions.teachers, required: true }, { key: 'studentCount', label: 'Jumlah Siswa', type: 'number', defaultValue: 36, required: true }]} initialData={modal.item} onClose={() => setModal(null)} onSave={saveAssignment} submitLabel="Simpan Penugasan" title={`${modal.type === 'edit' ? 'Edit' : 'Atur'} Wali Kelas`} />}
-    </>
-  )
-}
-
+// =============================================================================
+// 4. ACADEMIC ROOM ALLOCATION VIEW (Pembagian Ruangan - Preserved Mock/Local State)
+// =============================================================================
 export function AcademicRoomAllocationView({ onNotify }) {
   const [allocations, setAllocations] = useState(() => roomAssignments.map((item) => ({ ...item })))
   const [filters, setFilters] = useState({ day: 'Semua Hari', className: 'Semua Kelas', room: 'Semua Ruangan', status: 'Semua Status' })
   const [searchQuery, setSearchQuery] = useState('')
   const [modal, setModal] = useState(null)
   const [conflict, setConflict] = useState('')
+  const [currentPage, setCurrentPage] = useState(1)
+  const [rowsPerPage, setRowsPerPage] = useState(8)
   const dayOptions = academicOptions.days.filter((day) => day !== 'Semua Hari')
+
+  function getNextId(items) {
+    return Math.max(0, ...items.map((item) => Number(item.id) || 0)) + 1
+  }
 
   const filteredAllocations = useMemo(() => {
     const query = searchQuery.trim().toLowerCase()
@@ -397,8 +1705,24 @@ export function AcademicRoomAllocationView({ onNotify }) {
       && (filters.status === 'Semua Status' || item.status === filters.status)
       && (!query || [item.subject, item.teacher, item.className, item.room].some((value) => String(value ?? '').toLowerCase().includes(query))))
   }, [allocations, filters, searchQuery])
-  const pagination = useAcademicPagination(filteredAllocations)
-  const updateFilter = (key, value) => { setFilters((current) => ({ ...current, [key]: value })); pagination.resetPage() }
+
+  const totalPages = Math.max(1, Math.ceil(filteredAllocations.length / rowsPerPage))
+  const safePage = Math.min(currentPage, totalPages)
+  const startIndex = (safePage - 1) * rowsPerPage
+  const pageItems = filteredAllocations.slice(startIndex, startIndex + rowsPerPage)
+
+  const pagination = {
+    currentPage: safePage,
+    rowsPerPage,
+    totalPages,
+    setCurrentPage,
+    setRowsPerPage: (value) => { setRowsPerPage(value); setCurrentPage(1) },
+  }
+
+  const updateFilter = (key, value) => {
+    setFilters((current) => ({ ...current, [key]: value }))
+    setCurrentPage(1)
+  }
 
   const saveAllocation = (formData) => {
     const source = modal?.item
@@ -417,7 +1741,7 @@ export function AcademicRoomAllocationView({ onNotify }) {
     setAllocations((current) => source ? current.map((item) => item.id === source.id ? next : item) : [next, ...current])
     setModal(null)
     setConflict('')
-    pagination.resetPage()
+    setCurrentPage(1)
     onNotify(`Pembagian ${next.room} untuk ${next.className} berhasil disimpan.`)
   }
 
@@ -426,17 +1750,160 @@ export function AcademicRoomAllocationView({ onNotify }) {
 
   return (
     <>
-      {detectedConflicts > 0 && <div className="academic-page-alert"><Icon name="info" /><div><strong>{detectedConflicts} bentrok ruangan terdeteksi</strong><span>Periksa alokasi ruangan pada hari dan jam yang sama.</span></div></div>}
+      {detectedConflicts > 0 && (
+        <div className="academic-page-alert">
+          <Icon name="info" />
+          <div>
+            <strong>{detectedConflicts} bentrok ruangan terdeteksi</strong>
+            <span>Periksa alokasi ruangan pada hari dan jam yang sama.</span>
+          </div>
+        </div>
+      )}
       <section className="academic-workspace">
         <div className="academic-toolbar">
-          <div className="academic-filter-grid four-fields"><AcademicField label="Hari" onChange={(event) => updateFilter('day', event.target.value)} options={['Semua Hari', ...dayOptions]} value={filters.day} /><AcademicField label="Kelas" onChange={(event) => updateFilter('className', event.target.value)} options={['Semua Kelas', ...academicOptions.classes]} value={filters.className} /><AcademicField label="Ruangan" onChange={(event) => updateFilter('room', event.target.value)} options={['Semua Ruangan', ...academicOptions.rooms]} value={filters.room} /><AcademicField label="Status" onChange={(event) => updateFilter('status', event.target.value)} options={['Semua Status', ...academicOptions.statuses]} value={filters.status} /></div>
-          <AcademicSearch ariaLabel="Cari alokasi ruangan" onChange={(event) => { setSearchQuery(event.target.value); pagination.resetPage() }} placeholder="Cari kelas / mapel / ruangan..." value={searchQuery} />
+          <div className="academic-filter-grid four-fields">
+            <AcademicField label="Hari" onChange={(event) => updateFilter('day', event.target.value)} options={['Semua Hari', ...dayOptions]} value={filters.day} />
+            <AcademicField label="Kelas" onChange={(event) => updateFilter('className', event.target.value)} options={['Semua Kelas', ...academicOptions.classes]} value={filters.className} />
+            <AcademicField label="Ruangan" onChange={(event) => updateFilter('room', event.target.value)} options={['Semua Ruangan', ...academicOptions.rooms]} value={filters.room} />
+            <AcademicField label="Status" onChange={(event) => updateFilter('status', event.target.value)} options={['Semua Status', ...academicOptions.statuses]} value={filters.status} />
+          </div>
+          <AcademicSearch ariaLabel="Cari alokasi ruangan" onChange={(event) => { setSearchQuery(event.target.value); setCurrentPage(1) }} placeholder="Cari kelas / mapel / ruangan..." value={searchQuery} />
         </div>
-        <div className="academic-actions"><div><h3>Pembagian Ruangan</h3><p>Atur pemakaian ruang untuk jadwal pembelajaran</p></div><Button className="academic-button primary" onClick={() => openModal('add')}><Icon name="plus" />Tambah Alokasi</Button></div>
-        <div className="academic-table-scroll"><table className="academic-table academic-room-table"><thead><tr><th>No</th><th>Hari</th><th>Jam</th><th>Kelas</th><th>Mata Pelajaran</th><th>Ruangan</th><th>Status</th><th>Aksi</th></tr></thead><tbody>{pagination.pageItems.length === 0 ? <tr><td className="academic-empty-row" colSpan="8"><Icon name="search" /><strong>Alokasi tidak ditemukan</strong><span>Coba ubah filter atau kata pencarian.</span></td></tr> : pagination.pageItems.map((item, index) => { const hasConflict = Boolean(item.conflict); return <tr className={hasConflict ? 'has-conflict' : ''} key={item.id}><td>{pagination.startIndex + index + 1}</td><td>{item.day}</td><td>{item.time}</td><td className="academic-name-cell">{item.className}</td><td>{item.subject}</td><td><span className="academic-room-badge">{item.room}</span></td><td><span className={`academic-status ${hasConflict ? 'conflict' : toStatusClass(item.status)}`}>{hasConflict ? 'Bentrok Ruangan' : item.status}</span></td><td><div className="academic-row-actions"><button aria-label={`Edit alokasi ${item.className}`} onClick={() => openModal('edit', item)} type="button"><Icon name="edit" /></button></div></td></tr> })}</tbody></table></div>
+        <div className="academic-actions">
+          <div>
+            <h3>Pembagian Ruangan</h3>
+            <p>Atur pemakaian ruang untuk jadwal pembelajaran</p>
+          </div>
+          <Button className="academic-button primary" onClick={() => openModal('add')} type="button">
+            <Icon name="plus" /> Tambah Alokasi
+          </Button>
+        </div>
+        <div className="academic-table-scroll">
+          <table className="academic-table academic-room-table">
+            <thead>
+              <tr>
+                <th>No</th>
+                <th>Hari</th>
+                <th>Jam</th>
+                <th>Kelas</th>
+                <th>Mata Pelajaran</th>
+                <th>Ruangan</th>
+                <th>Status</th>
+                <th>Aksi</th>
+              </tr>
+            </thead>
+            <tbody>
+              {pageItems.length === 0 ? (
+                <tr>
+                  <td className="academic-empty-row" colSpan="8">
+                    <Icon name="search" />
+                    <strong>Alokasi tidak ditemukan</strong>
+                    <span>Coba ubah filter atau kata pencarian.</span>
+                  </td>
+                </tr>
+              ) : pageItems.map((item, index) => {
+                const hasConflict = Boolean(item.conflict)
+                return (
+                  <tr className={hasConflict ? 'has-conflict' : ''} key={item.id}>
+                    <td>{startIndex + index + 1}</td>
+                    <td>{item.day}</td>
+                    <td>{item.time}</td>
+                    <td className="academic-name-cell">{item.className}</td>
+                    <td>{item.subject}</td>
+                    <td><span className="academic-room-badge">{item.room}</span></td>
+                    <td><span className={`academic-status ${hasConflict ? 'conflict' : toStatusClass(item.status)}`}>{hasConflict ? 'Bentrok Ruangan' : item.status}</span></td>
+                    <td>
+                      <div className="academic-row-actions">
+                        <button aria-label={`Edit alokasi ${item.className}`} onClick={() => openModal('edit', item)} type="button">
+                          <Icon name="edit" />
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                )
+              })}
+            </tbody>
+          </table>
+        </div>
         <PaginationFooter itemLabel="alokasi" pagination={pagination} totalItems={filteredAllocations.length} />
       </section>
-      {modal && <AcademicEntityModal description="Sistem akan memeriksa bentrok ruangan pada local state." fields={[{ key: 'day', label: 'Hari', type: 'select', options: dayOptions, required: true }, { key: 'time', label: 'Jam', type: 'select', options: academicOptions.timeSlots, required: true }, { key: 'className', label: 'Kelas', type: 'select', options: academicOptions.classes, required: true }, { key: 'subject', label: 'Mata Pelajaran', type: 'select', options: academicOptions.subjects, required: true }, { key: 'room', label: 'Ruangan', type: 'select', options: academicOptions.rooms, required: true }, { key: 'status', label: 'Status', type: 'select', options: academicOptions.statuses, defaultValue: 'Aktif', required: true }]} initialData={modal.item ? { ...modal.item, status: modal.item.status === 'Bentrok' ? 'Aktif' : modal.item.status } : undefined} onClose={() => { setModal(null); setConflict('') }} onSave={saveAllocation} submitLabel="Simpan Alokasi" title={`${modal.type === 'edit' ? 'Edit' : 'Tambah'} Pembagian Ruangan`} warning={conflict} />}
+
+      {modal && (
+        <AcademicModal
+          description="Sistem akan memeriksa bentrok ruangan pada local state."
+          onClose={() => { setModal(null); setConflict('') }}
+          title={`${modal.type === 'edit' ? 'Edit' : 'Tambah'} Pembagian Ruangan`}
+        >
+          <form
+            className="academic-entity-form"
+            onSubmit={(e) => {
+              e.preventDefault()
+              const fd = new FormData(e.target)
+              saveAllocation({
+                day: fd.get('day'),
+                time: fd.get('time'),
+                className: fd.get('className'),
+                subject: fd.get('subject'),
+                room: fd.get('room'),
+                status: fd.get('status'),
+              })
+            }}
+          >
+            <div className="academic-form-grid">
+              <label>
+                <span>Hari<b>*</b></span>
+                <select defaultValue={modal.item?.day || dayOptions[0]} name="day" required>
+                  {dayOptions.map((d) => <option key={d} value={d}>{d}</option>)}
+                </select>
+              </label>
+              <label>
+                <span>Jam<b>*</b></span>
+                <select defaultValue={modal.item?.time || academicOptions.timeSlots[0]} name="time" required>
+                  {academicOptions.timeSlots.map((t) => <option key={t} value={t}>{t}</option>)}
+                </select>
+              </label>
+              <label>
+                <span>Kelas<b>*</b></span>
+                <select defaultValue={modal.item?.className || academicOptions.classes[0]} name="className" required>
+                  {academicOptions.classes.map((c) => <option key={c} value={c}>{c}</option>)}
+                </select>
+              </label>
+              <label>
+                <span>Mata Pelajaran<b>*</b></span>
+                <select defaultValue={modal.item?.subject || academicOptions.subjects[0]} name="subject" required>
+                  {academicOptions.subjects.map((s) => <option key={s} value={s}>{s}</option>)}
+                </select>
+              </label>
+              <label>
+                <span>Ruangan<b>*</b></span>
+                <select defaultValue={modal.item?.room || academicOptions.rooms[0]} name="room" required>
+                  {academicOptions.rooms.map((r) => <option key={r} value={r}>{r}</option>)}
+                </select>
+              </label>
+              <label>
+                <span>Status<b>*</b></span>
+                <select defaultValue={modal.item?.status || 'Aktif'} name="status" required>
+                  {academicOptions.statuses.map((st) => <option key={st} value={st}>{st}</option>)}
+                </select>
+              </label>
+            </div>
+            {conflict && (
+              <div className="academic-conflict-alert">
+                <Icon name="info" />
+                <span><strong>Bentrok Ruangan: </strong>{conflict}</span>
+              </div>
+            )}
+            <footer>
+              <Button className="academic-button secondary" onClick={() => { setModal(null); setConflict('') }} type="button">
+                Batal
+              </Button>
+              <Button className="academic-button primary" type="submit">
+                <Icon name="save" /> Simpan Alokasi
+              </Button>
+            </footer>
+          </form>
+        </AcademicModal>
+      )}
     </>
   )
 }

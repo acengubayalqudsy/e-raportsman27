@@ -45,7 +45,7 @@ export async function getCsrfCookie() {
 /**
  * Core HTTP Request Wrapper
  */
-async function request(endpoint, options = {}) {
+async function request(endpoint, options = {}, retryState = { csrfRetried: false }) {
   const url = endpoint.startsWith('http') ? endpoint : `${API_BASE_URL}${endpoint}`
   const method = (options.method || 'GET').toUpperCase()
 
@@ -55,9 +55,11 @@ async function request(endpoint, options = {}) {
   }
 
   // Attach Content-Type for JSON body
-  if (options.body && typeof options.body === 'object' && !(options.body instanceof FormData)) {
+  const originalBody = options.body
+  let requestBody = originalBody
+  if (requestBody && typeof requestBody === 'object' && !(requestBody instanceof FormData)) {
     headers['Content-Type'] = 'application/json'
-    options.body = JSON.stringify(options.body)
+    requestBody = JSON.stringify(requestBody)
   }
 
   // Attach CSRF token on mutating requests if available
@@ -71,6 +73,7 @@ async function request(endpoint, options = {}) {
   try {
     const response = await fetch(url, {
       ...options,
+      body: requestBody,
       method,
       headers,
       credentials: 'include',
@@ -89,7 +92,20 @@ async function request(endpoint, options = {}) {
       }
     }
 
-    // Handle standard HTTP error statuses
+    if (response.status === 419 && !retryState.csrfRetried && ['POST', 'PUT', 'PATCH', 'DELETE'].includes(method)) {
+      const refreshed = await getCsrfCookie()
+      if (refreshed) {
+        return request(endpoint, { ...options, body: originalBody }, { csrfRetried: true })
+      }
+    }
+
+    if (response.status === 401 && typeof window !== 'undefined' && !endpoint.endsWith('/auth/login')) {
+      window.dispatchEvent(new CustomEvent('auth:session-expired'))
+    }
+    if (response.status === 403 && typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('auth:forbidden', { detail: { message: data?.message } }))
+    }
+
     const errorMessage = data?.message || getDefaultErrorMessage(response.status)
 
     return {
