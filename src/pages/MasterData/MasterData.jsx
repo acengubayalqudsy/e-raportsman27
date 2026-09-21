@@ -4,6 +4,7 @@ import Icon from '../../components/common/Icon.jsx'
 import Breadcrumb from '../../components/layout/Breadcrumb.jsx'
 import MasterDataTabs from '../../components/master-data/MasterDataTabs.jsx'
 import MasterReferenceView from '../../components/master-data/MasterReferenceView.jsx'
+import MasterRoomView from '../../components/master-data/MasterRoomView.jsx'
 import MasterStudentView from '../../components/master-data/MasterStudentView.jsx'
 import MasterTeacherView from '../../components/master-data/MasterTeacherView.jsx'
 import { masterTabs } from '../../data/masterData.js'
@@ -27,6 +28,8 @@ function MasterData() {
         <MasterStudentView onNotify={setNotice} />
       ) : activeTab.key === 'guru' ? (
         <MasterTeacherView onNotify={setNotice} />
+      ) : activeTab.key === 'ruangan' ? (
+        <MasterRoomView onNotify={setNotice} />
       ) : (
         <MasterReferenceView activeKey={activeTab.key} key={activeTab.key} onNotify={setNotice} />
       )}

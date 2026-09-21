@@ -47,6 +47,19 @@ Route::prefix('v1')->group(function () {
         Route::delete('/{id}', [\App\Http\Controllers\Api\V1\TeacherController::class, 'destroy'])->whereNumber('id');
     });
 
+    // Master Data Ruangan Routes (P1.1)
+    foreach (['rooms', 'master/rooms'] as $roomPrefix) {
+        Route::prefix($roomPrefix)->middleware(['auth:sanctum', 'role:admin'])->group(function () {
+            Route::get('/stats', [\App\Http\Controllers\Api\V1\RoomController::class, 'stats']);
+            Route::get('/options', [\App\Http\Controllers\Api\V1\RoomController::class, 'options']);
+            Route::get('/', [\App\Http\Controllers\Api\V1\RoomController::class, 'index']);
+            Route::get('/{id}', [\App\Http\Controllers\Api\V1\RoomController::class, 'show'])->whereNumber('id');
+            Route::post('/', [\App\Http\Controllers\Api\V1\RoomController::class, 'store']);
+            Route::put('/{id}', [\App\Http\Controllers\Api\V1\RoomController::class, 'update'])->whereNumber('id');
+            Route::delete('/{id}', [\App\Http\Controllers\Api\V1\RoomController::class, 'destroy'])->whereNumber('id');
+        });
+    }
+
     // Master Data Akademik Routes (Protected: Administrator only for Phase 5A)
     Route::prefix('academic')->middleware(['auth:sanctum', 'role:admin'])->group(function () {
         // Years
@@ -110,6 +123,26 @@ Route::prefix('v1')->group(function () {
             Route::put('/{id}', [\App\Http\Controllers\Api\V1\CourseAssignmentController::class, 'update'])->whereNumber('id');
             Route::delete('/{id}', [\App\Http\Controllers\Api\V1\CourseAssignmentController::class, 'destroy'])->whereNumber('id');
         });
+
+        // 8. Schedules / Jadwal Mengajar (P1.1)
+        Route::prefix('schedules')->group(function () {
+            Route::get('/options', [\App\Http\Controllers\Api\V1\ScheduleController::class, 'options']);
+            Route::get('/', [\App\Http\Controllers\Api\V1\ScheduleController::class, 'index']);
+            Route::get('/{id}', [\App\Http\Controllers\Api\V1\ScheduleController::class, 'show'])->whereNumber('id');
+            Route::post('/', [\App\Http\Controllers\Api\V1\ScheduleController::class, 'store']);
+            Route::put('/{id}', [\App\Http\Controllers\Api\V1\ScheduleController::class, 'update'])->whereNumber('id');
+            Route::delete('/{id}', [\App\Http\Controllers\Api\V1\ScheduleController::class, 'destroy'])->whereNumber('id');
+        });
+    });
+
+    // Schedule routes alias at root /api/v1/schedules
+    Route::prefix('schedules')->middleware(['auth:sanctum', 'role:admin'])->group(function () {
+        Route::get('/options', [\App\Http\Controllers\Api\V1\ScheduleController::class, 'options']);
+        Route::get('/', [\App\Http\Controllers\Api\V1\ScheduleController::class, 'index']);
+        Route::get('/{id}', [\App\Http\Controllers\Api\V1\ScheduleController::class, 'show'])->whereNumber('id');
+        Route::post('/', [\App\Http\Controllers\Api\V1\ScheduleController::class, 'store']);
+        Route::put('/{id}', [\App\Http\Controllers\Api\V1\ScheduleController::class, 'update'])->whereNumber('id');
+        Route::delete('/{id}', [\App\Http\Controllers\Api\V1\ScheduleController::class, 'destroy'])->whereNumber('id');
     });
 
 });

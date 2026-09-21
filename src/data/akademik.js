@@ -84,7 +84,7 @@ export const academicSummary = [
 
 const defaultAcademicYear = '2024/2025'
 const defaultSemester = 'Genap'
-const scheduleDays = ['Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu']
+const scheduleDays = ['Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat']
 const prioritizedClassNames = [
   'X Merdeka 3',
   ...masterClasses.map(({ name }) => name).filter((name) => name !== 'X Merdeka 3'),
