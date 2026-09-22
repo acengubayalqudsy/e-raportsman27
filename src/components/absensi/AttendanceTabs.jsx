@@ -1,6 +1,6 @@
 import { Link } from 'react-router-dom'
 import Icon from '../common/Icon.jsx'
-import { attendanceTabs } from '../../data/absensi.js'
+import { attendanceTabs } from '../../config/attendanceTabs.js'
 
 function AttendanceTabs({ activeKey }) {
   return (

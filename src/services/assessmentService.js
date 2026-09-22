@@ -17,6 +17,7 @@ export const assessmentService = {
       success: false,
       error: res.message || 'Gagal memuat konteks penugasan mengajar.',
       data: { assigned_courses: [], active_semester: null, homeroom_class: null },
+      status: res.status,
     }
   },
 
@@ -180,9 +181,15 @@ export const assessmentService = {
   async getSupplementaryData(classId, semesterId) {
     const res = await apiClient.get(`/api/v1/assessment/supplementary/${classId}/${semesterId}`)
     if (res.success) {
-      return { success: true, data: res.data }
+      return { success: true, data: res.data, status: res.status }
     }
-    return { success: false, error: res.message || 'Gagal memuat data pelengkap rapor.', data: { students: [] } }
+    return {
+      success: false,
+      error: res.message || 'Gagal memuat data pelengkap rapor.',
+      data: { students: [] },
+      status: res.status,
+      errors: res.errors || null,
+    }
   },
 
   /**
@@ -195,9 +202,14 @@ export const assessmentService = {
       items,
     })
     if (res.success) {
-      return { success: true, message: res.message, data: res.data }
+      return { success: true, message: res.message, data: res.data, status: res.status }
     }
-    return { success: false, error: res.message || 'Gagal menyimpan data absensi.' }
+    return {
+      success: false,
+      error: res.message || 'Gagal menyimpan data absensi.',
+      status: res.status,
+      errors: res.errors || null,
+    }
   },
 
   /**
@@ -247,4 +259,3 @@ export const assessmentService = {
 }
 
 export default assessmentService
-

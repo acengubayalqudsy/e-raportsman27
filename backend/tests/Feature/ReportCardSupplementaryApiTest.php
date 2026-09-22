@@ -187,6 +187,15 @@ class ReportCardSupplementaryApiTest extends TestCase
             'permitted' => 1,
             'absent' => 0,
         ]);
+
+        // 4. Verify the persisted values are returned after a fresh read.
+        $this->actingAs($this->guruWalikelasUser)->getJson(
+            "/api/v1/assessment/supplementary/{$this->class->id}/{$this->semester->id}"
+        )->assertOk()
+            ->assertJsonPath('data.students.0.attendance.sick', 2)
+            ->assertJsonPath('data.students.0.attendance.permitted', 1)
+            ->assertJsonPath('data.students.0.attendance.absent', 0)
+            ->assertJsonPath('data.students.0.attendance.notes', 'Presensi semester ganjil');
     }
 
     public function test_walikelas_can_save_extracurriculars_and_homeroom_notes(): void
