@@ -17,6 +17,7 @@ use App\Models\StudentScore;
 use App\Models\Subject;
 use App\Models\Teacher;
 use App\Models\User;
+use Illuminate\Database\QueryException;
 use Tests\TestCase;
 
 class AssessmentApiTest extends TestCase
@@ -220,6 +221,109 @@ class AssessmentApiTest extends TestCase
             'title' => 'Sumatif Ilegal',
         ]);
         $res->assertStatus(403);
+    }
+
+    public function test_assessment_rejects_learning_objective_from_another_subject(): void
+    {
+        $otherSubject = Subject::create([
+            'name' => 'Fisika Integritas',
+            'code' => 'FIS-INT',
+            'status' => 'Aktif',
+        ]);
+        $objective = LearningObjective::create([
+            'subject_id' => $otherSubject->id,
+            'academic_year_id' => $this->academicYear->id,
+            'semester_id' => $this->semester->id,
+            'grade' => 'X',
+            'code' => 'TP-FIS-01',
+            'description' => 'Tujuan pembelajaran mata pelajaran lain',
+            'status' => 'Aktif',
+        ]);
+
+        $this->actingAs($this->guruUser1)->postJson('/api/v1/assessment/assessments', [
+            'course_assignment_id' => $this->assignment1->id,
+            'learning_objective_id' => $objective->id,
+            'type' => 'Sumatif Lingkup Materi',
+            'title' => 'Objective lintas mapel',
+        ])->assertStatus(422);
+    }
+
+    public function test_assessment_rejects_learning_objective_from_another_semester(): void
+    {
+        $otherSemester = Semester::create([
+            'academic_year_id' => $this->academicYear->id,
+            'name' => 'Genap',
+            'semester_type' => 'Genap',
+            'start_date' => '2025-01-01',
+            'end_date' => '2025-06-30',
+            'status' => 'Aktif',
+        ]);
+        $objective = LearningObjective::create([
+            'subject_id' => $this->subject->id,
+            'academic_year_id' => $this->academicYear->id,
+            'semester_id' => $otherSemester->id,
+            'grade' => 'X',
+            'code' => 'TP-GENAP-01',
+            'description' => 'Tujuan pembelajaran semester lain',
+            'status' => 'Aktif',
+        ]);
+
+        $this->actingAs($this->guruUser1)->postJson('/api/v1/assessment/assessments', [
+            'course_assignment_id' => $this->assignment1->id,
+            'learning_objective_id' => $objective->id,
+            'type' => 'Sumatif Lingkup Materi',
+            'title' => 'Objective lintas semester',
+        ])->assertStatus(422);
+    }
+
+    public function test_assessment_rejects_learning_objective_from_another_academic_year(): void
+    {
+        $otherYear = AcademicYear::create([
+            'name' => '2025/2026 Objective Integrity',
+            'start_date' => '2025-07-15',
+            'end_date' => '2026-06-30',
+            'status' => 'Akan Datang',
+        ]);
+        $otherSemester = Semester::create([
+            'academic_year_id' => $otherYear->id,
+            'name' => 'Ganjil Objective Integrity',
+            'semester_type' => 'Ganjil',
+            'start_date' => '2025-07-15',
+            'end_date' => '2025-12-20',
+            'status' => 'Akan Datang',
+        ]);
+        $objective = LearningObjective::create([
+            'subject_id' => $this->subject->id,
+            'academic_year_id' => $otherYear->id,
+            'semester_id' => $otherSemester->id,
+            'grade' => 'X',
+            'code' => 'TP-YEAR-01',
+            'description' => 'Tujuan pembelajaran tahun ajaran lain',
+            'status' => 'Aktif',
+        ]);
+
+        $this->actingAs($this->guruUser1)->postJson('/api/v1/assessment/assessments', [
+            'course_assignment_id' => $this->assignment1->id,
+            'learning_objective_id' => $objective->id,
+            'type' => 'Sumatif Lingkup Materi',
+            'title' => 'Objective lintas tahun ajaran',
+        ])->assertStatus(422);
+    }
+
+    public function test_final_grade_rejects_mismatched_course_assignment_context(): void
+    {
+        $this->expectException(QueryException::class);
+
+        FinalCourseGrade::create([
+            'academic_year_id' => $this->academicYear->id,
+            'semester_id' => $this->semester->id,
+            'class_id' => $this->classB->id,
+            'subject_id' => $this->subject->id,
+            'student_id' => $this->studentA1->id,
+            'course_assignment_id' => $this->assignment1->id,
+            'final_score' => 80,
+            'status' => 'Draft',
+        ]);
     }
 
     public function test_guru_can_batch_save_scores_for_enrolled_students(): void

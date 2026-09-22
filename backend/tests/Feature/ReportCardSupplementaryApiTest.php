@@ -143,6 +143,13 @@ class ReportCardSupplementaryApiTest extends TestCase
         $response->assertStatus(403);
     }
 
+    public function test_admin_can_access_valid_supplementary_context(): void
+    {
+        $this->actingAs($this->adminUser)->getJson(
+            "/api/v1/assessment/supplementary/{$this->class->id}/{$this->semester->id}"
+        )->assertOk();
+    }
+
     public function test_walikelas_can_access_and_save_supplementary_attendance(): void
     {
         // 1. Fetch supplementary (initially empty)
@@ -228,6 +235,79 @@ class ReportCardSupplementaryApiTest extends TestCase
         );
         $noteResp->assertOk();
         $this->assertDatabaseHas('homeroom_notes', [
+            'student_id' => $this->student->id,
+            'semester_id' => $this->semester->id,
+        ]);
+    }
+
+    public function test_walikelas_cannot_write_student_from_another_class(): void
+    {
+        $otherClass = SchoolClass::create([
+            'academic_year_id' => $this->year->id,
+            'name' => 'X-2',
+            'code' => 'X-2',
+            'grade' => '10',
+            'capacity' => 36,
+            'status' => 'Aktif',
+        ]);
+        $otherStudent = Student::factory()->create(['status' => 'Aktif']);
+        ClassMember::create([
+            'academic_year_id' => $this->year->id,
+            'semester_id' => $this->semester->id,
+            'class_id' => $otherClass->id,
+            'student_id' => $otherStudent->id,
+            'status' => 'Aktif',
+        ]);
+
+        $response = $this->actingAs($this->guruWalikelasUser)->postJson('/api/v1/assessment/attendance/batch', [
+            'class_id' => $this->class->id,
+            'semester_id' => $this->semester->id,
+            'items' => [['student_id' => $otherStudent->id, 'sick' => 1, 'permitted' => 0, 'absent' => 0]],
+        ]);
+
+        $response->assertStatus(422);
+        $this->assertDatabaseMissing('student_attendances', ['student_id' => $otherStudent->id]);
+    }
+
+    public function test_walikelas_cannot_write_student_from_another_semester(): void
+    {
+        $otherSemester = Semester::create([
+            'academic_year_id' => $this->year->id,
+            'name' => 'Genap',
+            'semester_type' => 'Genap',
+            'start_date' => '2026-01-01',
+            'end_date' => '2026-06-20',
+            'status' => 'Aktif',
+        ]);
+        $otherStudent = Student::factory()->create(['status' => 'Aktif']);
+        ClassMember::create([
+            'academic_year_id' => $this->year->id,
+            'semester_id' => $otherSemester->id,
+            'class_id' => $this->class->id,
+            'student_id' => $otherStudent->id,
+            'status' => 'Aktif',
+        ]);
+
+        $this->actingAs($this->guruWalikelasUser)->postJson('/api/v1/assessment/attendance/batch', [
+            'class_id' => $this->class->id,
+            'semester_id' => $this->semester->id,
+            'items' => [['student_id' => $otherStudent->id, 'sick' => 1, 'permitted' => 0, 'absent' => 0]],
+        ])->assertStatus(422);
+    }
+
+    public function test_invalid_student_in_batch_rolls_back_entire_write(): void
+    {
+        $response = $this->actingAs($this->guruWalikelasUser)->postJson('/api/v1/assessment/attendance/batch', [
+            'class_id' => $this->class->id,
+            'semester_id' => $this->semester->id,
+            'items' => [
+                ['student_id' => $this->student->id, 'sick' => 2, 'permitted' => 0, 'absent' => 0],
+                ['student_id' => 999999, 'sick' => 1, 'permitted' => 0, 'absent' => 0],
+            ],
+        ]);
+
+        $response->assertStatus(422);
+        $this->assertDatabaseMissing('student_attendances', [
             'student_id' => $this->student->id,
             'semester_id' => $this->semester->id,
         ]);

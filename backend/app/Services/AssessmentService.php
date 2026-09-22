@@ -211,6 +211,7 @@ class AssessmentService
      */
     public function saveBatchScores(CourseAssignment $assignment, array $scoresData, User $user): int
     {
+        $this->assertAssignmentIntegrity($assignment);
         if ($this->authService->isCourseGradeLocked($assignment)) {
             throw ValidationException::withMessages([
                 'course_assignment_id' => ['Nilai mata pelajaran ini telah divalidasi dan dikunci. Hubungi Wali Kelas atau Kurikulum untuk membuka kunci.'],
@@ -289,6 +290,7 @@ class AssessmentService
      */
     public function calculateFinalGrades(CourseAssignment $assignment, User $user): int
     {
+        $this->assertAssignmentIntegrity($assignment);
         if ($this->authService->isCourseGradeLocked($assignment)) {
             throw ValidationException::withMessages([
                 'course_assignment_id' => ['Nilai mata pelajaran ini telah divalidasi dan dikunci.'],
@@ -440,6 +442,21 @@ class AssessmentService
         });
 
         return $processedCount;
+    }
+
+    private function assertAssignmentIntegrity(CourseAssignment $assignment): void
+    {
+        $assignment->loadMissing(['schoolClass', 'semester']);
+
+        if (!$assignment->schoolClass
+            || !$assignment->semester
+            || (int) $assignment->academic_year_id !== (int) $assignment->schoolClass->academic_year_id
+            || (int) $assignment->academic_year_id !== (int) $assignment->semester->academic_year_id
+        ) {
+            throw ValidationException::withMessages([
+                'course_assignment_id' => ['Penugasan mengajar memiliki kombinasi tahun ajaran, semester, dan kelas yang tidak konsisten.'],
+            ]);
+        }
     }
 
     /**
@@ -773,6 +790,8 @@ class AssessmentService
      */
     public function saveAttendanceBatch(int $classId, int $semesterId, array $items, User $user): int
     {
+        $this->authService->assertUserCanAccessAcademicContext($user, $classId, $semesterId);
+        $this->authService->assertActiveClassMembers($classId, $semesterId, array_column($items, 'student_id'));
         $saved = 0;
         DB::transaction(function () use ($classId, $semesterId, $items, $user, &$saved) {
             foreach ($items as $item) {
@@ -809,6 +828,8 @@ class AssessmentService
      */
     public function saveExtracurricularsBatch(int $classId, int $semesterId, array $items, User $user): int
     {
+        $this->authService->assertUserCanAccessAcademicContext($user, $classId, $semesterId);
+        $this->authService->assertActiveClassMembers($classId, $semesterId, array_column($items, 'student_id'));
         $saved = 0;
         DB::transaction(function () use ($semesterId, $items, $user, &$saved) {
             foreach ($items as $item) {
@@ -863,6 +884,8 @@ class AssessmentService
      */
     public function saveCocurricularsBatch(int $classId, int $semesterId, array $items, User $user): int
     {
+        $this->authService->assertUserCanAccessAcademicContext($user, $classId, $semesterId);
+        $this->authService->assertActiveClassMembers($classId, $semesterId, array_column($items, 'student_id'));
         $saved = 0;
         DB::transaction(function () use ($classId, $semesterId, $items, $user, &$saved) {
             foreach ($items as $item) {
@@ -901,6 +924,8 @@ class AssessmentService
      */
     public function saveHomeroomNotesBatch(int $classId, int $semesterId, array $items, User $user): int
     {
+        $this->authService->assertUserCanAccessAcademicContext($user, $classId, $semesterId);
+        $this->authService->assertActiveClassMembers($classId, $semesterId, array_column($items, 'student_id'));
         $saved = 0;
         DB::transaction(function () use ($classId, $semesterId, $items, $user, &$saved) {
             $hrAssignment = HomeroomAssignment::where('class_id', $classId)

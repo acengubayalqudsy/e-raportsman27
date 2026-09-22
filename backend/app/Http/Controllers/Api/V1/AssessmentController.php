@@ -8,6 +8,7 @@ use App\Models\ClassMember;
 use App\Models\CourseAssignment;
 use App\Models\FinalCourseGrade;
 use App\Models\LearningObjective;
+use App\Models\Semester;
 use App\Services\AcademicAuthorizationService;
 use App\Services\AssessmentService;
 use Illuminate\Http\JsonResponse;
@@ -50,6 +51,19 @@ class AssessmentController extends Controller
             ->where('status', 'Aktif')
             ->orderBy('code');
 
+        $user = $request->user();
+        if (!$user->hasRole('admin')) {
+            $hasAssignment = CourseAssignment::where('subject_id', $request->subject_id)
+                ->where('status', 'Aktif')
+                ->when($request->semester_id, fn ($q) => $q->where('semester_id', $request->semester_id))
+                ->where('teacher_id', $user->teacher?->id)
+                ->exists();
+
+            if (!$hasAssignment) {
+                return response()->json(['success' => false, 'message' => 'Akses ditolak.'], 403);
+            }
+        }
+
         return response()->json([
             'success' => true,
             'data' => $query->get(),
@@ -70,8 +84,28 @@ class AssessmentController extends Controller
             'description' => 'required|string',
         ]);
 
+        $semester = Semester::find($validated['semester_id']);
+        if (!$semester || (int) $semester->academic_year_id !== (int) $validated['academic_year_id']) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Semester tidak berada pada tahun ajaran yang dipilih.',
+            ], 422);
+        }
+
         $validated['created_by'] = $request->user()->id;
         $validated['status'] = 'Aktif';
+
+        $hasAssignment = $request->user()->hasRole('admin')
+            || CourseAssignment::where('subject_id', $validated['subject_id'])
+                ->where('academic_year_id', $validated['academic_year_id'])
+                ->where('semester_id', $validated['semester_id'])
+                ->where('status', 'Aktif')
+                ->where('teacher_id', $request->user()->teacher?->id)
+                ->exists();
+
+        if (!$hasAssignment) {
+            return response()->json(['success' => false, 'message' => 'Akses ditolak. Anda tidak memiliki penugasan untuk konteks tujuan pembelajaran ini.'], 403);
+        }
 
         $lo = LearningObjective::create($validated);
 
@@ -140,6 +174,11 @@ class AssessmentController extends Controller
                 'message' => 'Nilai mata pelajaran ini telah divalidasi dan dikunci.',
             ], 403);
         }
+
+        $this->authService->assertLearningObjectiveMatchesAssignment(
+            isset($validated['learning_objective_id']) ? (int) $validated['learning_objective_id'] : null,
+            $assignment
+        );
 
         $validated['status'] = 'Aktif';
         $assessment = Assessment::create($validated);
@@ -542,6 +581,7 @@ class AssessmentController extends Controller
                 'message' => 'Akses ditolak. Hanya Wali Kelas atau Administrator yang dapat mengakses data pelengkap kelas ini.',
             ], 403);
         }
+        $this->authService->assertUserCanAccessAcademicContext($request->user(), $classId, $semesterId);
 
         $data = $this->assessmentService->getSupplementaryData($classId, $semesterId);
 
@@ -570,6 +610,8 @@ class AssessmentController extends Controller
         if (!$this->authService->isHomeroomTeacher($request->user(), $validated['class_id'], $validated['semester_id']) && !$request->user()->hasRole('admin')) {
             return response()->json(['success' => false, 'message' => 'Akses ditolak.'], 403);
         }
+        $this->authService->assertUserCanAccessAcademicContext($request->user(), $validated['class_id'], $validated['semester_id']);
+        $this->authService->assertActiveClassMembers($validated['class_id'], $validated['semester_id'], array_column($validated['items'], 'student_id'));
 
         $saved = $this->assessmentService->saveAttendanceBatch(
             $validated['class_id'],
@@ -606,6 +648,8 @@ class AssessmentController extends Controller
         if (!$this->authService->isHomeroomTeacher($request->user(), $validated['class_id'], $validated['semester_id']) && !$request->user()->hasRole('admin')) {
             return response()->json(['success' => false, 'message' => 'Akses ditolak.'], 403);
         }
+        $this->authService->assertUserCanAccessAcademicContext($request->user(), $validated['class_id'], $validated['semester_id']);
+        $this->authService->assertActiveClassMembers($validated['class_id'], $validated['semester_id'], array_column($validated['items'], 'student_id'));
 
         $saved = $this->assessmentService->saveExtracurricularsBatch(
             $validated['class_id'],
@@ -638,6 +682,8 @@ class AssessmentController extends Controller
         if (!$this->authService->isHomeroomTeacher($request->user(), $validated['class_id'], $validated['semester_id']) && !$request->user()->hasRole('admin')) {
             return response()->json(['success' => false, 'message' => 'Akses ditolak.'], 403);
         }
+        $this->authService->assertUserCanAccessAcademicContext($request->user(), $validated['class_id'], $validated['semester_id']);
+        $this->authService->assertActiveClassMembers($validated['class_id'], $validated['semester_id'], array_column($validated['items'], 'student_id'));
 
         $saved = $this->assessmentService->saveCocurricularsBatch(
             $validated['class_id'],
@@ -669,6 +715,8 @@ class AssessmentController extends Controller
         if (!$this->authService->isHomeroomTeacher($request->user(), $validated['class_id'], $validated['semester_id']) && !$request->user()->hasRole('admin')) {
             return response()->json(['success' => false, 'message' => 'Akses ditolak.'], 403);
         }
+        $this->authService->assertUserCanAccessAcademicContext($request->user(), $validated['class_id'], $validated['semester_id']);
+        $this->authService->assertActiveClassMembers($validated['class_id'], $validated['semester_id'], array_column($validated['items'], 'student_id'));
 
         $saved = $this->assessmentService->saveHomeroomNotesBatch(
             $validated['class_id'],
