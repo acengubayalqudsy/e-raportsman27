@@ -1,6 +1,6 @@
 import { Link } from 'react-router-dom'
 import Icon from '../common/Icon.jsx'
-import { journalTabs } from '../../data/jurnalMengajar.js'
+import { journalTabs } from '../../config/journalTabs.js'
 
 function JournalTabs({ activeKey }) {
   return (

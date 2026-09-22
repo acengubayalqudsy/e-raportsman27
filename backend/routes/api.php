@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\Api\V1\AcademicController;
 use App\Http\Controllers\Api\V1\AssessmentController;
+use App\Http\Controllers\Api\V1\TeachingJournalController;
 use App\Http\Controllers\Api\V1\AuthController;
 use App\Http\Controllers\Api\V1\CourseAssignmentController;
 use App\Http\Controllers\Api\V1\ExtracurricularController;
@@ -257,6 +258,14 @@ Route::prefix('v1')->group(function () {
         Route::post('/extracurriculars/batch', [AssessmentController::class, 'saveExtracurriculars']);
         Route::post('/cocurriculars/batch', [AssessmentController::class, 'saveCocurriculars']);
         Route::post('/homeroom-notes/batch', [AssessmentController::class, 'saveHomeroomNotes']);
+    });
+
+    Route::prefix('journals')->middleware(['auth:sanctum', 'role:admin,guru'])->group(function () {
+        Route::get('/', [TeachingJournalController::class, 'index']);
+        Route::get('/{id}', [TeachingJournalController::class, 'show'])->whereNumber('id');
+        Route::post('/', [TeachingJournalController::class, 'store']);
+        Route::put('/{id}', [TeachingJournalController::class, 'update'])->whereNumber('id');
+        Route::delete('/{id}', [TeachingJournalController::class, 'destroy'])->whereNumber('id');
     });
 
 });

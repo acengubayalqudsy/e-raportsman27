@@ -2,59 +2,15 @@ import { useState } from 'react'
 import { useLocation } from 'react-router-dom'
 import Icon from '../../components/common/Icon.jsx'
 import Breadcrumb from '../../components/layout/Breadcrumb.jsx'
-import JournalMainView from '../../components/jurnal-mengajar/JournalMainView.jsx'
-import {
-  ClassActivitiesView,
-  LearningMaterialsView,
-  TeachingNotesView,
-} from '../../components/jurnal-mengajar/JournalReviewViews.jsx'
+import LiveJournalView from '../../components/jurnal-mengajar/LiveJournalView.jsx'
 import JournalTabs from '../../components/jurnal-mengajar/JournalTabs.jsx'
-import {
-  journalTabs,
-  learningMaterials,
-  recentJournalActivity,
-  teachingJournals,
-  teachingNotes,
-} from '../../data/jurnalMengajar.js'
+import { journalTabs } from '../../config/journalTabs.js'
 import './JurnalMengajar.css'
 
 function JurnalMengajar() {
   const location = useLocation()
   const [notice, setNotice] = useState('')
-  const [journals, setJournals] = useState(() => teachingJournals.map((item) => ({ ...item })))
-  const [materials, setMaterials] = useState(() => learningMaterials.map((item) => ({ ...item })))
-  const [notes, setNotes] = useState(() => teachingNotes.map((item) => ({ ...item })))
-  const [recentActivities, setRecentActivities] = useState(() => recentJournalActivity.map((item) => ({ ...item })))
   const activeTab = journalTabs.find((tab) => tab.route === location.pathname) ?? journalTabs[0]
-
-  const views = {
-    jurnal: (
-      <JournalMainView
-        journals={journals}
-        onJournalsChange={setJournals}
-        onNotify={setNotice}
-        onRecentActivitiesChange={setRecentActivities}
-        recentActivities={recentActivities}
-      />
-    ),
-    materi: (
-      <LearningMaterialsView
-        items={materials}
-        onItemsChange={setMaterials}
-        onNotify={setNotice}
-        onRecentActivitiesChange={setRecentActivities}
-      />
-    ),
-    'aktivitas-kelas': <ClassActivitiesView journals={journals} onNotify={setNotice} />,
-    catatan: (
-      <TeachingNotesView
-        items={notes}
-        onItemsChange={setNotes}
-        onNotify={setNotice}
-        onRecentActivitiesChange={setRecentActivities}
-      />
-    ),
-  }
 
   return (
     <section className="teaching-journal-page">
@@ -69,7 +25,13 @@ function JurnalMengajar() {
       </header>
 
       <JournalTabs activeKey={activeTab.key} />
-      {views[activeTab.key]}
+      {activeTab.key === 'jurnal' ? (
+        <LiveJournalView onNotify={setNotice} />
+      ) : (
+        <div className="journal-live-state" role="status">
+          Tampilan {activeTab.label} belum tersedia pada API jurnal mengajar.
+        </div>
+      )}
 
       {notice && (
         <div className="journal-toast" aria-live="polite" role="status">

@@ -2,7 +2,7 @@ import { academicTabs } from "./akademik.js";
 import { activityTabs } from "./kegiatanSiswa.js";
 import { attendanceTabs } from "../config/attendanceTabs.js";
 import { assessmentTabs } from "./penilaian.js";
-import { journalTabs } from "./jurnalMengajar.js";
+import { journalTabs } from "../config/journalTabs.js";
 import { masterTabs } from "./masterData.js";
 import { raporTabs } from "./rapor.js";
 import { settingsTabs } from "./pengaturan.js";

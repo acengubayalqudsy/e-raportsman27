@@ -6,6 +6,42 @@
   color: #0f172a;
 }
 
+.journal-live-view { display: flex; min-width: 0; flex-direction: column; gap: 14px; }
+.journal-live-toolbar {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr)) minmax(220px, 1.4fr);
+  gap: 12px;
+  padding: 14px 15px;
+  background: #fff;
+  border: 1px solid #dfe7ef;
+  border-radius: 11px;
+}
+.journal-live-toolbar .journal-search { align-self: end; }
+.journal-live-toolbar .journal-search input { width: 100%; min-height: 35px; padding: 0 10px; border: 1px solid #d7e1eb; border-radius: 7px; }
+.journal-live-actions { display: flex; justify-content: flex-end; }
+.journal-live-state,
+.journal-live-error { padding: 14px 15px; border: 1px solid #e2e8f0; border-radius: 8px; color: #526174; background: #f8fafc; font-size: 11px; }
+.journal-live-error { border-color: #fed7aa; color: #9a3412; background: #fff7ed; }
+.journal-live-table-wrap { overflow-x: auto; background: #fff; border: 1px solid #dfe7ef; border-radius: 11px; }
+.journal-live-table { width: 100%; min-width: 900px; border-collapse: collapse; }
+.journal-live-table th, .journal-live-table td { padding: 11px 12px; border-bottom: 1px solid #eef2f6; text-align: left; font-size: 10px; }
+.journal-live-table th { color: #526174; background: #f8fafc; font-size: 9px; text-transform: uppercase; }
+.journal-live-table td strong, .journal-live-table td small { display: block; }
+.journal-live-table td small { margin-top: 3px; color: #64748b; font-size: 9px; }
+.journal-live-table td button { margin-right: 7px; padding: 5px; color: #07895a; background: transparent; border: 0; cursor: pointer; }
+.journal-live-table td button:last-child { color: #b42318; }
+.journal-live-form { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; padding: 16px; }
+.journal-live-form .journal-form-field-wide, .journal-live-form-actions { grid-column: 1 / -1; }
+.journal-live-form textarea { min-height: 76px; resize: vertical; }
+.journal-live-form-actions { display: flex; justify-content: flex-end; gap: 9px; padding-top: 5px; }
+@media (max-width: 900px) {
+  .journal-live-toolbar { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (max-width: 600px) {
+  .journal-live-toolbar, .journal-live-form { grid-template-columns: 1fr; }
+  .journal-live-form .journal-form-field-wide, .journal-live-form-actions { grid-column: auto; }
+}
+
 .teaching-journal-header {
   display: flex;
   align-items: center;
