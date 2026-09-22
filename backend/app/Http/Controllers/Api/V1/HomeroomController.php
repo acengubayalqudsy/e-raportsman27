@@ -28,6 +28,11 @@ class HomeroomController extends Controller
      */
     public function index(Request $request): JsonResponse
     {
+        $user = $request->user();
+        if (!$user || !$user->hasAnyRole(['admin', 'walikelas', 'guru'])) {
+            return response()->json(['success' => false, 'message' => 'Unauthorized.'], 403);
+        }
+
         $request->validate([
             'academic_year_id' => ['nullable', 'integer', 'exists:academic_years,id'],
             'semester_id' => ['nullable', 'integer', 'exists:semesters,id'],
@@ -50,6 +55,25 @@ class HomeroomController extends Controller
             },
             'semester.academicYear',
         ])->filter($request->all());
+
+        if (!$user->hasRole('admin')) {
+            $teacher = $user->teacher;
+            if (!$teacher) {
+                return response()->json([
+                    'success' => true,
+                    'data' => [],
+                    'meta' => [
+                        'current_page' => 1,
+                        'from' => null,
+                        'last_page' => 1,
+                        'per_page' => (int)$request->input('per_page', 8),
+                        'to' => null,
+                        'total' => 0,
+                    ],
+                ]);
+            }
+            $query->where('teacher_id', $teacher->id);
+        }
 
         $sortBy = $request->input('sort_by', 'id');
         $sortDir = strtolower($request->input('sort_dir')) === 'desc' ? 'desc' : 'asc';

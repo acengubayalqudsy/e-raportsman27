@@ -3,13 +3,6 @@ import Icon from '../common/Icon.jsx'
 import SearchInput from '../common/SearchInput.jsx'
 import { assessmentOptions } from '../../data/penilaian.js'
 
-const filterFields = [
-  { key: 'className', label: 'Kelas', options: assessmentOptions.classes },
-  { key: 'subject', label: 'Mata Pelajaran', options: assessmentOptions.subjects },
-  { key: 'assessmentType', label: 'Penilaian', options: assessmentOptions.assessmentTypes },
-  { key: 'semester', label: 'Semester', options: assessmentOptions.semesters },
-]
-
 function AssessmentFilters({
   filters,
   onFilterChange,
@@ -17,16 +10,27 @@ function AssessmentFilters({
   onSearchChange,
   onDownload,
   onSaveAll,
+  classOptions,
+  subjectOptions,
+  isLocked = false,
+  isSaving = false,
 }) {
+  const dynamicFilterFields = [
+    { key: 'className', label: 'Kelas', options: classOptions && classOptions.length > 0 ? classOptions : assessmentOptions.classes },
+    { key: 'subject', label: 'Mata Pelajaran', options: subjectOptions && subjectOptions.length > 0 ? subjectOptions : assessmentOptions.subjects },
+    { key: 'assessmentType', label: 'Penilaian', options: assessmentOptions.assessmentTypes },
+    { key: 'semester', label: 'Semester', options: assessmentOptions.semesters },
+  ]
+
   return (
     <div className="assessment-toolbar">
       <div className="assessment-filter-grid">
-        {filterFields.map((field) => (
+        {dynamicFilterFields.map((field) => (
           <label className="assessment-field" key={field.key}>
             <span>{field.label}</span>
             <select value={filters[field.key]} onChange={(event) => onFilterChange(field.key, event.target.value)}>
               {field.options.map((option) => (
-                <option key={option}>{option}</option>
+                <option key={option} value={option}>{option}</option>
               ))}
             </select>
           </label>
@@ -49,9 +53,13 @@ function AssessmentFilters({
             <Icon name="download" />
             Unduh Template
           </Button>
-          <Button className="assessment-button primary" onClick={onSaveAll}>
-            <Icon name="save" />
-            Simpan Semua Nilai
+          <Button
+            className="assessment-button primary"
+            disabled={isLocked || isSaving}
+            onClick={onSaveAll}
+          >
+            <Icon name={isLocked ? "lock" : "save"} />
+            {isLocked ? 'Nilai Terkunci' : isSaving ? 'Menyimpan...' : 'Simpan Semua Nilai'}
           </Button>
         </div>
       </div>

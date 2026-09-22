@@ -13,6 +13,7 @@ use App\Models\Subject;
 use App\Models\Teacher;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 
 class CourseAssignmentController extends Controller
 {
@@ -29,6 +30,11 @@ class CourseAssignmentController extends Controller
      */
     public function index(Request $request): JsonResponse
     {
+        $user = $request->user();
+        if (!$user || !$user->hasAnyRole(['admin', 'guru'])) {
+            return response()->json(['success' => false, 'message' => 'Unauthorized.'], 403);
+        }
+
         $request->validate([
             'academic_year_id' => ['nullable', 'integer', 'exists:academic_years,id'],
             'semester_id' => ['nullable', 'integer', 'exists:semesters,id'],
@@ -43,6 +49,25 @@ class CourseAssignmentController extends Controller
         ]);
         $query = CourseAssignment::with(['teacher', 'subject', 'schoolClass', 'semester.academicYear'])
             ->filter($request->all());
+
+        if (!$user->hasRole('admin')) {
+            $teacher = $user->teacher;
+            if (!$teacher) {
+                return response()->json([
+                    'success' => true,
+                    'data' => [],
+                    'meta' => [
+                        'current_page' => 1,
+                        'from' => null,
+                        'last_page' => 1,
+                        'per_page' => (int)$request->input('per_page', 8),
+                        'to' => null,
+                        'total' => 0,
+                    ],
+                ]);
+            }
+            $query->where('teacher_id', $teacher->id);
+        }
 
         $sortBy = $request->input('sort_by', 'id');
         $sortDir = strtolower($request->input('sort_dir')) === 'desc' ? 'desc' : 'asc';
@@ -166,17 +191,32 @@ class CourseAssignmentController extends Controller
         $subject = Subject::findOrFail($request->subject_id);
         $teacher = Teacher::findOrFail($request->teacher_id);
 
-        $assignment = CourseAssignment::create([
-            'academic_year_id' => $class->academic_year_id,
-            'semester_id' => $semester->id,
-            'class_id' => $class->id,
-            'subject_id' => $subject->id,
-            'teacher_id' => $teacher->id,
-            'weekly_hours' => $request->weekly_hours,
-            'role' => $request->role ?? 'Utama',
-            'status' => $request->status ?? 'Aktif',
-            'notes' => $request->notes,
-        ]);
+        try {
+            $assignment = DB::transaction(function () use ($class, $semester, $subject, $teacher, $request) {
+                return CourseAssignment::create([
+                    'academic_year_id' => $class->academic_year_id,
+                    'semester_id' => $semester->id,
+                    'class_id' => $class->id,
+                    'subject_id' => $subject->id,
+                    'teacher_id' => $teacher->id,
+                    'weekly_hours' => $request->weekly_hours,
+                    'role' => $request->role ?? 'Utama',
+                    'status' => $request->status ?? 'Aktif',
+                    'notes' => $request->notes,
+                ]);
+            });
+        } catch (\Illuminate\Database\QueryException $e) {
+            if ($e->getCode() === '23000' || str_contains($e->getMessage(), 'uk_single_active_utama_course_assignment')) {
+                return response()->json([
+                    'success' => false,
+                    'message' => "Mata pelajaran {$subject->name} di rombel {$class->name} sudah memiliki guru utama aktif.",
+                    'errors' => [
+                        'teacher_id' => ["Mata pelajaran {$subject->name} di rombel {$class->name} sudah memiliki guru utama aktif."],
+                    ],
+                ], 422);
+            }
+            throw $e;
+        }
 
         $assignment->load(['teacher', 'subject', 'schoolClass', 'semester.academicYear']);
 
@@ -204,7 +244,23 @@ class CourseAssignmentController extends Controller
         $assignment = CourseAssignment::findOrFail($id);
         $validated = array_filter($request->validated(), fn($val) => !is_null($val));
 
-        $assignment->update($validated);
+        try {
+            DB::transaction(function () use ($assignment, $validated) {
+                $assignment->update($validated);
+            });
+        } catch (\Illuminate\Database\QueryException $e) {
+            if ($e->getCode() === '23000' || str_contains($e->getMessage(), 'uk_single_active_utama_course_assignment')) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Sudah terdapat guru utama aktif untuk mata pelajaran dan rombel ini.',
+                    'errors' => [
+                        'role' => ['Sudah terdapat guru utama aktif untuk mata pelajaran dan rombel ini.'],
+                    ],
+                ], 422);
+            }
+            throw $e;
+        }
+
         $assignment->load(['teacher', 'subject', 'schoolClass', 'semester.academicYear']);
 
         AuditLog::create([

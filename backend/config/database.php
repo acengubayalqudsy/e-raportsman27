@@ -79,6 +79,21 @@ return [
             ]) : [],
         ],
 
+        'mariadb_test' => [
+            'driver' => 'mariadb',
+            'host' => '127.0.0.1',
+            'port' => '3310',
+            'database' => 'eraport_sman27_isolated_mariadb_test',
+            'username' => 'root',
+            'password' => '',
+            'charset' => 'utf8mb4',
+            'collation' => 'utf8mb4_unicode_ci',
+            'prefix' => '',
+            'prefix_indexes' => true,
+            'strict' => true,
+            'engine' => null,
+        ],
+
         'pgsql' => [
             'driver' => 'pgsql',
             'url' => env('DB_URL'),

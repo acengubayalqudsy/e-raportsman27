@@ -98,12 +98,19 @@ export function MasterEntityModal({ entityLabel, fields, initialData = {}, mode 
 
 export function MasterDeleteModal({ entityLabel = 'Siswa', item, onClose, onConfirm }) {
   const [isDeleting, setIsDeleting] = useState(false)
+  const [errorMessage, setErrorMessage] = useState('')
   if (!item) return null
 
   const handleConfirm = async () => {
     setIsDeleting(true)
+    setErrorMessage('')
     try {
-      await onConfirm(item)
+      const res = await onConfirm(item)
+      if (res && res.success === false) {
+        setErrorMessage(res.error || `Gagal menghapus data ${entityLabel}.`)
+      }
+    } catch {
+      setErrorMessage('Terjadi kendala jaringan saat menghapus data.')
     } finally {
       setIsDeleting(false)
     }
@@ -120,7 +127,7 @@ export function MasterDeleteModal({ entityLabel = 'Siswa', item, onClose, onConf
         <header>
           <div>
             <h3 id="master-delete-title">Hapus Data {entityLabel}?</h3>
-            <p>Data {entityLabel} akan diarsipkan (soft delete) dari sistem.</p>
+            <p>Data {entityLabel} akan dihapus dari sistem master sekolah.</p>
           </div>
           <button aria-label="Tutup konfirmasi" disabled={isDeleting} onClick={onClose} type="button">&times;</button>
         </header>
@@ -137,20 +144,33 @@ export function MasterDeleteModal({ entityLabel = 'Siswa', item, onClose, onConf
               <p>
                 NIP: <strong>{item.nip || '-'}</strong> | Mapel: <strong>{item.subject || '-'}</strong>
               </p>
+            ) : item.room_type ? (
+              <p>
+                Kode: <strong>{item.code || '-'}</strong> | Tipe: <strong>{item.room_type}</strong> | Kapasitas: <strong>{item.capacity || 0} Siswa</strong>
+              </p>
             ) : (
               <p>
                 Kode/Identitas: <strong>{item.code || item.name || '-'}</strong> {item.grade ? `| Tingkat: ${item.grade}` : ''}
               </p>
             )}
-            <small>Apakah Anda yakin ingin menghapus data {entityLabel} ini dari daftar aktif?</small>
+            {errorMessage ? (
+              <div className="master-form-error-alert" role="alert" style={{ marginTop: '12px', textAlign: 'left' }}>
+                <Icon name="info" />
+                <span>{errorMessage}</span>
+              </div>
+            ) : (
+              <small>Apakah Anda yakin ingin menghapus data {entityLabel} ini dari daftar aktif?</small>
+            )}
           </div>
         </div>
 
         <footer className="master-modal-footer">
           <Button className="master-button secondary" disabled={isDeleting} onClick={onClose} type="button">Batal</Button>
-          <Button className="master-button danger" disabled={isDeleting} onClick={handleConfirm} type="button">
-            <Icon name="trash" />{isDeleting ? 'Menghapus...' : `Ya, Hapus ${entityLabel}`}
-          </Button>
+          {!errorMessage && (
+            <Button className="master-button danger" disabled={isDeleting} onClick={handleConfirm} type="button">
+              <Icon name="trash" />{isDeleting ? 'Menghapus...' : `Ya, Hapus ${entityLabel}`}
+            </Button>
+          )}
         </footer>
       </section>
     </div>

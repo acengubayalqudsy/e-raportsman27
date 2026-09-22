@@ -27,8 +27,13 @@ class RombelMemberController extends Controller
     /**
      * Get paginated members of a class in a semester.
      */
-    public function indexMembers(Request $request): JsonResponse
+    public function indexMembers(Request $request, \App\Services\AcademicAuthorizationService $authService): JsonResponse
     {
+        $user = $request->user();
+        if (!$user || !$user->hasAnyRole(['admin', 'guru', 'walikelas'])) {
+            return response()->json(['success' => false, 'message' => 'Unauthorized.'], 403);
+        }
+
         $request->validate([
             'academic_year_id' => ['nullable', 'integer', 'exists:academic_years,id'],
             'semester_id' => ['nullable', 'integer', 'exists:semesters,id'],
@@ -40,8 +45,46 @@ class RombelMemberController extends Controller
             'per_page' => ['nullable', 'integer', 'min:1', 'max:100'],
         ]);
 
-        $query = ClassMember::with(['student', 'schoolClass', 'semester.academicYear'])
-            ->filter($request->all());
+        $allowedClassIds = [];
+        if (!$user->hasRole('admin')) {
+            $allowedClassIds = $authService->getAllowedClassIds($user);
+            if (empty($allowedClassIds)) {
+                return response()->json([
+                    'success' => true,
+                    'data' => [],
+                    'meta' => [
+                        'current_page' => 1,
+                        'from' => null,
+                        'last_page' => 1,
+                        'per_page' => (int)$request->input('per_page', 8),
+                        'to' => null,
+                        'total' => 0,
+                        'class_capacity' => 36,
+                    ],
+                ]);
+            }
+
+            if ($request->filled('class_id') && !$authService->canAccessClass($user, (int)$request->input('class_id'))) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Akses ditolak. Anda tidak memiliki kewenangan atas rombel yang dipilih.',
+                ], 403);
+            }
+        }
+
+        $query = ClassMember::with([
+            'student' => fn($q) => $q->withTrashed(),
+            'schoolClass',
+            'semester.academicYear',
+        ])->filter($request->all());
+
+        if (!$user->hasRole('admin')) {
+            if ($request->filled('class_id')) {
+                $query->where('class_members.class_id', $request->input('class_id'));
+            } else {
+                $query->whereIn('class_members.class_id', $allowedClassIds);
+            }
+        }
 
         $sortBy = $request->input('sort_by', 'id');
         $sortDir = strtolower($request->input('sort_dir')) === 'desc' ? 'desc' : 'asc';
@@ -68,22 +111,35 @@ class RombelMemberController extends Controller
 
         $items = collect($paginator->items())->map(function (ClassMember $m) {
             $s = $m->student;
+            $studentObj = $s ? [
+                'id' => $s->id,
+                'name' => $s->name,
+                'nis' => $s->nis,
+                'nisn' => $s->nisn,
+                'gender' => $s->gender,
+                'gender_label' => $s->gender_label ?? ($s->gender === 'Perempuan' ? 'Perempuan' : 'Laki-laki'),
+                'status' => $s->status ?? 'Aktif',
+            ] : null;
+
             return [
                 'id' => $m->id,
                 'membershipId' => "RMB-" . str_pad((string)$m->id, 4, '0', STR_PAD_LEFT),
                 'studentId' => $m->student_id,
                 'student_id' => $m->student_id,
+                'student' => $studentObj,
                 'nis' => $s?->nis ?: '-',
                 'nisn' => $s?->nisn ?: '-',
                 'name' => $s?->name ?: '-',
-                'gender' => $s?->gender_label ?: '-',
+                'gender' => $s?->gender_label ?: ($s?->gender === 'Perempuan' ? 'Perempuan' : ($s?->gender ? 'Laki-laki' : '-')),
                 'genderCode' => $s?->gender === 'Perempuan' ? 'P' : 'L',
                 'className' => $m->schoolClass?->name ?: '-',
                 'academicYear' => $m->semester?->academicYear?->name ?: '-',
                 'semester' => $m->semester?->name ?: '-',
                 'status' => $m->status,
                 'joinDate' => $m->join_date?->format('Y-m-d'),
+                'join_date' => $m->join_date?->format('Y-m-d'),
                 'leaveDate' => $m->leave_date?->format('Y-m-d'),
+                'leave_date' => $m->leave_date?->format('Y-m-d'),
                 'notes' => $m->notes,
             ];
         });

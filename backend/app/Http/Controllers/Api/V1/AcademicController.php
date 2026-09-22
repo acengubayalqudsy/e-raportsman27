@@ -113,22 +113,35 @@ class AcademicController extends Controller
     public function storeYear(StoreAcademicYearRequest $request): JsonResponse
     {
         $validated = $request->validated();
-        $year = AcademicYear::create($validated);
 
-        AuditLog::create([
-            'user_id' => $request->user()?->id,
-            'action' => 'CREATE_ACADEMIC_YEAR',
-            'description' => "Menambahkan tahun ajaran: {$year->name}",
-            'ip_address' => $request->ip(),
-            'user_agent' => $request->userAgent(),
-            'created_at' => now(),
-        ]);
+        return DB::transaction(function () use ($request, $validated) {
+            $year = AcademicYear::create($validated);
 
-        return response()->json([
-            'success' => true,
-            'message' => "Tahun ajaran {$year->name} berhasil ditambahkan.",
-            'data' => $year,
-        ], 201);
+            if ($year->status === 'Aktif') {
+                AcademicYear::where('status', 'Aktif')
+                    ->where('id', '!=', $year->id)
+                    ->update(['status' => 'Tidak Aktif']);
+
+                Semester::where('status', 'Aktif')
+                    ->where('academic_year_id', '!=', $year->id)
+                    ->update(['status' => 'Tidak Aktif']);
+            }
+
+            AuditLog::create([
+                'user_id' => $request->user()?->id,
+                'action' => 'CREATE_ACADEMIC_YEAR',
+                'description' => "Menambahkan tahun ajaran: {$year->name}",
+                'ip_address' => $request->ip(),
+                'user_agent' => $request->userAgent(),
+                'created_at' => now(),
+            ]);
+
+            return response()->json([
+                'success' => true,
+                'message' => "Tahun ajaran {$year->name} berhasil ditambahkan.",
+                'data' => $year,
+            ], 201);
+        });
     }
 
     public function updateYear(UpdateAcademicYearRequest $request, int $id): JsonResponse
@@ -139,22 +152,35 @@ class AcademicController extends Controller
         }
 
         $validated = $request->validated();
-        $year->update($validated);
 
-        AuditLog::create([
-            'user_id' => $request->user()?->id,
-            'action' => 'UPDATE_ACADEMIC_YEAR',
-            'description' => "Memperbarui tahun ajaran: {$year->name}",
-            'ip_address' => $request->ip(),
-            'user_agent' => $request->userAgent(),
-            'created_at' => now(),
-        ]);
+        return DB::transaction(function () use ($request, $year, $validated) {
+            $year->update($validated);
 
-        return response()->json([
-            'success' => true,
-            'message' => "Tahun ajaran {$year->name} berhasil diperbarui.",
-            'data' => $year,
-        ]);
+            if ($year->status === 'Aktif') {
+                AcademicYear::where('status', 'Aktif')
+                    ->where('id', '!=', $year->id)
+                    ->update(['status' => 'Tidak Aktif']);
+
+                Semester::where('status', 'Aktif')
+                    ->where('academic_year_id', '!=', $year->id)
+                    ->update(['status' => 'Tidak Aktif']);
+            }
+
+            AuditLog::create([
+                'user_id' => $request->user()?->id,
+                'action' => 'UPDATE_ACADEMIC_YEAR',
+                'description' => "Memperbarui tahun ajaran: {$year->name}",
+                'ip_address' => $request->ip(),
+                'user_agent' => $request->userAgent(),
+                'created_at' => now(),
+            ]);
+
+            return response()->json([
+                'success' => true,
+                'message' => "Tahun ajaran {$year->name} berhasil diperbarui.",
+                'data' => $year,
+            ]);
+        });
     }
 
     public function destroyYear(Request $request, int $id): JsonResponse
@@ -313,23 +339,32 @@ class AcademicController extends Controller
     public function storeSemester(StoreSemesterRequest $request): JsonResponse
     {
         $validated = $request->validated();
-        $sem = Semester::create($validated);
-        $sem->load('academicYear');
 
-        AuditLog::create([
-            'user_id' => $request->user()?->id,
-            'action' => 'CREATE_SEMESTER',
-            'description' => "Menambahkan semester: {$sem->name} ({$sem->academicYear?->name})",
-            'ip_address' => $request->ip(),
-            'user_agent' => $request->userAgent(),
-            'created_at' => now(),
-        ]);
+        return DB::transaction(function () use ($request, $validated) {
+            $sem = Semester::create($validated);
+            $sem->load('academicYear');
 
-        return response()->json([
-            'success' => true,
-            'message' => "Semester {$sem->name} berhasil ditambahkan.",
-            'data' => $sem,
-        ], 201);
+            if ($sem->status === 'Aktif') {
+                Semester::where('status', 'Aktif')
+                    ->where('id', '!=', $sem->id)
+                    ->update(['status' => 'Tidak Aktif']);
+            }
+
+            AuditLog::create([
+                'user_id' => $request->user()?->id,
+                'action' => 'CREATE_SEMESTER',
+                'description' => "Menambahkan semester: {$sem->name} ({$sem->academicYear?->name})",
+                'ip_address' => $request->ip(),
+                'user_agent' => $request->userAgent(),
+                'created_at' => now(),
+            ]);
+
+            return response()->json([
+                'success' => true,
+                'message' => "Semester {$sem->name} berhasil ditambahkan.",
+                'data' => $sem,
+            ], 201);
+        });
     }
 
     public function updateSemester(UpdateSemesterRequest $request, int $id): JsonResponse
@@ -340,23 +375,32 @@ class AcademicController extends Controller
         }
 
         $validated = $request->validated();
-        $sem->update($validated);
-        $sem->load('academicYear');
 
-        AuditLog::create([
-            'user_id' => $request->user()?->id,
-            'action' => 'UPDATE_SEMESTER',
-            'description' => "Memperbarui semester ID {$id}: {$sem->name}",
-            'ip_address' => $request->ip(),
-            'user_agent' => $request->userAgent(),
-            'created_at' => now(),
-        ]);
+        return DB::transaction(function () use ($request, $sem, $validated, $id) {
+            $sem->update($validated);
+            $sem->load('academicYear');
 
-        return response()->json([
-            'success' => true,
-            'message' => "Semester {$sem->name} berhasil diperbarui.",
-            'data' => $sem,
-        ]);
+            if ($sem->status === 'Aktif') {
+                Semester::where('status', 'Aktif')
+                    ->where('id', '!=', $sem->id)
+                    ->update(['status' => 'Tidak Aktif']);
+            }
+
+            AuditLog::create([
+                'user_id' => $request->user()?->id,
+                'action' => 'UPDATE_SEMESTER',
+                'description' => "Memperbarui semester ID {$id}: {$sem->name}",
+                'ip_address' => $request->ip(),
+                'user_agent' => $request->userAgent(),
+                'created_at' => now(),
+            ]);
+
+            return response()->json([
+                'success' => true,
+                'message' => "Semester {$sem->name} berhasil diperbarui.",
+                'data' => $sem,
+            ]);
+        });
     }
 
     public function destroySemester(Request $request, int $id): JsonResponse

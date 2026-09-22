@@ -20,6 +20,8 @@ class DatabaseSeeder extends Seeder
                 TeacherSeeder::class,
                 AcademicSeeder::class,
                 AcademicAssignmentSeeder::class,
+                RoomSeeder::class,
+                ScheduleSeeder::class,
             ]);
         }
     }

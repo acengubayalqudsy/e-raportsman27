@@ -90,7 +90,7 @@ class AuthTest extends TestCase
             $user->roles()->attach($role->id, ['is_primary' => true]);
 
             $this->actingAs($user)
-                ->getJson('/api/v1/master/students')
+                ->getJson('/api/v1/master/students/stats')
                 ->assertForbidden();
 
         }

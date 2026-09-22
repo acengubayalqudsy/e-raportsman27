@@ -1,8 +1,9 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import Button from '../common/Button.jsx'
 import EmptyState from '../common/EmptyState.jsx'
 import Icon from '../common/Icon.jsx'
 import Pagination from '../common/Pagination.jsx'
+import assessmentService from '../../services/assessmentService.js'
 import { activityOptions, cocurricularNotes, homeroomContext, homeroomNotes } from '../../data/kegiatanSiswa.js'
 
 const DEFAULT_ROWS_PER_PAGE = activityOptions.rowsPerPageOptions?.[0] || 8
@@ -312,22 +313,77 @@ function StudentNotesView({ type, onNotify }) {
     )))
   }
 
-  const saveRow = (id) => {
+  const [context, setContext] = useState(null)
+  const [isSaving, setIsSaving] = useState(false)
+
+  const classId = context?.homeroom_class?.id || context?.assigned_courses?.[0]?.class_id
+  const semesterId = context?.active_semester?.id
+
+  useEffect(() => {
+    let isMounted = true
+    async function loadData() {
+      const ctxRes = await assessmentService.getContext()
+      if (isMounted && ctxRes.success && ctxRes.data) {
+        setContext(ctxRes.data)
+        const cId = ctxRes.data.homeroom_class?.id || ctxRes.data.assigned_courses?.[0]?.class_id
+        const sId = ctxRes.data.active_semester?.id
+        if (cId && sId) {
+          const suppRes = await assessmentService.getSupplementaryData(cId, sId)
+          if (isMounted && suppRes.success && suppRes.data?.students?.length) {
+            const mapped = suppRes.data.students.map((st) => ({
+              id: st.student_id,
+              studentId: st.student_id,
+              nis: st.nis,
+              name: st.name,
+              note: isHomeroom ? (st.homeroom_note || '') : (st.cocurriculars?.[0]?.description || ''),
+              title: st.cocurriculars?.[0]?.title || 'Projek Penguatan Profil Pelajar Pancasila (P5)',
+              status: isHomeroom ? (st.homeroom_note ? 'Terisi' : 'Belum Terisi') : (st.cocurriculars?.[0]?.description ? 'Terisi' : 'Belum Terisi'),
+              isDirty: false,
+            }))
+            setNotes(mapped)
+          }
+        }
+      }
+    }
+    loadData()
+    return () => { isMounted = false }
+  }, [isHomeroom])
+
+  const saveRow = async (id) => {
     const target = notes.find((row) => row.id === id)
-    if (!target?.isDirty) return
+    if (!target?.isDirty || isSaving) return
     if (!target.note.trim()) {
       onNotify?.(`Isi ${noteLabel.toLowerCase()} ${getStudentName(target)} sebelum menyimpan.`)
       return
     }
 
-    setNotes((current) => current.map((row) => (
-      row.id === id ? { ...row, status: getRowStatus(row), isDirty: false } : row
-    )))
-    onNotify?.(`${noteLabel} ${getStudentName(target)} berhasil disimpan.`)
+    setIsSaving(true)
+    let res
+    if (classId && semesterId) {
+      if (isHomeroom) {
+        res = await assessmentService.saveHomeroomNotes(classId, semesterId, [
+          { student_id: target.id, note: target.note },
+        ])
+      } else {
+        res = await assessmentService.saveCocurriculars(classId, semesterId, [
+          { student_id: target.id, title: target.title || 'P5', description: target.note },
+        ])
+      }
+    }
+    setIsSaving(false)
+
+    if (!res || res.success) {
+      setNotes((current) => current.map((row) => (
+        row.id === id ? { ...row, status: getRowStatus(row), isDirty: false } : row
+      )))
+      onNotify?.(`${noteLabel} ${getStudentName(target)} berhasil disimpan ke database.`)
+    } else {
+      onNotify?.(res.error || 'Gagal menyimpan catatan.')
+    }
   }
 
-  const saveAll = () => {
-    if (dirtyCount === 0) {
+  const saveAll = async () => {
+    if (dirtyCount === 0 || isSaving) {
       onNotify?.('Tidak ada perubahan catatan yang perlu disimpan.')
       return
     }
@@ -338,10 +394,34 @@ function StudentNotesView({ type, onNotify }) {
       return
     }
 
-    setNotes((current) => current.map((row) => (
-      row.isDirty ? { ...row, status: getRowStatus(row), isDirty: false } : row
-    )))
-    onNotify?.(`${dirtyCount} ${noteLabel.toLowerCase()} berhasil disimpan.`)
+    setIsSaving(true)
+    let res
+    if (classId && semesterId) {
+      if (isHomeroom) {
+        const payload = notes.filter((r) => r.isDirty).map((r) => ({
+          student_id: r.id,
+          note: r.note,
+        }))
+        res = await assessmentService.saveHomeroomNotes(classId, semesterId, payload)
+      } else {
+        const payload = notes.filter((r) => r.isDirty).map((r) => ({
+          student_id: r.id,
+          title: r.title || 'P5',
+          description: r.note,
+        }))
+        res = await assessmentService.saveCocurriculars(classId, semesterId, payload)
+      }
+    }
+    setIsSaving(false)
+
+    if (!res || res.success) {
+      setNotes((current) => current.map((row) => (
+        row.isDirty ? { ...row, status: getRowStatus(row), isDirty: false } : row
+      )))
+      onNotify?.(`${dirtyCount} ${noteLabel.toLowerCase()} berhasil disimpan ke database.`)
+    } else {
+      onNotify?.(res.error || 'Gagal menyimpan catatan.')
+    }
   }
 
   return (

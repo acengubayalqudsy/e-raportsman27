@@ -35,6 +35,7 @@ class Student extends Model
         'birth_place',
         'birth_date',
         'religion',
+        'religion_id',
         'address',
         'phone',
         'previous_school',
@@ -76,6 +77,54 @@ class Student extends Model
     public function classMembers(): HasMany
     {
         return $this->hasMany(ClassMember::class, 'student_id');
+    }
+
+    /**
+     * Get the student's final course grades.
+     */
+    public function finalGrades(): HasMany
+    {
+        return $this->hasMany(FinalCourseGrade::class, 'student_id');
+    }
+
+    /**
+     * Get the student's extracurricular participations and scores.
+     */
+    public function studentExtracurriculars(): HasMany
+    {
+        return $this->hasMany(StudentExtracurricular::class, 'student_id');
+    }
+
+    /**
+     * Get the student's attendance records.
+     */
+    public function attendances(): HasMany
+    {
+        return $this->hasMany(StudentAttendance::class, 'student_id');
+    }
+
+    /**
+     * Get the student's assessment scores.
+     */
+    public function scores(): HasMany
+    {
+        return $this->hasMany(StudentScore::class, 'student_id');
+    }
+
+    /**
+     * Get the student's cocurricular project records.
+     */
+    public function cocurriculars(): HasMany
+    {
+        return $this->hasMany(StudentCocurricular::class, 'student_id');
+    }
+
+    /**
+     * Get the student's homeroom teacher notes.
+     */
+    public function homeroomNotes(): HasMany
+    {
+        return $this->hasMany(HomeroomNote::class, 'student_id');
     }
 
     /**
@@ -199,5 +248,13 @@ class Student extends Model
         }
 
         return $query;
+    }
+
+    /**
+     * Master religion reference.
+     */
+    public function religionRef(): BelongsTo
+    {
+        return $this->belongsTo(Religion::class, 'religion_id');
     }
 }

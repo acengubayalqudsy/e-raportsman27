@@ -32,6 +32,14 @@ class StoreStudentRequest extends FormRequest
 
         $className = $this->current_class_name ?? $this->className ?? $this->class_name ?? $this->accepted_class ?? $this->acceptedClass;
 
+        $religionId = $this->religion_id ?? $this->religionId;
+        $religionName = $this->religion;
+        if ($religionId && !$religionName) {
+            $religionName = \App\Models\Religion::where('id', $religionId)->value('name');
+        } elseif (!$religionId && $religionName) {
+            $religionId = \App\Models\Religion::where('name', $religionName)->value('id');
+        }
+
         $this->merge([
             'name' => $this->name ? trim($this->name) : null,
             'nis' => $this->nis !== null ? trim((string)$this->nis) : null,
@@ -39,6 +47,8 @@ class StoreStudentRequest extends FormRequest
             'gender' => $normalizedGender,
             'birth_place' => $this->birth_place ?? $this->birthPlace,
             'birth_date' => $this->birth_date ?? $this->birthDate,
+            'religion' => $religionName,
+            'religion_id' => $religionId ? (int)$religionId : null,
             'previous_school' => $this->previous_school ?? $this->previousSchool,
             'accepted_class' => $this->accepted_class ?? $this->acceptedClass ?? $className,
             'admission_date' => $this->admission_date ?? $this->admissionDate,
@@ -69,7 +79,8 @@ class StoreStudentRequest extends FormRequest
             'gender' => ['required', 'in:L,P'],
             'birth_place' => ['required', 'string', 'max:100'],
             'birth_date' => ['required', 'date_format:Y-m-d'],
-            'religion' => ['nullable', 'string', 'max:30'],
+            'religion' => ['nullable', 'string', 'max:50'],
+            'religion_id' => ['nullable', 'integer', 'exists:religions,id'],
             'address' => ['nullable', 'string'],
             'phone' => ['nullable', 'string', 'max:25'],
             'previous_school' => ['nullable', 'string', 'max:150'],

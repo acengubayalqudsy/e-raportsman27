@@ -7,6 +7,7 @@ import {
   masterSchemas,
 } from '../../data/masterData.js'
 import { studentService } from '../../services/studentService.js'
+import { religionService } from '../../services/religionService.js'
 import { MasterDeleteModal, MasterDetailModal, MasterEntityModal, MasterImportModal } from './MasterModals.jsx'
 import MasterPagination from './MasterPagination.jsx'
 import MasterSummary from './MasterSummary.jsx'
@@ -112,6 +113,36 @@ function MasterStudentView({ onNotify }) {
   const [modal, setModal] = useState(null)
 
   const [refreshTrigger, setRefreshTrigger] = useState(0)
+  const [availableReligions, setAvailableReligions] = useState([])
+
+  // Load active religions for student form dropdown
+  useEffect(() => {
+    let isMounted = true
+    religionService
+      .getReligions({ all: 1, status: 'Aktif' })
+      .then((res) => {
+        if (isMounted && res.success && Array.isArray(res.data)) {
+          const names = res.data.map((r) => r.name)
+          if (names.length > 0) {
+            setAvailableReligions(names)
+          }
+        }
+      })
+      .catch(() => {})
+
+    return () => {
+      isMounted = false
+    }
+  }, [refreshTrigger])
+
+  const activeStudentFormFields = useMemo(() => {
+    return studentFormFields.map((field) => {
+      if (field.key === 'religion' && availableReligions.length > 0) {
+        return { ...field, options: availableReligions }
+      }
+      return field
+    })
+  }, [availableReligions])
 
   // Load summary stats whenever refreshTrigger changes
   useEffect(() => {
@@ -500,7 +531,7 @@ function MasterStudentView({ onNotify }) {
       {['add', 'edit'].includes(modal?.type) && (
         <MasterEntityModal
           entityLabel="Siswa"
-          fields={studentFormFields}
+          fields={activeStudentFormFields}
           initialData={modal.student}
           mode={modal.type}
           onClose={() => setModal(null)}

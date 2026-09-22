@@ -4,15 +4,23 @@ import { useAuth } from '../../auth/AuthContext.jsx'
 import Icon from '../common/Icon.jsx'
 import sman27Logo from '../../assets/logo/sman-27-garut-logo.png'
 
+import { useAcademicContext } from '../../context/AcademicContext.jsx'
+
 function PeriodSelectors({ className = '' }) {
+  const { activeAcademicYear, activeSemester, selectedYear, selectedSemester, isLoading } = useAcademicContext()
+
+  const yearDisplay = selectedYear?.name || activeAcademicYear?.name || (isLoading ? 'Memuat...' : '2026/2027')
+  const rawSem = selectedSemester?.name || activeSemester?.name || (isLoading ? 'Memuat...' : 'Ganjil')
+  const semDisplay = rawSem.toLowerCase().startsWith('semester') ? rawSem : `Semester ${rawSem}`
+
   return (
     <div className={`period-selectors ${className}`} aria-label="Konteks tahun ajaran">
-      <button type="button">
-        2024/2025
+      <button type="button" title="Tahun Ajaran Aktif">
+        {yearDisplay}
         <Icon name="chevron" />
       </button>
-      <button type="button">
-        Semester Genap
+      <button type="button" title="Semester Aktif">
+        {semDisplay}
         <Icon name="chevron" />
       </button>
     </div>

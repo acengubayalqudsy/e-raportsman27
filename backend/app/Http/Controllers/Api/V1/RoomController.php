@@ -50,6 +50,14 @@ class RoomController extends Controller
         return response()->json([
             'success' => true,
             'data' => RoomResource::collection($paginator->items()),
+            'meta' => [
+                'current_page' => $paginator->currentPage(),
+                'from' => $paginator->firstItem(),
+                'last_page' => $paginator->lastPage(),
+                'per_page' => $paginator->perPage(),
+                'to' => $paginator->lastItem(),
+                'total' => $paginator->total(),
+            ],
             'pagination' => [
                 'current_page' => $paginator->currentPage(),
                 'per_page' => $paginator->perPage(),
@@ -71,7 +79,7 @@ class RoomController extends Controller
         AuditLog::create([
             'user_id' => $request->user()->id,
             'action' => 'create_room',
-            'details' => json_encode(['id' => $room->id, 'code' => $room->code, 'name' => $room->name]),
+            'description' => "Menambahkan ruangan: {$room->name} ({$room->code})",
             'ip_address' => $request->ip(),
         ]);
 
@@ -110,7 +118,7 @@ class RoomController extends Controller
         AuditLog::create([
             'user_id' => $request->user()->id,
             'action' => 'update_room',
-            'details' => json_encode(['id' => $room->id, 'changes' => $request->validated()]),
+            'description' => "Memperbarui ruangan ID {$room->id}: {$room->name} ({$room->code})",
             'ip_address' => $request->ip(),
         ]);
 
@@ -144,7 +152,7 @@ class RoomController extends Controller
         AuditLog::create([
             'user_id' => $request->user()->id,
             'action' => 'delete_room',
-            'details' => json_encode(['id' => $id, 'code' => $room->code, 'name' => $room->name]),
+            'description' => "Menghapus ruangan ID {$id}: {$room->name} ({$room->code})",
             'ip_address' => $request->ip(),
         ]);
 
@@ -175,6 +183,8 @@ class RoomController extends Controller
                 'total_rooms' => $totalRooms,
                 'active_rooms' => $activeRooms,
                 'total_capacity' => (int)$totalCapacity,
+                'class_rooms' => (int)($roomTypes['Kelas'] ?? 0),
+                'lab_rooms' => (int)($roomTypes['Laboratorium'] ?? 0),
                 'type_counts' => $roomTypes,
             ],
         ]);

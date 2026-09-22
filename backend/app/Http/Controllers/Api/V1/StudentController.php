@@ -56,9 +56,10 @@ class StudentController extends Controller
     /**
      * Display a paginated listing of students with search and filters.
      */
-    public function index(Request $request): JsonResponse
+    public function index(Request $request, \App\Services\AcademicAuthorizationService $authService): JsonResponse
     {
-        if (!$request->user() || !$request->user()->hasRole('admin')) {
+        $user = $request->user();
+        if (!$user || !$user->hasAnyRole(['admin', 'guru', 'walikelas'])) {
             return response()->json([
                 'success' => false,
                 'message' => 'Akses ditolak. Anda tidak memiliki izin untuk melihat data siswa.',
@@ -66,6 +67,50 @@ class StudentController extends Controller
         }
 
         $query = Student::query()->filter($request->all());
+
+        // Row-level authorization for teachers and homeroom teachers
+        if (!$user->hasRole('admin')) {
+            $allowedClassIds = $authService->getAllowedClassIds($user);
+            if (empty($allowedClassIds)) {
+                return response()->json([
+                    'success' => true,
+                    'data' => [],
+                    'meta' => [
+                        'current_page' => 1,
+                        'from' => null,
+                        'last_page' => 1,
+                        'per_page' => (int)$request->input('per_page', 8),
+                        'to' => null,
+                        'total' => 0,
+                    ],
+                ]);
+            }
+
+            // If teacher explicitly requested a specific class, verify ownership
+            if ($request->filled('class_id') && !$authService->canAccessClass($user, (int)$request->input('class_id'))) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Akses ditolak. Anda tidak memiliki penugasan pada rombel yang dipilih.',
+                ], 403);
+            }
+
+            if ($request->filled('class_name')) {
+                $reqClass = \App\Models\SchoolClass::where('name', $request->input('class_name'))->first();
+                if ($reqClass && !in_array($reqClass->id, $allowedClassIds, true)) {
+                    return response()->json([
+                        'success' => false,
+                        'message' => 'Akses ditolak. Anda tidak memiliki penugasan pada rombel yang dipilih.',
+                    ], 403);
+                }
+            }
+
+            $allowedNames = \App\Models\SchoolClass::whereIn('id', $allowedClassIds)->pluck('name')->toArray();
+            $query->where(function ($q) use ($allowedClassIds, $allowedNames) {
+                $q->whereHas('classMembers', function ($cm) use ($allowedClassIds) {
+                    $cm->whereIn('class_id', $allowedClassIds)->where('status', 'Aktif');
+                })->orWhereIn('current_class_name', $allowedNames);
+            });
+        }
 
         // Sort configuration
         $allowedSorts = ['id', 'name', 'nis', 'nisn', 'current_class_name', 'status', 'created_at'];
@@ -94,9 +139,10 @@ class StudentController extends Controller
     /**
      * Display the specified student's detailed profile.
      */
-    public function show(Request $request, int $id): JsonResponse
+    public function show(Request $request, int $id, \App\Services\AcademicAuthorizationService $authService): JsonResponse
     {
-        if (!$request->user() || !$request->user()->hasRole('admin')) {
+        $user = $request->user();
+        if (!$user || !$user->hasAnyRole(['admin', 'guru', 'walikelas'])) {
             return response()->json([
                 'success' => false,
                 'message' => 'Akses ditolak. Anda tidak memiliki izin untuk melihat detail biodata siswa.',
@@ -110,6 +156,13 @@ class StudentController extends Controller
                 'success' => false,
                 'message' => 'Data siswa tidak ditemukan.',
             ], 404);
+        }
+
+        if (!$authService->canAccessStudent($user, $student)) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Akses ditolak. Guru tidak memiliki hak akses terhadap data siswa di luar rombel yang ditugaskan.',
+            ], 403);
         }
 
         return response()->json([

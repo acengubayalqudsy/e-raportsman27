@@ -3,18 +3,26 @@ import Button from '../common/Button.jsx'
 import EmptyState from '../common/EmptyState.jsx'
 import Icon from '../common/Icon.jsx'
 import SearchInput from '../common/SearchInput.jsx'
-import {
-  academicAnnouncements,
-  scheduleOptions,
-  todaySchedule,
-  todayScheduleMeta,
-  weeklySchedule,
-} from '../../data/akademik.js'
+import { academicAnnouncements } from '../../data/akademik.js'
 import scheduleService from '../../services/scheduleService.js'
 import AcademicModal from './AcademicModal.jsx'
 import AcademicSummary from './AcademicSummary.jsx'
+import { useAcademicContext } from '../../context/AcademicContext.jsx'
 
 const DEFAULT_DAYS = ['Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat']
+
+const BASE_SCHEDULE_SLOTS = [
+  { period: 'Jam Ke-1', time: '07:00 - 07:45', start: '07:00', end: '07:45', isBreak: false },
+  { period: 'Jam Ke-2', time: '07:45 - 08:30', start: '07:45', end: '08:30', isBreak: false },
+  { period: 'Jam Ke-3', time: '08:30 - 09:15', start: '08:30', end: '09:15', isBreak: false },
+  { period: 'Istirahat', time: '09:15 - 09:45', start: '09:15', end: '09:45', isBreak: true },
+  { period: 'Jam Ke-4', time: '09:45 - 10:30', start: '09:45', end: '10:30', isBreak: false },
+  { period: 'Jam Ke-5', time: '10:30 - 11:15', start: '10:30', end: '11:15', isBreak: false },
+  { period: 'Jam Ke-6', time: '11:15 - 12:00', start: '11:15', end: '12:00', isBreak: false },
+  { period: 'Istirahat', time: '12:00 - 12:45', start: '12:00', end: '12:45', isBreak: true },
+  { period: 'Jam Ke-7', time: '12:45 - 13:30', start: '12:45', end: '13:30', isBreak: false },
+  { period: 'Jam Ke-8', time: '13:30 - 14:15', start: '13:30', end: '14:15', isBreak: false },
+]
 
 function normalizeOption(option) {
   if (typeof option === 'string') return { label: option, value: option }
@@ -51,12 +59,12 @@ function ScheduleCell({ className, day, item, onOpen, time }) {
   )
 }
 
-function TodaySchedulePanel({ items, onOpen, onViewAll }) {
+function TodaySchedulePanel({ dateLabel, items, onOpen, onViewAll }) {
   return (
     <section className="academic-side-card academic-today-card">
       <header className="academic-side-card-header">
         <h3>Jadwal Hari Ini</h3>
-        <span><Icon name="calendar" />{todayScheduleMeta.dateLabel}</span>
+        <span><Icon name="calendar" />{dateLabel}</span>
       </header>
 
       <div className="academic-today-list">
@@ -64,7 +72,7 @@ function TodaySchedulePanel({ items, onOpen, onViewAll }) {
           <button
             className={`academic-today-item ${item.type ?? ''}`}
             key={item.id}
-            onClick={() => item.type !== 'break' && onOpen({ ...item, day: item.day ?? todayScheduleMeta.day })}
+            onClick={() => item.type !== 'break' && onOpen({ ...item, day: item.day })}
             type="button"
           >
             <time>{item.time}</time>
@@ -79,7 +87,7 @@ function TodaySchedulePanel({ items, onOpen, onViewAll }) {
         )) : (
           <EmptyState className="academic-side-empty">
             <Icon name="calendar" />
-            <p>Tidak ada jadwal yang sesuai.</p>
+            <p>Tidak ada jadwal pembelajaran pada hari ini.</p>
           </EmptyState>
         )}
       </div>
@@ -101,7 +109,12 @@ function AnnouncementPanel({ items, onAction }) {
 
       <div className="academic-announcement-list">
         {items.map((item) => (
-          <button className="academic-announcement-item" key={item.id} onClick={() => onAction(item.title)} type="button">
+          <button
+            className="academic-announcement-item"
+            key={item.id}
+            onClick={() => onAction(`Pengumuman: ${item.title}`)}
+            type="button"
+          >
             <span className="academic-announcement-icon"><Icon name="megaphone" /></span>
             <span>
               <strong>{item.title}</strong>
@@ -129,6 +142,7 @@ function ScheduleDetail({ item, onClose, onEdit }) {
     ['Hari', item.day],
     ['Jam', item.time],
     ['Ruangan', item.room],
+    ['Status', item.status || 'Aktif'],
   ]
 
   return (
@@ -152,43 +166,23 @@ function ScheduleDetail({ item, onClose, onEdit }) {
 function ScheduleFormModal({ initialData = null, onClose, onSave, options = {} }) {
   const isEdit = Boolean(initialData?.id && typeof initialData.id === 'number')
 
-  const fallbackClasses = [
-    { id: 1, name: 'X Merdeka 1', code: 'X-1' },
-    { id: 2, name: 'X Merdeka 2', code: 'X-2' },
-    { id: 3, name: 'X Merdeka 3', code: 'X-3' },
-  ]
-  const fallbackSubjects = [
-    { id: 1, name: 'Bahasa Indonesia', code: 'BIN' },
-    { id: 2, name: 'Matematika', code: 'MAT' },
-    { id: 3, name: 'Fisika', code: 'FIS' },
-  ]
-  const fallbackTeachers = [
-    { id: 1, name: 'Asep Hidayat, S.Pd.', nip: '198106052006041005' },
-    { id: 2, name: 'Budi Santoso, M.Pd.', nip: '197503122000031002' },
-  ]
-  const fallbackRooms = [
-    { id: 1, name: 'Ruang Kelas X-1', code: 'R-X-1' },
-    { id: 2, name: 'Ruang Kelas X-2', code: 'R-X-2' },
-    { id: 3, name: 'Ruang Kelas XI-1', code: 'R-XI-1' },
-    { id: 4, name: 'Ruang Kelas XII-1', code: 'R-XII-1' },
-    { id: 5, name: 'Laboratorium Komputer', code: 'LAB-KOMP' },
-    { id: 6, name: 'Laboratorium IPA', code: 'LAB-IPA' },
-    { id: 7, name: 'Perpustakaan Utama', code: 'PERPUS' },
-    { id: 8, name: 'Aula Serbaguna', code: 'AULA' },
-  ]
+  const classList = options.classes || []
+  const subjectList = options.subjects || []
+  const teacherList = options.teachers || []
+  const roomList = options.rooms || []
+  const caList = options.course_assignments || []
 
-  const classList = options.classes?.length ? options.classes : fallbackClasses
-  const subjectList = options.subjects?.length ? options.subjects : fallbackSubjects
-  const teacherList = options.teachers?.length ? options.teachers : fallbackTeachers
-  const roomList = options.rooms?.length ? options.rooms : fallbackRooms
+  const activeYearId = options.selectedYear?.id || options.academic_years?.find((y) => y.status === 'Aktif')?.id || 1
+  const activeSemesterId = options.selectedSemester?.id || options.semesters?.find((s) => s.status === 'Aktif')?.id || 1
 
   const [formData, setFormData] = useState({
-    academic_year_id: initialData?.academic_year_id || options.selectedYear?.id || 1,
-    semester_id: initialData?.semester_id || options.selectedSemester?.id || 1,
+    academic_year_id: initialData?.academic_year_id || activeYearId,
+    semester_id: initialData?.semester_id || activeSemesterId,
     class_id: initialData?.class_id || classList[0]?.id || '',
     subject_id: initialData?.subject_id || subjectList[0]?.id || '',
     teacher_id: initialData?.teacher_id || teacherList[0]?.id || '',
     room_id: initialData?.room_id || roomList[0]?.id || '',
+    course_assignment_id: initialData?.course_assignment_id || '',
     day_of_week: initialData?.day || initialData?.day_of_week || 'Senin',
     start_time: initialData?.start_time ? initialData.start_time.substring(0, 5) : '07:30',
     end_time: initialData?.end_time ? initialData.end_time.substring(0, 5) : '09:00',
@@ -200,7 +194,24 @@ function ScheduleFormModal({ initialData = null, onClose, onSave, options = {} }
   const [isSubmitting, setIsSubmitting] = useState(false)
 
   const handleChange = (key, value) => {
-    setFormData((prev) => ({ ...prev, [key]: value }))
+    setFormData((prev) => {
+      const next = { ...prev, [key]: value }
+
+      // Auto-resolve matching course assignment if teacher, subject, class are selected
+      if (key === 'class_id' || key === 'subject_id' || key === 'teacher_id') {
+        const cId = Number(key === 'class_id' ? value : next.class_id)
+        const sId = Number(key === 'subject_id' ? value : next.subject_id)
+        const tId = Number(key === 'teacher_id' ? value : next.teacher_id)
+        const matchingCa = caList.find(
+          (ca) => Number(ca.class_id) === cId && Number(ca.subject_id) === sId && Number(ca.teacher_id) === tId
+        )
+        if (matchingCa) {
+          next.course_assignment_id = matchingCa.id
+        }
+      }
+
+      return next
+    })
     if (errorMessage) setErrorMessage('')
   }
 
@@ -216,18 +227,27 @@ function ScheduleFormModal({ initialData = null, onClose, onSave, options = {} }
     setIsSubmitting(true)
     try {
       const payload = {
-        ...formData,
-        academic_year_id: Number(formData.academic_year_id) || options.selectedYear?.id || 1,
-        semester_id: Number(formData.semester_id) || options.selectedSemester?.id || 1,
-        class_id: Number(formData.class_id) || Number(classList[0]?.id) || 1,
-        subject_id: Number(formData.subject_id) || Number(subjectList[0]?.id) || 1,
-        teacher_id: Number(formData.teacher_id) || Number(teacherList[0]?.id) || 1,
-        room_id: Number(formData.room_id) || Number(roomList[0]?.id) || 1,
+        academic_year_id: Number(formData.academic_year_id),
+        semester_id: Number(formData.semester_id),
+        class_id: Number(formData.class_id),
+        subject_id: Number(formData.subject_id),
+        teacher_id: Number(formData.teacher_id),
+        room_id: Number(formData.room_id),
+        day_of_week: formData.day_of_week,
+        start_time: formData.start_time,
+        end_time: formData.end_time,
+        status: formData.status || 'Aktif',
+        notes: formData.notes || '',
+      }
+
+      if (formData.course_assignment_id) {
+        payload.course_assignment_id = Number(formData.course_assignment_id)
       }
 
       const res = await onSave(payload)
       if (res && !res.success) {
-        setErrorMessage(res.error || 'Terjadi bentrok jadwal pada guru, kelas, atau ruangan.')
+        const msg = res.error || (res.errors ? Object.values(res.errors).flat().join(' ') : 'Terjadi bentrok jadwal pada guru, kelas, atau ruangan.')
+        setErrorMessage(msg)
       }
     } catch {
       setErrorMessage('Terjadi kendala jaringan saat menyimpan jadwal.')
@@ -244,6 +264,11 @@ function ScheduleFormModal({ initialData = null, onClose, onSave, options = {} }
       wide
     >
       <form className="academic-entity-form" onSubmit={handleSubmit}>
+        <div style={{ background: '#f8fafc', padding: '0.625rem 0.875rem', borderRadius: '0.375rem', border: '1px solid #e2e8f0', fontSize: '0.8125rem', color: '#475569', marginBottom: '0.75rem', display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+          <Icon name="info" />
+          <span>Tahun Ajaran: <strong>{options.selectedYear?.name ?? '-'}</strong> | Semester: <strong>{options.selectedSemester?.name ?? '-'}</strong></span>
+        </div>
+
         {errorMessage && (
           <div className="academic-conflict-alert" role="alert">
             <Icon name="info" />
@@ -258,12 +283,12 @@ function ScheduleFormModal({ initialData = null, onClose, onSave, options = {} }
           <label>
             <span>Kelas / Rombel <b>*</b></span>
             <select
-              required
-              value={formData.class_id || classList[0]?.id}
               onChange={(e) => handleChange('class_id', e.target.value)}
+              required
+              value={formData.class_id}
             >
               {classList.map((c) => (
-                <option key={c.id} value={c.id}>{c.name || c.code}</option>
+                <option key={c.id} value={c.id}>{c.name}</option>
               ))}
             </select>
           </label>
@@ -271,9 +296,9 @@ function ScheduleFormModal({ initialData = null, onClose, onSave, options = {} }
           <label>
             <span>Mata Pelajaran <b>*</b></span>
             <select
-              required
-              value={formData.subject_id || subjectList[0]?.id}
               onChange={(e) => handleChange('subject_id', e.target.value)}
+              required
+              value={formData.subject_id}
             >
               {subjectList.map((s) => (
                 <option key={s.id} value={s.id}>{s.name} ({s.code})</option>
@@ -284,9 +309,9 @@ function ScheduleFormModal({ initialData = null, onClose, onSave, options = {} }
           <label>
             <span>Guru Pengajar <b>*</b></span>
             <select
-              required
-              value={formData.teacher_id || teacherList[0]?.id}
               onChange={(e) => handleChange('teacher_id', e.target.value)}
+              required
+              value={formData.teacher_id}
             >
               {teacherList.map((t) => (
                 <option key={t.id} value={t.id}>{t.name} {t.nip ? `(${t.nip})` : ''}</option>
@@ -297,9 +322,9 @@ function ScheduleFormModal({ initialData = null, onClose, onSave, options = {} }
           <label>
             <span>Ruangan <b>*</b></span>
             <select
-              required
-              value={formData.room_id || roomList[0]?.id}
               onChange={(e) => handleChange('room_id', e.target.value)}
+              required
+              value={formData.room_id}
             >
               {roomList.map((r) => (
                 <option key={r.id} value={r.id}>{r.name} ({r.code})</option>
@@ -310,9 +335,9 @@ function ScheduleFormModal({ initialData = null, onClose, onSave, options = {} }
           <label>
             <span>Hari <b>*</b></span>
             <select
+              onChange={(e) => handleChange('day_of_week', e.target.value)}
               required
               value={formData.day_of_week}
-              onChange={(e) => handleChange('day_of_week', e.target.value)}
             >
               {DEFAULT_DAYS.map((d) => (
                 <option key={d} value={d}>{d}</option>
@@ -323,9 +348,9 @@ function ScheduleFormModal({ initialData = null, onClose, onSave, options = {} }
           <label>
             <span>Status <b>*</b></span>
             <select
+              onChange={(e) => handleChange('status', e.target.value)}
               required
               value={formData.status}
-              onChange={(e) => handleChange('status', e.target.value)}
             >
               <option value="Aktif">Aktif</option>
               <option value="Tidak Aktif">Tidak Aktif</option>
@@ -335,30 +360,30 @@ function ScheduleFormModal({ initialData = null, onClose, onSave, options = {} }
           <label>
             <span>Jam Mulai <b>*</b></span>
             <input
+              onChange={(e) => handleChange('start_time', e.target.value)}
               required
               type="time"
               value={formData.start_time}
-              onChange={(e) => handleChange('start_time', e.target.value)}
             />
           </label>
 
           <label>
             <span>Jam Selesai <b>*</b></span>
             <input
+              onChange={(e) => handleChange('end_time', e.target.value)}
               required
               type="time"
               value={formData.end_time}
-              onChange={(e) => handleChange('end_time', e.target.value)}
             />
           </label>
 
           <label className="full-width">
             <span>Catatan / Keterangan</span>
             <input
+              onChange={(e) => handleChange('notes', e.target.value)}
               placeholder="Contoh: Pembelajaran di ruang laboratorium"
               type="text"
               value={formData.notes}
-              onChange={(e) => handleChange('notes', e.target.value)}
             />
           </label>
         </div>
@@ -377,23 +402,18 @@ function ScheduleFormModal({ initialData = null, onClose, onSave, options = {} }
 }
 
 function AcademicScheduleView({ onNotify }) {
-  const classOptions = scheduleOptions.classes ?? []
-  const gradeOptions = scheduleOptions.grades ?? []
-  const semesterOptions = scheduleOptions.semesters ?? []
-  const dayOptions = scheduleOptions.days ?? ['Semua Hari', ...DEFAULT_DAYS]
-  const scheduleDays = weeklySchedule.days ?? DEFAULT_DAYS
+  const {
+    academicYears,
+    semesters,
+    activeAcademicYear,
+    activeSemester,
+    selectedAcademicYearId,
+    selectedSemesterId,
+  } = useAcademicContext()
 
-  const [selectedClass, setSelectedClass] = useState(weeklySchedule.className ?? normalizeOption(classOptions[0] ?? '').value)
-  const [selectedGrade, setSelectedGrade] = useState(normalizeOption(gradeOptions[0] ?? 'X').value)
-  const [selectedSemester, setSelectedSemester] = useState(weeklySchedule.semester ?? normalizeOption(semesterOptions[0] ?? '').value)
-  const [selectedDay, setSelectedDay] = useState(normalizeOption(dayOptions[0] ?? 'Semua Hari').value)
-  const [query, setQuery] = useState('')
-  const [selectedSchedule, setSelectedSchedule] = useState(null)
-  const [isModalOpen, setIsModalOpen] = useState(false)
-  const [modalInitialData, setModalInitialData] = useState(null)
-  const [refreshTrigger, setRefreshTrigger] = useState(0)
+  const currentYearObj = academicYears?.find((y) => Number(y.id) === Number(selectedAcademicYearId)) || activeAcademicYear || academicYears?.[0]
+  const currentSemesterObj = semesters?.find((s) => Number(s.id) === Number(selectedSemesterId)) || activeSemester || semesters?.[0]
 
-  // API State
   const [apiOptions, setApiOptions] = useState({
     academic_years: [],
     semesters: [],
@@ -407,6 +427,27 @@ function AcademicScheduleView({ onNotify }) {
   })
   const [apiSchedules, setApiSchedules] = useState([])
 
+  const classOptions = useMemo(() => {
+    return apiOptions.classes?.length ? apiOptions.classes.map((c) => c.name) : []
+  }, [apiOptions.classes])
+
+  const gradeOptions = ['Semua Tingkat', 'X', 'XI', 'XII']
+  const semesterOptions = useMemo(() => {
+    return apiOptions.semesters?.length ? apiOptions.semesters.map((s) => s.name) : ['Ganjil', 'Genap']
+  }, [apiOptions.semesters])
+
+  const dayOptions = ['Semua Hari', ...DEFAULT_DAYS]
+
+  const [selectedClass, setSelectedClass] = useState('')
+  const [selectedGrade, setSelectedGrade] = useState('Semua Tingkat')
+  const [selectedSemester, setSelectedSemester] = useState('Ganjil')
+  const [selectedDay, setSelectedDay] = useState('Semua Hari')
+  const [query, setQuery] = useState('')
+  const [selectedSchedule, setSelectedSchedule] = useState(null)
+  const [isModalOpen, setIsModalOpen] = useState(false)
+  const [modalInitialData, setModalInitialData] = useState(null)
+  const [refreshTrigger, setRefreshTrigger] = useState(0)
+
   const notify = (message) => {
     onNotify?.(message)
   }
@@ -415,132 +456,170 @@ function AcademicScheduleView({ onNotify }) {
   useEffect(() => {
     let isMounted = true
     scheduleService
-      .getOptions()
+      .getOptions({ academic_year_id: selectedAcademicYearId, semester_id: selectedSemesterId })
       .then((res) => {
         if (!isMounted) return
         if (res.success && res.data) {
           setApiOptions(res.data)
+          if (res.data.classes?.length && !selectedClass) {
+            setSelectedClass(res.data.classes[0].name)
+          }
+          if (res.data.selectedSemester?.name) {
+            setSelectedSemester(res.data.selectedSemester.name)
+          }
         }
       })
-      .catch(() => {})
+      .catch((err) => console.error('Failed to load schedule options:', err))
 
     return () => {
       isMounted = false
     }
-  }, [refreshTrigger])
+  }, [refreshTrigger, selectedClass, selectedAcademicYearId, selectedSemesterId])
 
   // Fetch real schedules from API
   useEffect(() => {
     let isMounted = true
     const timeoutId = window.setTimeout(() => {
       scheduleService
-        .getSchedules({ per_page: 100 })
+        .getSchedules({ per_page: 100, academic_year_id: selectedAcademicYearId, semester_id: selectedSemesterId })
         .then((res) => {
           if (!isMounted) return
           if (res.success && Array.isArray(res.data)) {
             setApiSchedules(res.data)
           }
         })
-        .catch(() => {})
+        .catch((err) => console.error('Failed to load schedules:', err))
     }, 0)
 
     return () => {
       isMounted = false
       window.clearTimeout(timeoutId)
     }
-  }, [refreshTrigger])
+  }, [refreshTrigger, selectedAcademicYearId, selectedSemesterId])
 
   const selectClass = (className) => {
     setSelectedClass(className)
-    setSelectedGrade(className.split(' ')[0])
+    const gradePart = className.split(' ')[0]
+    if (['X', 'XI', 'XII'].includes(gradePart)) {
+      setSelectedGrade(gradePart)
+    }
   }
 
   const selectGrade = (grade) => {
     setSelectedGrade(grade)
-    const matchingClass = classOptions
-      .map(normalizeOption)
-      .find((option) => option.value.split(' ')[0] === grade)
-    if (matchingClass) setSelectedClass(matchingClass.value)
+    if (grade !== 'Semua Tingkat') {
+      const matchingClass = classOptions.find((cName) => cName.startsWith(grade))
+      if (matchingClass) setSelectedClass(matchingClass)
+    }
   }
 
-  const visibleDays = selectedDay === 'Semua Hari' ? scheduleDays : scheduleDays.filter((day) => day === selectedDay)
+  const visibleDays = selectedDay === 'Semua Hari' ? DEFAULT_DAYS : DEFAULT_DAYS.filter((day) => day === selectedDay)
   const normalizedQuery = query.trim().toLocaleLowerCase('id-ID')
-  const contextMatches = selectedClass === weeklySchedule.className
-    && (!weeklySchedule.semester || selectedSemester === weeklySchedule.semester)
-    && (!selectedGrade || selectedClass.startsWith(selectedGrade))
 
-  // Build rows combining weekly base schedule and any newly created real schedules
+  // Build rows combining slots and real schedules from database
   const effectiveRows = useMemo(() => {
-    // If we have schedules for this class in API, we overlay them
     const classSchedules = apiSchedules.filter((s) => {
-      const clsName = s.school_class?.name || s.class_name
-      return clsName === selectedClass
+      const clsName = s.school_class?.name || s.class_name || ''
+      return !selectedClass || clsName === selectedClass
     })
 
-    if (!classSchedules.length) {
-      return weeklySchedule.rows
-    }
+    return BASE_SCHEDULE_SLOTS.map((slot, index) => {
+      if (slot.isBreak) {
+        return {
+          id: `break-${index}`,
+          period: slot.period,
+          time: slot.time,
+          isBreak: true,
+          slots: {},
+        }
+      }
 
-    return weeklySchedule.rows.map((row) => {
-      if (row.isBreak) return row
-      const [start, end] = (row.time || '').split(' - ')
-      const updatedSlots = { ...(row.slots || {}) }
+      const slots = {}
+      DEFAULT_DAYS.forEach((day) => {
+        const matchingSched = classSchedules.find((sched) => {
+          if (sched.day_of_week !== day) return false
+          const sStart = sched.start_time?.substring(0, 5)
+          const sEnd = sched.end_time?.substring(0, 5)
+          return sStart && sEnd && sStart < slot.end && sEnd > slot.start
+        })
 
-      classSchedules.forEach((sched) => {
-        const sStart = sched.start_time?.substring(0, 5)
-        const sEnd = sched.end_time?.substring(0, 5)
-        if (sStart && sEnd && start && end && (sStart < end) && (sEnd > start)) {
-          updatedSlots[sched.day_of_week] = {
-            id: sched.id,
-            subject: sched.subject?.name || sched.subject_name,
-            teacher: sched.teacher?.name || sched.teacher_name,
-            room: sched.room?.name || sched.room_name,
-            className: sched.school_class?.name || sched.class_name,
-            day: sched.day_of_week,
-            time: `${sStart} - ${sEnd}`,
+        if (matchingSched) {
+          slots[day] = {
+            id: matchingSched.id,
+            subject: matchingSched.subject?.name || matchingSched.subject_name || '-',
+            teacher: matchingSched.teacher?.name || matchingSched.teacher_name || '-',
+            room: matchingSched.room?.name || matchingSched.room_name || '-',
+            className: matchingSched.school_class?.name || matchingSched.class_name || '-',
+            day: matchingSched.day_of_week,
+            time: `${matchingSched.start_time?.substring(0, 5)} - ${matchingSched.end_time?.substring(0, 5)}`,
+            status: matchingSched.status,
+            raw: matchingSched,
           }
         }
       })
 
       return {
-        ...row,
-        slots: updatedSlots,
+        id: `slot-${index}`,
+        period: slot.period,
+        time: slot.time,
+        isBreak: false,
+        slots,
       }
     })
   }, [apiSchedules, selectedClass])
 
-  const visibleRows = !contextMatches
-    ? []
-    : !normalizedQuery
-      ? effectiveRows
-      : effectiveRows.filter((row) => row.isBreak || visibleDays.some((day) => {
+  const visibleRows = useMemo(() => {
+    if (!normalizedQuery) return effectiveRows
+    return effectiveRows.filter(
+      (row) =>
+        row.isBreak ||
+        visibleDays.some((day) => {
           const item = row.slots?.[day]
           return item && `${item.subject} ${item.teacher} ${item.room ?? ''}`.toLocaleLowerCase('id-ID').includes(normalizedQuery)
-        }))
+        })
+    )
+  }, [effectiveRows, normalizedQuery, visibleDays])
 
-  const visibleTodaySchedule = !contextMatches || (selectedDay !== 'Semua Hari' && selectedDay !== todayScheduleMeta.day)
-    ? []
-    : todaySchedule.filter((item) => {
-        if (item.type === 'break' || !normalizedQuery) return true
-        return `${item.subject} ${item.teacher} ${item.className} ${item.room ?? ''}`.toLocaleLowerCase('id-ID').includes(normalizedQuery)
-      })
+  const todayDay = ['Minggu', 'Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu'][new Date().getDay()] || 'Senin'
+  const activeDayForToday = selectedDay === 'Semua Hari' ? todayDay : selectedDay
+
+  const visibleTodaySchedule = useMemo(() => {
+    const matched = apiSchedules.filter((s) => {
+      const matchDay = s.day_of_week === activeDayForToday
+      const clsName = s.school_class?.name || s.class_name || ''
+      const matchClass = !selectedClass || clsName === selectedClass
+      return matchDay && matchClass
+    })
+
+    return matched.map((s) => ({
+      id: s.id,
+      day: s.day_of_week,
+      time: `${s.start_time?.substring(0, 5)} - ${s.end_time?.substring(0, 5)}`,
+      subject: s.subject?.name || s.subject_name || '-',
+      teacher: s.teacher?.name || s.teacher_name || '-',
+      className: s.school_class?.name || s.class_name || '-',
+      room: s.room?.name || s.room_name || '-',
+      status: s.status,
+      raw: s,
+    }))
+  }, [apiSchedules, activeDayForToday, selectedClass])
 
   const cellMatches = (item) => {
     if (!item || !normalizedQuery) return true
     return `${item.subject} ${item.teacher} ${item.room ?? ''}`.toLocaleLowerCase('id-ID').includes(normalizedQuery)
   }
 
-  // Summary cards with proper tone and icons
   const summaryCards = useMemo(() => {
-    const totalClasses = apiOptions.classes?.length || 18
-    const totalSubjects = apiOptions.subjects?.length || 24
-    const totalTeachers = apiOptions.teachers?.length || 87
+    const totalClasses = apiOptions.classes?.length || 0
+    const totalSubjects = apiOptions.subjects?.length || 0
+    const totalTeachers = apiOptions.teachers?.length || 0
+    const totalSchedules = apiSchedules.length
 
     return [
       {
         title: 'Total Kelas',
         value: String(totalClasses),
-        caption: 'Rombel Aktif',
+        caption: 'Rombel Terdaftar',
         icon: 'calendar',
         tone: 'green',
       },
@@ -559,21 +638,21 @@ function AcademicScheduleView({ onNotify }) {
         tone: 'orange',
       },
       {
-        title: 'Total Jam Pelajaran',
-        value: '336',
-        caption: 'Jam / Minggu',
+        title: 'Total Sesi Jadwal',
+        value: String(totalSchedules),
+        caption: 'Sesi Terjadwal',
         icon: 'clock',
         tone: 'purple',
       },
       {
         title: 'Jadwal Terpublikasi',
-        value: '100%',
-        caption: 'Sinkron dengan kelas',
+        value: totalSchedules > 0 ? '100%' : '0%',
+        caption: 'Sinkron Database',
         icon: 'checkCircle',
         tone: 'teal',
       },
     ]
-  }, [apiOptions])
+  }, [apiOptions, apiSchedules])
 
   const handleSaveSchedule = async (payload) => {
     if (modalInitialData?.id && typeof modalInitialData.id === 'number') {
@@ -597,9 +676,26 @@ function AcademicScheduleView({ onNotify }) {
     return res
   }
 
+  const currentDateLabel = new Date().toLocaleDateString('id-ID', {
+    weekday: 'long',
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric',
+  })
+
   return (
     <div className="academic-schedule-view">
       <AcademicSummary items={summaryCards} />
+
+      <div className="academic-context-badge" style={{ marginBottom: '1rem', display: 'flex', alignItems: 'center', gap: '0.75rem', background: '#f8fafc', padding: '0.5rem 1rem', borderRadius: '0.5rem', border: '1px solid #e2e8f0', fontSize: '0.875rem' }}>
+        <span style={{ fontWeight: 600, color: '#475569' }}>Konteks Akademik:</span>
+        <span style={{ background: '#e0f2fe', color: '#0369a1', padding: '0.2rem 0.5rem', borderRadius: '0.25rem', fontWeight: 600 }}>
+          {currentYearObj?.name ?? '2026/2027'} ({currentYearObj?.status ?? 'Aktif'})
+        </span>
+        <span style={{ background: '#f0fdf4', color: '#15803d', padding: '0.2rem 0.5rem', borderRadius: '0.25rem', fontWeight: 600 }}>
+          Semester {currentSemesterObj?.name ?? 'Ganjil'}
+        </span>
+      </div>
 
       <section className="academic-filter-card" aria-label="Filter jadwal pelajaran">
         <div className="academic-filter-row">
@@ -631,9 +727,15 @@ function AcademicScheduleView({ onNotify }) {
           >
             <Icon name="refresh" />Segarkan
           </Button>
-          <Button className="academic-button secondary" onClick={() => notify('Filter lanjutan siap digunakan.')}><Icon name="filter" />Filter Lanjutan</Button>
-          <Button className="academic-button secondary" onClick={() => notify('Jadwal berhasil disiapkan untuk ekspor.')}><Icon name="download" />Ekspor Jadwal</Button>
-          <Button className="academic-button secondary" onClick={() => notify('Jadwal berhasil disiapkan untuk dicetak.')}><Icon name="printer" />Cetak Jadwal</Button>
+          <Button className="academic-button secondary" onClick={() => notify('Filter lanjutan siap digunakan.')}>
+            <Icon name="filter" />Filter Lanjutan
+          </Button>
+          <Button className="academic-button secondary" onClick={() => notify('Jadwal berhasil disiapkan untuk ekspor.')}>
+            <Icon name="download" />Ekspor Jadwal
+          </Button>
+          <Button className="academic-button secondary" onClick={() => notify('Jadwal berhasil disiapkan untuk dicetak.')}>
+            <Icon name="printer" />Cetak Jadwal
+          </Button>
           <Button
             className="academic-button primary"
             onClick={() => {
@@ -649,7 +751,7 @@ function AcademicScheduleView({ onNotify }) {
       <div className="academic-schedule-layout">
         <section className="academic-schedule-card">
           <header className="academic-schedule-card-header">
-            <h2>Jadwal Pelajaran - {selectedClass}</h2>
+            <h2>Jadwal Pelajaran - {selectedClass || 'Semua Kelas'}</h2>
           </header>
 
           {visibleRows.length ? (
@@ -671,7 +773,17 @@ function AcademicScheduleView({ onNotify }) {
                       {visibleDays.map((day) => {
                         const item = row.slots?.[day]
                         if (row.isBreak) return <td key={day}><span className="academic-break-label">{item?.subject ?? 'Istirahat'}</span></td>
-                        return <td key={day}><ScheduleCell className={!cellMatches(item) ? 'muted' : ''} day={day} item={cellMatches(item) ? item : null} onOpen={setSelectedSchedule} time={row.time} /></td>
+                        return (
+                          <td key={day}>
+                            <ScheduleCell
+                              className={!cellMatches(item) ? 'muted' : ''}
+                              day={day}
+                              item={cellMatches(item) ? item : null}
+                              onOpen={setSelectedSchedule}
+                              time={row.time}
+                            />
+                          </td>
+                        )
                       })}
                     </tr>
                   ))}
@@ -686,11 +798,18 @@ function AcademicScheduleView({ onNotify }) {
             </EmptyState>
           )}
 
-          <div className="academic-schedule-note"><Icon name="info" /><strong>Catatan:</strong> Jadwal dapat berubah sewaktu-waktu sesuai kebijakan sekolah.</div>
+          <div className="academic-schedule-note">
+            <Icon name="info" /><strong>Catatan:</strong> Jadwal sinkron langsung dengan basis data pembelajaran sekolah.
+          </div>
         </section>
 
         <aside className="academic-schedule-sidebar">
-          <TodaySchedulePanel items={visibleTodaySchedule} onOpen={setSelectedSchedule} onViewAll={() => notify('Jadwal lengkap ditampilkan pada tabel mingguan.')} />
+          <TodaySchedulePanel
+            dateLabel={currentDateLabel}
+            items={visibleTodaySchedule}
+            onOpen={setSelectedSchedule}
+            onViewAll={() => notify('Jadwal lengkap ditampilkan pada tabel mingguan.')}
+          />
           <AnnouncementPanel items={academicAnnouncements} onAction={notify} />
         </aside>
       </div>
@@ -713,10 +832,13 @@ function AcademicScheduleView({ onNotify }) {
             setModalInitialData(null)
           }}
           onSave={handleSaveSchedule}
-          options={apiOptions}
+          options={{
+            ...apiOptions,
+            selectedYear: currentYearObj,
+            selectedSemester: currentSemesterObj,
+          }}
         />
       )}
-
     </div>
   )
 }

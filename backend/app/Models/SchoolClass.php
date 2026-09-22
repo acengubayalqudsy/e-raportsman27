@@ -72,6 +72,13 @@ class SchoolClass extends Model
             $query->where('academic_year_id', $filters['academic_year_id']);
         }
 
+        if (!empty($filters['academicYear']) && $filters['academicYear'] !== 'Semua Tahun') {
+            $ayName = trim($filters['academicYear']);
+            $query->whereHas('academicYear', function (Builder $ay) use ($ayName) {
+                $ay->where('name', $ayName);
+            });
+        }
+
         if (!empty($filters['status']) && $filters['status'] !== 'Semua Status') {
             $query->where('status', $filters['status']);
         }

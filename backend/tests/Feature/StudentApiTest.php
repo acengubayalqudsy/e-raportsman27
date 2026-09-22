@@ -28,27 +28,38 @@ class StudentApiTest extends TestCase
     }
 
     /**
-     * 2. Non-admin user (guru) must receive HTTP 403 on master students endpoints.
+     * 2. Non-admin user (guru) can read filtered students but cannot access stats, unauthorized students, or write endpoints.
      */
     public function test_non_admin_cannot_access_students_endpoints(): void
     {
         $this->actingAs($this->guruUser);
 
-        // GET index rejected
-        $this->getJson('/api/v1/master/students')->assertStatus(403);
+        // GET index allowed but returns filtered data (empty for unassigned teacher)
+        $this->getJson('/api/v1/master/students')
+            ->assertStatus(200)
+            ->assertJson(['success' => true, 'data' => []]);
 
-        // GET stats rejected
+        // GET stats rejected (admin only)
         $this->getJson('/api/v1/master/students/stats')->assertStatus(403);
 
-        // GET detail rejected
-        $this->getJson('/api/v1/master/students/1')->assertStatus(403);
+        // GET detail allowed for student inside teacher's assigned class
+        $this->getJson('/api/v1/master/students/1')->assertStatus(200);
 
-        // POST store rejected
+        // GET detail rejected for student outside teacher's assigned classes
+        $outsideStudent = Student::where('id', '>', 10)->first();
+        if ($outsideStudent) {
+            $this->getJson("/api/v1/master/students/{$outsideStudent->id}")->assertStatus(403);
+        }
+
+        // POST store rejected (admin only)
         $this->postJson('/api/v1/master/students', [
             'name' => 'Test Hacker',
             'nis' => '999999999',
             'nisn' => '9999999999',
         ])->assertStatus(403);
+
+        // DELETE rejected (admin only)
+        $this->deleteJson('/api/v1/master/students/1')->assertStatus(403);
     }
 
     /**

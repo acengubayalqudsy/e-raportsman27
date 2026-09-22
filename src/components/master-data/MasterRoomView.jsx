@@ -3,6 +3,7 @@ import Button from '../common/Button.jsx'
 import Icon from '../common/Icon.jsx'
 import SearchInput from '../common/SearchInput.jsx'
 import roomService from '../../services/roomService.js'
+import { MasterDeleteModal, MasterDetailModal } from './MasterModals.jsx'
 import MasterPagination from './MasterPagination.jsx'
 import MasterSummary from './MasterSummary.jsx'
 
@@ -96,7 +97,7 @@ function RoomModal({ initialData = null, onClose, onSave }) {
         <form className="master-entity-form" onSubmit={handleSubmit}>
           <div className="master-form-scroll">
             {errorMessage && (
-              <div className="master-form-error-alert" role="alert" style={{ background: '#fef2f2', color: '#b91c1c', padding: '10px 14px', borderRadius: '8px', marginBottom: '14px', fontSize: '0.875rem', display: 'flex', gap: '8px', alignItems: 'center' }}>
+              <div className="master-form-error-alert" role="alert">
                 <Icon name="info" />
                 <span>{errorMessage}</span>
               </div>
@@ -212,104 +213,15 @@ function RoomModal({ initialData = null, onClose, onSave }) {
           </div>
 
           <footer className="master-modal-footer">
-            <Button className="secondary" disabled={isSubmitting} onClick={onClose} type="button">Batal</Button>
-            <Button className="primary" disabled={isSubmitting} type="submit">
+            <Button className="master-button secondary" disabled={isSubmitting} onClick={onClose} type="button">
+              Batal
+            </Button>
+            <Button className="master-button primary" disabled={isSubmitting} type="submit">
+              <Icon name="save" />
               {isSubmitting ? 'Menyimpan...' : isEdit ? 'Perbarui Ruangan' : 'Simpan Ruangan'}
             </Button>
           </footer>
         </form>
-      </section>
-    </div>
-  )
-}
-
-function RoomDetailModal({ onClose, room }) {
-  if (!room) return null
-
-  const details = [
-    ['Kode Ruangan', room.code],
-    ['Nama Ruangan', room.name],
-    ['Tipe Ruangan', room.room_type],
-    ['Kapasitas', `${room.capacity || 0} Siswa`],
-    ['Gedung', room.building || '-'],
-    ['Lantai', room.floor || '-'],
-    ['Status', room.status || 'Aktif'],
-    ['Keterangan', room.description || '-'],
-  ]
-
-  return (
-    <div className="master-modal-backdrop" role="presentation">
-      <section aria-modal="true" className="master-modal regular" role="dialog">
-        <header>
-          <div>
-            <h3>Detail Ruangan: {room.name}</h3>
-            <p>Informasi lengkap fasilitas ruangan sekolah.</p>
-          </div>
-          <button aria-label="Tutup modal" onClick={onClose} type="button">&times;</button>
-        </header>
-
-        <div className="master-detail-content" style={{ padding: '20px' }}>
-          <dl style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '16px 20px', margin: 0 }}>
-            {details.map(([label, val]) => (
-              <div key={label} style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                <dt style={{ fontSize: '0.8rem', color: '#64748b', fontWeight: 500 }}>{label}</dt>
-                <dd style={{ margin: 0, fontSize: '0.95rem', fontWeight: 600, color: '#1e293b' }}>{val}</dd>
-              </div>
-            ))}
-          </dl>
-        </div>
-
-        <footer className="master-modal-footer">
-          <Button className="primary" onClick={onClose} type="button">Tutup</Button>
-        </footer>
-      </section>
-    </div>
-  )
-}
-
-function RoomDeleteModal({ isDeleting, onClose, onConfirm, room }) {
-  const [error, setError] = useState('')
-
-  const handleConfirm = async () => {
-    setError('')
-    const res = await onConfirm(room.id)
-    if (res && !res.success) {
-      setError(res.error || 'Gagal menghapus ruangan.')
-    }
-  }
-
-  return (
-    <div className="master-modal-backdrop" role="presentation">
-      <section aria-modal="true" className="master-modal compact" role="dialog">
-        <header>
-          <div>
-            <h3>Hapus Ruangan</h3>
-            <p>Konfirmasi penghapusan data master ruangan.</p>
-          </div>
-          <button aria-label="Tutup modal" onClick={onClose} type="button">&times;</button>
-        </header>
-
-        <div style={{ padding: '20px', fontSize: '0.9rem', color: '#475569' }}>
-          {error ? (
-            <div style={{ background: '#fef2f2', border: '1px solid #fecaca', color: '#b91c1c', padding: '12px 14px', borderRadius: '8px', marginBottom: '14px', lineHeight: '1.4' }}>
-              <strong>Gagal Menghapus:</strong> {error}
-            </div>
-          ) : (
-            <p>
-              Apakah Anda yakin ingin menghapus ruangan <strong>{room?.name} ({room?.code})</strong>?
-              Tindakan ini tidak dapat dibatalkan jika ruangan masih digunakan.
-            </p>
-          )}
-        </div>
-
-        <footer className="master-modal-footer">
-          <Button className="secondary" disabled={isDeleting} onClick={onClose} type="button">Batal</Button>
-          {!error && (
-            <Button className="danger" disabled={isDeleting} onClick={handleConfirm} type="button">
-              {isDeleting ? 'Menghapus...' : 'Ya, Hapus Ruangan'}
-            </Button>
-          )}
-        </footer>
       </section>
     </div>
   )
@@ -329,7 +241,6 @@ function MasterRoomView({ onNotify }) {
   // Modals state
   const [activeModal, setActiveModal] = useState(null) // 'add' | 'edit' | 'detail' | 'delete'
   const [selectedRoom, setSelectedRoom] = useState(null)
-  const [isDeleting, setIsDeleting] = useState(false)
   const [refreshTrigger, setRefreshTrigger] = useState(0)
 
   // 1. Fetch statistics
@@ -407,26 +318,27 @@ function MasterRoomView({ onNotify }) {
     return res
   }
 
-  const handleDelete = async (id) => {
-    setIsDeleting(true)
+  const handleDelete = async (roomOrId) => {
+    const id = roomOrId?.id ?? roomOrId
     try {
       const res = await roomService.deleteRoom(id)
       if (res.success) {
         onNotify?.(res.message || 'Ruangan berhasil dihapus.')
         setActiveModal(null)
+        setSelectedRoom(null)
         setRefreshTrigger((prev) => prev + 1)
         return { success: true }
       }
       return res
-    } finally {
-      setIsDeleting(false)
+    } catch {
+      return { success: false, error: 'Terjadi kendala jaringan saat menghapus data ruangan.' }
     }
   }
 
   const summaryCards = useMemo(() => {
     const total = stats?.total_rooms ?? meta.total ?? 0
-    const kelas = stats?.class_rooms ?? 0
-    const lab = stats?.lab_rooms ?? 0
+    const kelas = stats?.class_rooms ?? stats?.type_counts?.Kelas ?? 0
+    const lab = stats?.lab_rooms ?? stats?.type_counts?.Laboratorium ?? 0
     const totalCap = stats?.total_capacity ?? 0
 
     return [
@@ -434,32 +346,44 @@ function MasterRoomView({ onNotify }) {
         id: 'total-rooms',
         title: 'Total Ruangan',
         value: total.toLocaleString('id-ID'),
-        change: `${kelas} Ruang Kelas`,
-        trend: 'up',
+        caption: `${kelas} Ruang Kelas`,
+        icon: 'building',
+        tone: 'blue',
+        positive: true,
+        captionIcon: 'arrowUp',
         sparkline: summarySparklines[0],
       },
       {
         id: 'class-rooms',
         title: 'Ruang Kelas',
         value: kelas.toLocaleString('id-ID'),
-        change: `${total ? Math.round((kelas / total) * 100) : 0}% dari total`,
-        trend: 'up',
+        caption: `${total ? Math.round((kelas / total) * 100) : 0}% dari total`,
+        icon: 'academic',
+        tone: 'green',
+        positive: true,
+        captionIcon: 'arrowUp',
         sparkline: summarySparklines[1],
       },
       {
         id: 'lab-rooms',
-        title: 'Laboratorium & Khusus',
+        title: 'Laboratorium',
         value: lab.toLocaleString('id-ID'),
-        change: 'Ruang Praktik/Lab',
-        trend: 'neutral',
+        caption: 'Praktik & Komputer',
+        icon: 'screen',
+        tone: 'purple',
+        positive: true,
+        captionIcon: 'arrowUp',
         sparkline: summarySparklines[2],
       },
       {
         id: 'total-capacity',
-        title: 'Total Kapasitas Siswa',
+        title: 'Total Kapasitas',
         value: totalCap.toLocaleString('id-ID'),
-        change: 'Daya Tampung Keseluruhan',
-        trend: 'up',
+        caption: 'Kapasitas Siswa',
+        icon: 'users',
+        tone: 'orange',
+        positive: true,
+        captionIcon: 'arrowUp',
         sparkline: summarySparklines[3],
       },
     ]
@@ -469,53 +393,11 @@ function MasterRoomView({ onNotify }) {
     <div className="master-room-view">
       <MasterSummary items={summaryCards} />
 
-      <section className="master-panel" aria-label="Daftar Ruangan">
-        <header className="master-panel-header">
-          <div className="master-panel-title">
-            <h3>Master Data Ruangan</h3>
-            <p>Kelola ruang kelas, laboratorium, perpustakaan, dan fasilitas sekolah.</p>
-          </div>
-
-          <div className="master-panel-actions">
-            <Button
-              className="secondary"
-              onClick={() => {
-                setRefreshTrigger((prev) => prev + 1)
-                onNotify?.('Data ruangan diperbarui.')
-              }}
-              type="button"
-            >
-              <Icon name="refresh" /> Segarkan
-            </Button>
-            <Button
-              className="primary"
-              onClick={() => {
-                setSelectedRoom(null)
-                setActiveModal('add')
-              }}
-              type="button"
-            >
-              <Icon name="plus" /> Tambah Ruangan
-            </Button>
-          </div>
-        </header>
-
-        <div className="master-filter-bar">
-          <div className="master-search-wrap">
-            <SearchInput
-              aria-label="Cari kode atau nama ruangan"
-              placeholder="Cari kode atau nama ruangan..."
-              value={search}
-              onChange={(e) => {
-                setSearch(e.target.value)
-                setPage(1)
-              }}
-            />
-          </div>
-
-          <div className="master-filter-group">
-            <label className="master-filter-select">
-              <span>Tipe:</span>
+      <section className="master-data-workspace" aria-label="Daftar Ruangan">
+        <div className="master-data-toolbar">
+          <div className="master-filter-grid master-reference-filters" style={{ gridTemplateColumns: 'repeat(2, minmax(130px, 1fr))' }}>
+            <label className="master-field">
+              <span>Jenis Ruangan</span>
               <select
                 value={roomTypeFilter}
                 onChange={(e) => {
@@ -529,8 +411,8 @@ function MasterRoomView({ onNotify }) {
               </select>
             </label>
 
-            <label className="master-filter-select">
-              <span>Status:</span>
+            <label className="master-field">
+              <span>Status</span>
               <select
                 value={statusFilter}
                 onChange={(e) => {
@@ -544,10 +426,54 @@ function MasterRoomView({ onNotify }) {
               </select>
             </label>
           </div>
+
+          <label className="master-search">
+            <SearchInput
+              aria-label="Cari kode atau nama ruangan"
+              placeholder="Cari kode atau nama ruangan..."
+              value={search}
+              onChange={(e) => {
+                setSearch(e.target.value)
+                setPage(1)
+              }}
+            />
+            <Icon name="search" />
+          </label>
         </div>
 
-        <div className="master-table-container">
-          <table className="master-table">
+        <div className="master-data-actions">
+          <div className="master-table-heading" style={{ borderTop: 'none', minHeight: 'auto' }}>
+            <h3 style={{ fontSize: '12px', fontWeight: 800, color: '#0f172a' }}>
+              Daftar Ruangan {meta.total ? `(${meta.total} Total)` : ''}
+            </h3>
+          </div>
+
+          <div>
+            <Button
+              className="master-button secondary"
+              onClick={() => {
+                setRefreshTrigger((prev) => prev + 1)
+                onNotify?.('Data ruangan diperbarui.')
+              }}
+              type="button"
+            >
+              <Icon name="refresh" /> Segarkan
+            </Button>
+            <Button
+              className="master-button primary"
+              onClick={() => {
+                setSelectedRoom(null)
+                setActiveModal('add')
+              }}
+              type="button"
+            >
+              <Icon name="plus" /> Tambah Ruangan
+            </Button>
+          </div>
+        </div>
+
+        <div className="master-table-scroll">
+          <table className="master-reference-table">
             <thead>
               <tr>
                 <th>No</th>
@@ -557,7 +483,7 @@ function MasterRoomView({ onNotify }) {
                 <th>Kapasitas</th>
                 <th>Lokasi</th>
                 <th>Status</th>
-                <th style={{ textAlign: 'center' }}>Aksi</th>
+                <th>Aksi</th>
               </tr>
             </thead>
             <tbody>
@@ -572,7 +498,7 @@ function MasterRoomView({ onNotify }) {
               ) : rooms.length === 0 ? (
                 <tr>
                   <td className="master-empty-row" colSpan="8">
-                    <Icon name="screen" />
+                    <Icon name="search" />
                     <strong>Tidak ada data ruangan</strong>
                     <span>Coba ubah kata kunci pencarian atau filter tipe.</span>
                   </td>
@@ -587,7 +513,7 @@ function MasterRoomView({ onNotify }) {
                     <tr key={room.id}>
                       <td>{rowNumber}</td>
                       <td>
-                        <code style={{ background: '#f1f5f9', padding: '3px 7px', borderRadius: '4px', fontWeight: 600, color: '#334155' }}>
+                        <code style={{ background: '#f1f5f9', padding: '3px 7px', borderRadius: '4px', fontWeight: 700, color: '#334155' }}>
                           {room.code}
                         </code>
                       </td>
@@ -597,10 +523,10 @@ function MasterRoomView({ onNotify }) {
                       <td>
                         <span style={{
                           display: 'inline-block',
-                          padding: '3px 9px',
-                          borderRadius: '12px',
-                          fontSize: '0.8rem',
-                          fontWeight: 600,
+                          padding: '2px 8px',
+                          borderRadius: '4px',
+                          fontSize: '8.5px',
+                          fontWeight: 700,
                           background: isClass ? '#e0f2fe' : isLab ? '#fef3c7' : '#f1f5f9',
                           color: isClass ? '#0369a1' : isLab ? '#b45309' : '#475569',
                         }}>
@@ -608,24 +534,23 @@ function MasterRoomView({ onNotify }) {
                         </span>
                       </td>
                       <td>
-                        <strong>{room.capacity}</strong> Siswa
+                        <strong>{room.capacity}</strong> <small style={{ color: '#64748b', fontSize: '8px' }}>Siswa</small>
                       </td>
                       <td>
-                        <span style={{ color: '#475569', fontSize: '0.875rem' }}>
+                        <span style={{ color: '#475569', fontSize: '9px' }}>
                           {room.building ? room.building : '-'}
                           {room.floor ? ` (${room.floor})` : ''}
                         </span>
                       </td>
                       <td>
-                        <span className={`master-status ${room.status?.toLowerCase() === 'aktif' ? 'active' : 'inactive'}`}>
+                        <span className={`master-data-status ${room.status?.toLowerCase() === 'aktif' ? 'aktif' : 'tidak-aktif'}`}>
                           {room.status}
                         </span>
                       </td>
                       <td>
-                        <div className="master-row-actions" style={{ display: 'flex', gap: '6px', justifyContent: 'center' }}>
+                        <div className="master-row-actions">
                           <button
                             aria-label={`Detail ${room.name}`}
-                            className="master-action-btn view"
                             title="Detail"
                             type="button"
                             onClick={() => {
@@ -633,11 +558,10 @@ function MasterRoomView({ onNotify }) {
                               setActiveModal('detail')
                             }}
                           >
-                            <Icon name="screen" />
+                            <Icon name="eye" />
                           </button>
                           <button
                             aria-label={`Edit ${room.name}`}
-                            className="master-action-btn edit"
                             title="Edit"
                             type="button"
                             onClick={() => {
@@ -649,7 +573,7 @@ function MasterRoomView({ onNotify }) {
                           </button>
                           <button
                             aria-label={`Hapus ${room.name}`}
-                            className="master-action-btn delete"
+                            className="delete"
                             title="Hapus"
                             type="button"
                             onClick={() => {
@@ -687,31 +611,67 @@ function MasterRoomView({ onNotify }) {
 
       {activeModal === 'add' && (
         <RoomModal
-          onClose={() => setActiveModal(null)}
+          onClose={() => {
+            setActiveModal(null)
+            setSelectedRoom(null)
+          }}
           onSave={handleCreate}
         />
       )}
 
-      {activeModal === 'edit' && (
+      {activeModal === 'edit' && selectedRoom && (
         <RoomModal
           initialData={selectedRoom}
-          onClose={() => setActiveModal(null)}
+          onClose={() => {
+            setActiveModal(null)
+            setSelectedRoom(null)
+          }}
           onSave={handleUpdate}
         />
       )}
 
-      {activeModal === 'detail' && (
-        <RoomDetailModal
-          room={selectedRoom}
-          onClose={() => setActiveModal(null)}
+      {activeModal === 'detail' && selectedRoom && (
+        <MasterDetailModal
+          entityLabel="Ruangan"
+          name={selectedRoom.name}
+          onClose={() => {
+            setActiveModal(null)
+            setSelectedRoom(null)
+          }}
+          onEdit={() => {
+            setActiveModal('edit')
+          }}
+          sections={[
+            {
+              title: 'Identitas Ruangan',
+              items: [
+                { label: 'Kode Ruangan', value: selectedRoom.code },
+                { label: 'Nama Ruangan', value: selectedRoom.name },
+                { label: 'Tipe Ruangan', value: selectedRoom.room_type },
+                { label: 'Status', value: selectedRoom.status || 'Aktif' },
+              ],
+            },
+            {
+              title: 'Lokasi & Fasilitas',
+              items: [
+                { label: 'Kapasitas', value: `${selectedRoom.capacity || 0} Siswa` },
+                { label: 'Gedung', value: selectedRoom.building || '-' },
+                { label: 'Lantai', value: selectedRoom.floor || '-' },
+                { label: 'Keterangan', value: selectedRoom.notes || selectedRoom.description || '-' },
+              ],
+            },
+          ]}
         />
       )}
 
-      {activeModal === 'delete' && (
-        <RoomDeleteModal
-          isDeleting={isDeleting}
-          room={selectedRoom}
-          onClose={() => setActiveModal(null)}
+      {activeModal === 'delete' && selectedRoom && (
+        <MasterDeleteModal
+          entityLabel="Ruangan"
+          item={selectedRoom}
+          onClose={() => {
+            setActiveModal(null)
+            setSelectedRoom(null)
+          }}
           onConfirm={handleDelete}
         />
       )}

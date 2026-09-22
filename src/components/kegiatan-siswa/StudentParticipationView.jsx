@@ -4,35 +4,8 @@ import EmptyState from '../common/EmptyState.jsx'
 import Icon from '../common/Icon.jsx'
 import SearchInput from '../common/SearchInput.jsx'
 import MasterPagination from '../master-data/MasterPagination.jsx'
-import {
-  activityOptions,
-  cocurricularNotes,
-  homeroomNotes,
-  participations as initialParticipations,
-  scores,
-} from '../../data/kegiatanSiswa.js'
-
-const initialFilters = {
-  className: 'Semua Kelas',
-  academicYear: '2024/2025',
-  semester: 'Genap',
-  extracurricular: 'Semua Ekskul',
-  status: 'Semua Status',
-}
-
-const popularActivities = [
-  { name: 'Pramuka', members: 182, percentage: '21,62%', bar: 62 },
-  { name: 'Futsal', members: 156, percentage: '18,53%', bar: 53 },
-  { name: 'Paskibra', members: 98, percentage: '11,66%', bar: 36 },
-  { name: 'Rohis', members: 86, percentage: '10,21%', bar: 31 },
-  { name: 'PMR', members: 72, percentage: '8,55%', bar: 25 },
-]
-
-const upcomingActivities = [
-  { day: '15', month: 'MEI', title: 'Lomba Pramuka Tingkat Kabupaten', time: '08:00 - 16:00 WIB', place: 'Lapangan Setda Garut' },
-  { day: '20', month: 'MEI', title: 'Latihan Paskibra Persiapan Upacara', time: '15:30 - 17:30 WIB', place: 'Lapangan Sekolah' },
-  { day: '25', month: 'MEI', title: 'Turnamen Futsal Antar Kelas', time: '07:00 - 18:00 WIB', place: 'GOR SMAN 27 Garut' },
-]
+import assessmentService from '../../services/assessmentService.js'
+import { extracurricularService } from '../../services/extracurricularService.js'
 
 function ActivityModal({ children, description, onClose, title, wide = false }) {
   const dialogRef = useRef(null)
@@ -75,14 +48,27 @@ function ActivityModal({ children, description, onClose, title, wide = false }) 
   )
 }
 
-function ParticipationFormModal({ initialData, mode, onClose, onSave, participations }) {
+function ParticipationFormModal({
+  availableExtracurriculars = [],
+  availableStudents = [],
+  defaultSemester = 'Ganjil',
+  defaultYear = '2024/2025',
+  initialData,
+  isSaving = false,
+  mode,
+  onClose,
+  onSave,
+  participations = [],
+}) {
   const [formData, setFormData] = useState(() => ({
-    studentId: initialData?.studentId ? String(initialData.studentId) : '',
-    extracurricular: initialData?.extracurricular ?? '',
-    academicYear: initialData?.academicYear ?? '2024/2025',
-    semester: initialData?.semester ?? 'Genap',
+    studentId: initialData?.studentId ? String(initialData.studentId) : (availableStudents[0]?.student_id ? String(availableStudents[0].student_id) : ''),
+    extracurricularId: initialData?.extracurricularId ? String(initialData.extracurricularId) : (availableExtracurriculars[0]?.id ? String(availableExtracurriculars[0].id) : ''),
+    academicYear: initialData?.academicYear ?? defaultYear,
+    semester: initialData?.semester ?? defaultSemester,
     yearJoined: initialData?.yearJoined ?? '2024',
     status: initialData?.status ?? 'Aktif',
+    predicate: initialData?.predicate ?? 'Baik',
+    description: initialData?.description ?? '',
   }))
   const [error, setError] = useState('')
 
@@ -93,10 +79,8 @@ function ParticipationFormModal({ initialData, mode, onClose, onSave, participat
 
   const handleSubmit = (event) => {
     event.preventDefault()
-    const hasEmptyField = Object.values(formData).some((value) => !String(value).trim())
-
-    if (hasEmptyField) {
-      setError('Lengkapi seluruh data keikutsertaan sebelum menyimpan.')
+    if (!formData.studentId || !formData.extracurricularId) {
+      setError('Pilih siswa dan ekstrakurikuler terlebih dahulu.')
       return
     }
 
@@ -105,26 +89,33 @@ function ParticipationFormModal({ initialData, mode, onClose, onSave, participat
       return
     }
 
-    const duplicate = participations.some((participation) => (
-      participation.id !== initialData?.id
-      && String(participation.studentId) === String(formData.studentId)
-      && participation.extracurricular === formData.extracurricular
-      && participation.academicYear === formData.academicYear
+    // Check duplicate participation for same student and extracurricular
+    const selectedEkskul = availableExtracurriculars.find((e) => String(e.id) === String(formData.extracurricularId))
+    const ekskulName = selectedEkskul?.name || ''
+
+    const isDuplicate = participations.some((p) => (
+      p.id !== initialData?.id
+      && String(p.studentId) === String(formData.studentId)
+      && (String(p.extracurricularId) === String(formData.extracurricularId) || p.extracurricular === ekskulName)
     ))
 
-    if (duplicate) {
-      setError('Siswa sudah terdaftar pada ekstrakurikuler dan tahun ajaran yang sama.')
+    if (isDuplicate) {
+      setError('Siswa sudah terdaftar pada ekstrakurikuler ini.')
       return
     }
 
-    onSave(formData)
+    onSave({
+      ...formData,
+      extracurricularName: ekskulName,
+      supervisor: selectedEkskul?.supervisor || '-',
+    })
   }
 
   return (
     <ActivityModal
-      description="Data tersimpan sementara pada tampilan ini."
+      description="Data keikutsertaan akan disimpan secara permanen ke database sekolah."
       onClose={onClose}
-      title={mode === 'edit' ? 'Edit Keikutsertaan' : 'Tambah Keikutsertaan'}
+      title={mode === 'edit' ? 'Edit Keikutsertaan Ekstrakurikuler' : 'Tambah Keikutsertaan Ekstrakurikuler'}
     >
       <form className="activity-modal-form" onSubmit={handleSubmit}>
         {error && (
@@ -136,32 +127,33 @@ function ParticipationFormModal({ initialData, mode, onClose, onSave, participat
 
         <div className="activity-form-grid">
           <label className="activity-field activity-field-full">
-            <span>Siswa</span>
+            <span>Siswa <b>*</b></span>
             <select
               aria-label="Pilih siswa"
+              disabled={mode === 'edit'}
               onChange={(event) => updateField('studentId', event.target.value)}
               value={formData.studentId}
             >
-              <option value="">Pilih siswa</option>
-              {activityOptions.students.map((student) => (
-                <option key={student.id} value={student.id}>
-                  {student.nis} - {student.name} ({student.className})
+              <option value="">-- Pilih Siswa --</option>
+              {availableStudents.map((student) => (
+                <option key={student.student_id} value={student.student_id}>
+                  {student.nis} - {student.name} ({student.className || 'Siswa'})
                 </option>
               ))}
             </select>
           </label>
 
           <label className="activity-field activity-field-full">
-            <span>Ekstrakurikuler</span>
+            <span>Ekstrakurikuler <b>*</b></span>
             <select
               aria-label="Pilih ekstrakurikuler"
-              onChange={(event) => updateField('extracurricular', event.target.value)}
-              value={formData.extracurricular}
+              onChange={(event) => updateField('extracurricularId', event.target.value)}
+              value={formData.extracurricularId}
             >
-              <option value="">Pilih ekstrakurikuler</option>
-              {activityOptions.extracurricularOptions.map((option) => (
-                <option key={option.id} value={option.value}>
-                  {option.label} - {option.supervisor}
+              <option value="">-- Pilih Ekstrakurikuler --</option>
+              {availableExtracurriculars.map((ekskul) => (
+                <option key={ekskul.id} value={ekskul.id}>
+                  {ekskul.code ? `[${ekskul.code}] ` : ''}{ekskul.name} {ekskul.supervisor && ekskul.supervisor !== '-' ? `(Pembina: ${ekskul.supervisor})` : ''}
                 </option>
               ))}
             </select>
@@ -169,22 +161,22 @@ function ParticipationFormModal({ initialData, mode, onClose, onSave, participat
 
           <label className="activity-field">
             <span>Tahun Ajaran</span>
-            <select
-              onChange={(event) => updateField('academicYear', event.target.value)}
+            <input
+              disabled
+              readOnly
+              type="text"
               value={formData.academicYear}
-            >
-              {activityOptions.academicYears.map((option) => <option key={option}>{option}</option>)}
-            </select>
+            />
           </label>
 
           <label className="activity-field">
             <span>Semester</span>
-            <select
-              onChange={(event) => updateField('semester', event.target.value)}
+            <input
+              disabled
+              readOnly
+              type="text"
               value={formData.semester}
-            >
-              {activityOptions.semesters.map((option) => <option key={option}>{option}</option>)}
-            </select>
+            />
           </label>
 
           <label className="activity-field">
@@ -199,18 +191,36 @@ function ParticipationFormModal({ initialData, mode, onClose, onSave, participat
           </label>
 
           <label className="activity-field">
-            <span>Status</span>
-            <select onChange={(event) => updateField('status', event.target.value)} value={formData.status}>
-              {activityOptions.participationStatuses.map((option) => <option key={option}>{option}</option>)}
+            <span>Predikat / Capaian</span>
+            <select
+              onChange={(event) => updateField('predicate', event.target.value)}
+              value={formData.predicate}
+            >
+              <option value="Sangat Baik">Sangat Baik</option>
+              <option value="Baik">Baik</option>
+              <option value="Cukup">Cukup</option>
+              <option value="Kurang">Kurang</option>
             </select>
+          </label>
+
+          <label className="activity-field activity-field-full">
+            <span>Catatan / Keterangan Pembina</span>
+            <textarea
+              onChange={(event) => updateField('description', event.target.value)}
+              placeholder="Catatan perkembangan atau keikutsertaan siswa dalam kegiatan ekskul..."
+              rows="2"
+              value={formData.description}
+            />
           </label>
         </div>
 
         <footer className="activity-modal-actions">
-          <Button className="activity-button activity-button-secondary" onClick={onClose}>Batal</Button>
-          <Button className="activity-button activity-button-primary" type="submit">
+          <Button className="activity-button activity-button-secondary" disabled={isSaving} onClick={onClose} type="button">
+            Batal
+          </Button>
+          <Button className="activity-button activity-button-primary" disabled={isSaving} type="submit">
             <Icon name="save" />
-            {mode === 'edit' ? 'Simpan Perubahan' : 'Simpan Keikutsertaan'}
+            {isSaving ? 'Menyimpan ke Database...' : mode === 'edit' ? 'Perbarui Keikutsertaan' : 'Simpan Keikutsertaan'}
           </Button>
         </footer>
       </form>
@@ -218,14 +228,10 @@ function ParticipationFormModal({ initialData, mode, onClose, onSave, participat
   )
 }
 
-function ParticipationDetailModal({ onClose, onEdit, participation, studentParticipations }) {
-  const studentScores = scores.filter((item) => String(item.studentId) === String(participation.studentId))
-  const cocurricularNote = cocurricularNotes.find((item) => String(item.studentId) === String(participation.studentId))
-  const homeroomNote = homeroomNotes.find((item) => String(item.studentId) === String(participation.studentId))
-
+function ParticipationDetailModal({ onClose, onEdit, participation, studentParticipations = [] }) {
   return (
     <ActivityModal
-      description={`${participation.nis} - ${participation.className}`}
+      description={`${participation.nis || '-'} - ${participation.className || 'Kelas'}`}
       onClose={onClose}
       title={participation.name}
       wide
@@ -233,18 +239,27 @@ function ParticipationDetailModal({ onClose, onEdit, participation, studentParti
       <div className="activity-detail-content">
         <div className="activity-detail-grid">
           <div><span>Ekstrakurikuler</span><strong>{participation.extracurricular}</strong></div>
-          <div><span>Pembina</span><strong>{participation.supervisor}</strong></div>
-          <div><span>Tahun Ajaran</span><strong>{participation.academicYear}</strong></div>
-          <div><span>Semester</span><strong>{participation.semester}</strong></div>
-          <div><span>Tahun Gabung</span><strong>{participation.yearJoined}</strong></div>
-          <div><span>Status</span><strong>{participation.status}</strong></div>
+          <div><span>Pembina</span><strong>{participation.supervisor || '-'}</strong></div>
+          <div><span>Tahun Ajaran</span><strong>{participation.academicYear || '-'}</strong></div>
+          <div><span>Semester</span><strong>{participation.semester || '-'}</strong></div>
+          <div><span>Predikat</span><strong>{participation.predicate || 'Baik'}</strong></div>
+          <div><span>Status</span><strong>{participation.status || 'Aktif'}</strong></div>
         </div>
+
+        {participation.description && (
+          <div className="activity-detail-notes" style={{ marginTop: '16px' }}>
+            <article>
+              <h4>Keterangan / Deskripsi Kegiatan</h4>
+              <p>{participation.description}</p>
+            </article>
+          </div>
+        )}
 
         <section className="activity-detail-list">
           <div className="activity-detail-heading">
             <div>
-              <h4>Ringkasan Keikutsertaan</h4>
-              <p>{studentParticipations.length} kegiatan ekstrakurikuler tercatat.</p>
+              <h4>Semua Kegiatan Ekstrakurikuler Siswa Ini</h4>
+              <p>{studentParticipations.length} kegiatan ekstrakurikuler tercatat di database.</p>
             </div>
           </div>
           {studentParticipations.map((item) => (
@@ -252,32 +267,19 @@ function ParticipationDetailModal({ onClose, onEdit, participation, studentParti
               <span className="activity-detail-icon"><Icon name="award" /></span>
               <div>
                 <strong>{item.extracurricular}</strong>
-                <span>
-                  Predikat {studentScores.find((score) => score.participationId === item.id)?.predicate || '-'} · {item.supervisor}
-                </span>
+                <span>Predikat: {item.predicate || 'Baik'} · Pembina: {item.supervisor || '-'}</span>
               </div>
-              <span className={`activity-status ${item.status === 'Aktif' ? 'activity-status-active' : 'activity-status-inactive'}`}>
-                {item.status}
+              <span className="activity-status activity-status-active">
+                {item.status || 'Aktif'}
               </span>
             </article>
           ))}
         </section>
-
-        <section className="activity-detail-notes">
-          <article>
-            <h4>Catatan Kokurikuler</h4>
-            <p>{cocurricularNote?.note || 'Belum ada catatan kokurikuler untuk siswa ini.'}</p>
-          </article>
-          <article>
-            <h4>Catatan Wali Kelas</h4>
-            <p>{homeroomNote?.note || 'Belum ada catatan wali kelas untuk siswa ini.'}</p>
-          </article>
-        </section>
       </div>
 
       <footer className="activity-modal-actions">
-        <Button className="activity-button activity-button-secondary" onClick={onClose}>Tutup</Button>
-        <Button className="activity-button activity-button-primary" onClick={onEdit}>
+        <Button className="activity-button activity-button-secondary" onClick={onClose} type="button">Tutup</Button>
+        <Button className="activity-button activity-button-primary" onClick={onEdit} type="button">
           <Icon name="edit" />Edit Keikutsertaan
         </Button>
       </footer>
@@ -286,30 +288,192 @@ function ParticipationDetailModal({ onClose, onEdit, participation, studentParti
 }
 
 function StudentParticipationView({ onNotify = () => {} }) {
-  const [participations, setParticipations] = useState(() => initialParticipations.map((item) => ({ ...item })))
-  const [filters, setFilters] = useState(initialFilters)
+  const [participations, setParticipations] = useState([])
+  const [availableStudents, setAvailableStudents] = useState([])
+  const [availableExtracurriculars, setAvailableExtracurriculars] = useState([])
+  const [context, setContext] = useState(null)
+  const [isLoading, setIsLoading] = useState(true)
+  const [isSaving, setIsSaving] = useState(false)
+  const [fetchError, setFetchError] = useState(null)
+  const [refreshTrigger, setRefreshTrigger] = useState(0)
+
+  // Filters & UI state
+  const [filters, setFilters] = useState({
+    className: 'Semua Kelas',
+    academicYear: 'Semua Tahun',
+    semester: 'Semua Semester',
+    extracurricular: 'Semua Ekskul',
+    status: 'Semua Status',
+  })
   const [searchQuery, setSearchQuery] = useState('')
   const [currentPage, setCurrentPage] = useState(1)
   const [rowsPerPage, setRowsPerPage] = useState(8)
   const [openMenuId, setOpenMenuId] = useState(null)
   const [modal, setModal] = useState(null)
 
+  const classId = context?.homeroom_class?.id || context?.assigned_courses?.[0]?.class_id
+  const semesterId = context?.active_semester?.id
+  const activeYearName = context?.active_semester?.academic_year || '2024/2025'
+  const activeSemesterName = context?.active_semester?.name || 'Ganjil'
+
+  // 1. Fetch active extracurricular master list from MariaDB
+  useEffect(() => {
+    let isMounted = true
+    extracurricularService
+      .getExtracurriculars({ all: 1, status: 'Aktif' })
+      .then((res) => {
+        if (isMounted && res.success && Array.isArray(res.data)) {
+          setAvailableExtracurriculars(res.data)
+        }
+      })
+      .catch(() => {})
+
+    return () => {
+      isMounted = false
+    }
+  }, [refreshTrigger])
+
+  // 2. Fetch context and real student extracurricular participations from MariaDB
+  useEffect(() => {
+    let isMounted = true
+
+    async function fetchData() {
+      try {
+        const ctxRes = await assessmentService.getContext()
+        if (!isMounted) return
+
+        if (!ctxRes.success || !ctxRes.data) {
+          setFetchError('Gagal memuat konteks akademik dari server.')
+          setIsLoading(false)
+          return
+        }
+
+        setContext(ctxRes.data)
+        const currentClassId = ctxRes.data.homeroom_class?.id || ctxRes.data.assigned_courses?.[0]?.class_id
+        const currentSemesterId = ctxRes.data.active_semester?.id
+
+        if (!currentClassId || !currentSemesterId) {
+          setFetchError('Belum ada penugasan kelas atau semester aktif yang terhubung.')
+          setIsLoading(false)
+          return
+        }
+
+        // Fetch supplementary data (which includes student_extracurriculars)
+        const suppRes = await assessmentService.getSupplementaryData(currentClassId, currentSemesterId)
+        if (!isMounted) return
+
+        if (suppRes.success && suppRes.data) {
+          const studentList = suppRes.data.students || []
+          const className = suppRes.data.class?.name || 'Kelas'
+          const semesterName = suppRes.data.semester?.name || ctxRes.data.active_semester?.name || 'Ganjil'
+          const academicYear = suppRes.data.semester?.academic_year || ctxRes.data.active_semester?.academic_year || '2024/2025'
+
+          // Map students for form dropdowns
+          const mappedStudents = studentList.map((st) => ({
+            student_id: st.student_id,
+            name: st.name,
+            nis: st.nis,
+            className,
+          }))
+          setAvailableStudents(mappedStudents)
+
+          // Flatten participations from database
+          const rows = []
+          studentList.forEach((st) => {
+            if (Array.isArray(st.extracurriculars) && st.extracurriculars.length > 0) {
+              st.extracurriculars.forEach((ekskul, idx) => {
+                rows.push({
+                  id: `part-${st.student_id}-${ekskul.id || idx}-${ekskul.extracurricular_id || 'x'}`,
+                  participationId: `EKS-${String(st.student_id).padStart(3, '0')}-${idx + 1}`,
+                  studentId: st.student_id,
+                  nis: st.nis,
+                  name: st.name,
+                  className,
+                  extracurricular: ekskul.activity_name || ekskul.name || 'Ekstrakurikuler',
+                  extracurricularId: ekskul.extracurricular_id,
+                  supervisor: ekskul.supervisor || '-',
+                  academicYear,
+                  semester: semesterName,
+                  yearJoined: '2024',
+                  status: 'Aktif',
+                  predicate: ekskul.predicate || 'Baik',
+                  description: ekskul.description || '',
+                  rawEkskul: ekskul,
+                })
+              })
+            }
+          })
+
+          setParticipations(rows)
+          setFetchError(null)
+        } else {
+          setFetchError(suppRes.error || 'Gagal mengambil data keikutsertaan siswa.')
+        }
+      } catch {
+        if (isMounted) {
+          setFetchError('Terjadi kesalahan jaringan saat menghubungi server.')
+        }
+      } finally {
+        if (isMounted) {
+          setIsLoading(false)
+        }
+      }
+    }
+
+    fetchData()
+
+    return () => {
+      isMounted = false
+    }
+  }, [refreshTrigger])
+
+  // Lookup map to get supervisor by extracurricular name or ID
+  const supervisorMap = useMemo(() => {
+    const map = {}
+    availableExtracurriculars.forEach((e) => {
+      if (e.id) map[e.id] = e.supervisor || '-'
+      if (e.name) map[e.name] = e.supervisor || '-'
+    })
+    return map
+  }, [availableExtracurriculars])
+
+  // Attach supervisor to participations if missing
+  const populatedParticipations = useMemo(() => {
+    return participations.map((p) => {
+      const supervisor = p.supervisor && p.supervisor !== '-'
+        ? p.supervisor
+        : supervisorMap[p.extracurricularId] || supervisorMap[p.extracurricular] || '-'
+      return { ...p, supervisor }
+    })
+  }, [participations, supervisorMap])
+
+  // Computed filter options
+  const filterClassOptions = useMemo(() => {
+    const classes = new Set(populatedParticipations.map((p) => p.className))
+    if (availableStudents.length > 0) classes.add(availableStudents[0].className)
+    return ['Semua Kelas', ...Array.from(classes).filter(Boolean)]
+  }, [populatedParticipations, availableStudents])
+
+  const filterExtracurricularOptions = useMemo(() => {
+    const names = availableExtracurriculars.map((e) => e.name)
+    return ['Semua Ekskul', ...names]
+  }, [availableExtracurriculars])
+
   const filteredParticipations = useMemo(() => {
     const query = searchQuery.trim().toLowerCase()
 
-    return participations.filter((participation) => {
-      const matchesSearch = !query || [participation.nis, participation.name]
-        .some((value) => String(value).toLowerCase().includes(query))
+    return populatedParticipations.filter((participation) => {
+      const matchesSearch = !query || [participation.nis, participation.name, participation.extracurricular]
+        .some((value) => String(value || '').toLowerCase().includes(query))
       const matchesClass = filters.className === 'Semua Kelas' || participation.className === filters.className
       const matchesYear = filters.academicYear === 'Semua Tahun' || participation.academicYear === filters.academicYear
       const matchesSemester = filters.semester === 'Semua Semester' || participation.semester === filters.semester
-      const matchesActivity = filters.extracurricular === 'Semua Ekskul'
-        || participation.extracurricular === filters.extracurricular
+      const matchesActivity = filters.extracurricular === 'Semua Ekskul' || participation.extracurricular === filters.extracurricular
       const matchesStatus = filters.status === 'Semua Status' || participation.status === filters.status
 
       return matchesSearch && matchesClass && matchesYear && matchesSemester && matchesActivity && matchesStatus
     })
-  }, [filters, participations, searchQuery])
+  }, [filters, populatedParticipations, searchQuery])
 
   const totalPages = Math.max(1, Math.ceil(filteredParticipations.length / rowsPerPage))
   const safePage = Math.min(currentPage, totalPages)
@@ -322,47 +486,104 @@ function StudentParticipationView({ onNotify = () => {} }) {
     setOpenMenuId(null)
   }
 
-  const saveParticipation = (formData) => {
-    const source = modal?.participation
-    const student = activityOptions.students.find((item) => String(item.id) === String(formData.studentId))
-    const activity = activityOptions.extracurricularOptions.find((item) => item.value === formData.extracurricular)
-    const nextId = source?.id ?? Math.max(0, ...participations.map((item) => Number(item.id) || 0)) + 1
-    const nextParticipation = {
-      ...(source ?? {}),
-      id: nextId,
-      participationId: source?.participationId ?? `KSE-${String(nextId).padStart(3, '0')}`,
-      studentId: student.id,
-      nis: student.nis,
-      name: student.name,
-      studentName: student.name,
-      className: student.className,
-      extracurricular: activity.value,
-      extracurricularName: activity.value,
-      extracurricularId: activity.id,
-      supervisor: activity.supervisor,
-      academicYear: formData.academicYear,
-      semester: formData.semester,
-      yearJoined: formData.yearJoined,
-      joinYear: formData.yearJoined,
-      status: formData.status,
+  // Save / update participation persisted to MariaDB
+  const handleSaveParticipation = async (formData) => {
+    if (!classId || !semesterId) {
+      onNotify('Konteks kelas atau semester tidak valid.')
+      return
     }
 
-    setParticipations((current) => source
-      ? current.map((item) => item.id === source.id ? nextParticipation : item)
-      : [nextParticipation, ...current])
-    setModal(null)
-    setOpenMenuId(null)
-    setCurrentPage(1)
-    onNotify(`Keikutsertaan ${nextParticipation.name} berhasil ${source ? 'diperbarui' : 'ditambahkan'}.`)
+    setIsSaving(true)
+    const targetStudentId = Number(formData.studentId)
+    const student = availableStudents.find((s) => s.student_id === targetStudentId)
+
+    // Get current activities for this student from participations state
+    const currentStudentActivities = participations
+      .filter((p) => p.studentId === targetStudentId)
+      .map((p) => ({
+        id: p.rawEkskul?.id,
+        extracurricular_id: p.extracurricularId || null,
+        activity_name: p.extracurricular,
+        predicate: p.predicate || 'Baik',
+        description: p.description || '',
+      }))
+
+    const activitiesToSave = modal?.type === 'edit'
+      ? currentStudentActivities.map((act) => {
+          const editingParticipation = modal.participation
+          const matches = (editingParticipation.rawEkskul?.id && act.id === editingParticipation.rawEkskul.id)
+            || (act.extracurricular_id && String(act.extracurricular_id) === String(editingParticipation.extracurricularId))
+            || act.activity_name === editingParticipation.extracurricular
+
+          if (matches) {
+            return {
+              extracurricular_id: Number(formData.extracurricularId) || null,
+              activity_name: formData.extracurricularName,
+              predicate: formData.predicate || 'Baik',
+              description: formData.description || '',
+            }
+          }
+          return act
+        })
+      : [
+          ...currentStudentActivities,
+          {
+            extracurricular_id: Number(formData.extracurricularId) || null,
+            activity_name: formData.extracurricularName,
+            predicate: formData.predicate || 'Baik',
+            description: formData.description || '',
+          },
+        ]
+
+    const payload = [
+      {
+        student_id: targetStudentId,
+        activities: activitiesToSave,
+      },
+    ]
+
+    const res = await assessmentService.saveExtracurriculars(classId, semesterId, payload)
+    setIsSaving(false)
+
+    if (res.success) {
+      setModal(null)
+      setOpenMenuId(null)
+      setRefreshTrigger((prev) => prev + 1)
+      onNotify(`Keikutsertaan ${student?.name || 'siswa'} berhasil disimpan ke database.`)
+    } else {
+      onNotify(`Gagal menyimpan keikutsertaan: ${res.error}`)
+    }
   }
 
-  const toggleParticipationStatus = (participation) => {
-    const nextStatus = participation.status === 'Aktif' ? 'Tidak Aktif' : 'Aktif'
-    setParticipations((current) => current.map((item) => (
-      item.id === participation.id ? { ...item, status: nextStatus } : item
-    )))
-    setOpenMenuId(null)
-    onNotify(`${participation.name} kini berstatus ${nextStatus} pada ${participation.extracurricular}.`)
+  // Deactivate/delete participation persisted to MariaDB
+  const handleDeleteParticipation = async (participation) => {
+    if (!classId || !semesterId) return
+
+    const targetStudentId = Number(participation.studentId)
+    const remainingActivities = participations
+      .filter((p) => p.studentId === targetStudentId && p.id !== participation.id)
+      .map((p) => ({
+        extracurricular_id: p.extracurricularId || null,
+        activity_name: p.extracurricular,
+        predicate: p.predicate || 'Baik',
+        description: p.description || '',
+      }))
+
+    const payload = [
+      {
+        student_id: targetStudentId,
+        activities: remainingActivities,
+      },
+    ]
+
+    const res = await assessmentService.saveExtracurriculars(classId, semesterId, payload)
+    if (res.success) {
+      setOpenMenuId(null)
+      setRefreshTrigger((prev) => prev + 1)
+      onNotify(`Keikutsertaan ${participation.name} pada ${participation.extracurricular} berhasil dinonaktifkan dari database.`)
+    } else {
+      onNotify(`Gagal mengubah status: ${res.error}`)
+    }
   }
 
   const showDetail = (participation) => {
@@ -370,12 +591,26 @@ function StudentParticipationView({ onNotify = () => {} }) {
     setModal({ type: 'detail', participation })
   }
 
+  // Dynamic Popular Activities from real master database
+  const popularActivities = useMemo(() => {
+    const sorted = [...availableExtracurriculars].sort((a, b) => (b.members || 0) - (a.members || 0)).slice(0, 5)
+    const maxMembers = Math.max(1, ...sorted.map((e) => e.members || 0))
+    const totalMembers = sorted.reduce((sum, e) => sum + (e.members || 0), 0) || 1
+
+    return sorted.map((item) => ({
+      name: item.name,
+      members: item.members || 0,
+      percentage: `${Math.round(((item.members || 0) / totalMembers) * 100)}%`,
+      bar: Math.round(((item.members || 0) / maxMembers) * 100),
+    }))
+  }, [availableExtracurriculars])
+
   const filterFields = [
-    { key: 'className', label: 'Kelas', options: ['Semua Kelas', ...activityOptions.classes] },
-    { key: 'academicYear', label: 'Tahun Ajaran', options: ['Semua Tahun', ...activityOptions.academicYears] },
-    { key: 'semester', label: 'Semester', options: ['Semua Semester', ...activityOptions.semesters] },
-    { key: 'extracurricular', label: 'Ekstrakurikuler', options: ['Semua Ekskul', ...activityOptions.extracurriculars] },
-    { key: 'status', label: 'Status', options: activityOptions.participationStatusFilters },
+    { key: 'className', label: 'Kelas', options: filterClassOptions },
+    { key: 'academicYear', label: 'Tahun Ajaran', options: ['Semua Tahun', activeYearName] },
+    { key: 'semester', label: 'Semester', options: ['Semua Semester', activeSemesterName] },
+    { key: 'extracurricular', label: 'Ekstrakurikuler', options: filterExtracurricularOptions },
+    { key: 'status', label: 'Status', options: ['Semua Status', 'Aktif', 'Tidak Aktif'] },
   ]
 
   return (
@@ -395,13 +630,13 @@ function StudentParticipationView({ onNotify = () => {} }) {
 
           <label className="activity-search">
             <SearchInput
-              aria-label="Cari NIS atau nama siswa"
+              aria-label="Cari NIS, nama siswa, atau ekstrakurikuler"
               onChange={(event) => {
                 setSearchQuery(event.target.value)
                 setCurrentPage(1)
                 setOpenMenuId(null)
               }}
-              placeholder="Cari siswa (NIS/Nama)..."
+              placeholder="Cari siswa (NIS/Nama/Ekskul)..."
               value={searchQuery}
             />
             <Icon name="search" />
@@ -410,16 +645,22 @@ function StudentParticipationView({ onNotify = () => {} }) {
 
         <div className="activity-actions">
           <span className="activity-data-note">
-            <Icon name="info" />Data keikutsertaan semester aktif
+            <Icon name="info" />
+            Data keikutsertaan terhubung langsung ke MariaDB (Semester {activeSemesterName} {activeYearName})
           </span>
           <div>
             <Button
               className="activity-button activity-button-secondary"
               onClick={() => onNotify(`${filteredParticipations.length.toLocaleString('id-ID')} data keikutsertaan siap diekspor.`)}
+              type="button"
             >
               <Icon name="download" />Ekspor Data
             </Button>
-            <Button className="activity-button activity-button-primary" onClick={() => setModal({ type: 'add' })}>
+            <Button
+              className="activity-button activity-button-primary"
+              onClick={() => setModal({ type: 'add' })}
+              type="button"
+            >
               <Icon name="plus" />Tambah Keikutsertaan
             </Button>
           </div>
@@ -428,145 +669,165 @@ function StudentParticipationView({ onNotify = () => {} }) {
 
       <div className="activity-participation-layout">
         <section className="activity-workspace">
-
-        <div className="activity-table-heading">
-          <div>
-            <h3>Daftar Keikutsertaan Ekstrakurikuler</h3>
-            <p>{filteredParticipations.length.toLocaleString('id-ID')} data sesuai filter</p>
+          <div className="activity-table-heading">
+            <div>
+              <h3>Daftar Keikutsertaan Ekstrakurikuler</h3>
+              <p>
+                {isLoading
+                  ? 'Memuat data dari database...'
+                  : `${filteredParticipations.length.toLocaleString('id-ID')} data keikutsertaan terdaftar`}
+              </p>
+            </div>
+            {fetchError && (
+              <span style={{ color: '#ef4444', fontSize: '0.85rem' }}>{fetchError}</span>
+            )}
           </div>
-        </div>
 
-        <div className="activity-table-scroll">
-          <table className="activity-table activity-participation-table">
-            <thead>
-              <tr>
-                <th>No</th>
-                <th>NIS</th>
-                <th>Nama Siswa</th>
-                <th>Kelas</th>
-                <th>Ekstrakurikuler</th>
-                <th>Pembina</th>
-                <th>Tahun Gabung</th>
-                <th>Status</th>
-                <th>Aksi</th>
-              </tr>
-            </thead>
-            <tbody>
-              {visibleParticipations.length === 0 ? (
+          <div className="activity-table-scroll">
+            <table className="activity-table activity-participation-table">
+              <thead>
                 <tr>
-                  <td className="activity-empty-cell" colSpan="9">
-                    <EmptyState className="activity-empty-state">
-                      <Icon name="search" />
-                      <strong>Data tidak ditemukan</strong>
-                      <span>Coba ubah filter atau kata pencarian.</span>
-                    </EmptyState>
-                  </td>
+                  <th>No</th>
+                  <th>NIS</th>
+                  <th>Nama Siswa</th>
+                  <th>Kelas</th>
+                  <th>Ekstrakurikuler</th>
+                  <th>Pembina</th>
+                  <th>Predikat</th>
+                  <th>Status</th>
+                  <th>Aksi</th>
                 </tr>
-              ) : visibleParticipations.map((participation, index) => (
-                <tr key={participation.id}>
-                  <td>{startIndex + index + 1}</td>
-                  <td>{participation.nis}</td>
-                  <td className="activity-name-cell">{participation.name}</td>
-                  <td>{participation.className}</td>
-                  <td><strong className="activity-primary-cell">{participation.extracurricular}</strong></td>
-                  <td>{participation.supervisor}</td>
-                  <td>{participation.yearJoined}</td>
-                  <td>
-                    <span className={`activity-status ${participation.status === 'Aktif' ? 'activity-status-active' : 'activity-status-inactive'}`}>
-                      {participation.status}
-                    </span>
-                  </td>
-                  <td>
-                    <div className="activity-row-actions">
-                      <button aria-label={`Lihat ${participation.name}`} onClick={() => showDetail(participation)} type="button">
-                        <Icon name="eye" />
-                      </button>
-                      <button
-                        aria-label={`Edit ${participation.name}`}
-                        onClick={() => setModal({ type: 'edit', participation })}
-                        type="button"
-                      >
-                        <Icon name="edit" />
-                      </button>
-                      <span className="activity-action-menu-wrap">
-                        <button
-                          aria-expanded={openMenuId === participation.id}
-                          aria-label={`Aksi lainnya ${participation.name}`}
-                          onClick={() => setOpenMenuId((current) => current === participation.id ? null : participation.id)}
-                          type="button"
-                        >
-                          <Icon name="more" />
-                        </button>
-                        {openMenuId === participation.id && (
-                          <span className="activity-action-menu">
-                            <button onClick={() => showDetail(participation)} type="button">Lihat Detail</button>
-                            <button onClick={() => setModal({ type: 'edit', participation })} type="button">Edit Data</button>
-                            <button onClick={() => toggleParticipationStatus(participation)} type="button">
-                              {participation.status === 'Aktif' ? 'Nonaktifkan' : 'Aktifkan Kembali'}
+              </thead>
+              <tbody>
+                {isLoading ? (
+                  <tr>
+                    <td className="activity-empty-cell" colSpan="9">
+                      <div style={{ textAlign: 'center', padding: '24px', color: '#64748b' }}>
+                        <div style={{ width: '24px', height: '24px', border: '3px solid #e2e8f0', borderTopColor: '#0284c7', borderRadius: '50%', animation: 'spin 0.8s linear infinite', margin: '0 auto 8px' }} />
+                        <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
+                        <span>Memuat data keikutsertaan dari database...</span>
+                      </div>
+                    </td>
+                  </tr>
+                ) : visibleParticipations.length === 0 ? (
+                  <tr>
+                    <td className="activity-empty-cell" colSpan="9">
+                      <EmptyState className="activity-empty-state">
+                        <Icon name="search" />
+                        <strong>Data keikutsertaan belum ada</strong>
+                        <span>Klik tombol &quot;Tambah Keikutsertaan&quot; untuk mendaftarkan siswa ke ekstrakurikuler.</span>
+                      </EmptyState>
+                    </td>
+                  </tr>
+                ) : (
+                  visibleParticipations.map((participation, index) => (
+                    <tr key={participation.id}>
+                      <td>{startIndex + index + 1}</td>
+                      <td>{participation.nis || '-'}</td>
+                      <td className="activity-name-cell">{participation.name}</td>
+                      <td>{participation.className}</td>
+                      <td><strong className="activity-primary-cell">{participation.extracurricular}</strong></td>
+                      <td>{participation.supervisor}</td>
+                      <td>
+                        <span style={{ fontWeight: 600, color: participation.predicate ? '#0284c7' : '#94a3b8' }}>
+                          {participation.predicate || 'Belum dinilai'}
+                        </span>
+                      </td>
+                      <td>
+                        <span className={`activity-status ${participation.status === 'Aktif' ? 'activity-status-active' : 'activity-status-inactive'}`}>
+                          {participation.status}
+                        </span>
+                      </td>
+                      <td>
+                        <div className="activity-row-actions">
+                          <button aria-label={`Lihat ${participation.name}`} onClick={() => showDetail(participation)} type="button">
+                            <Icon name="eye" />
+                          </button>
+                          <button
+                            aria-label={`Edit ${participation.name}`}
+                            onClick={() => setModal({ type: 'edit', participation })}
+                            type="button"
+                          >
+                            <Icon name="edit" />
+                          </button>
+                          <span className="activity-action-menu-wrap">
+                            <button
+                              aria-expanded={openMenuId === participation.id}
+                              aria-label={`Aksi lainnya ${participation.name}`}
+                              onClick={() => setOpenMenuId((current) => current === participation.id ? null : participation.id)}
+                              type="button"
+                            >
+                              <Icon name="more" />
                             </button>
+                            {openMenuId === participation.id && (
+                              <span className="activity-action-menu">
+                                <button onClick={() => showDetail(participation)} type="button">Lihat Detail</button>
+                                <button onClick={() => setModal({ type: 'edit', participation })} type="button">Edit Data</button>
+                                <button onClick={() => handleDeleteParticipation(participation)} type="button">
+                                  Hapus / Nonaktifkan
+                                </button>
+                              </span>
+                            )}
                           </span>
-                        )}
-                      </span>
-                    </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+                        </div>
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
 
-        <MasterPagination
-          currentPage={safePage}
-          itemLabel="data"
-          onPageChange={(page) => {
-            setCurrentPage(page)
-            setOpenMenuId(null)
-          }}
-          onRowsPerPageChange={(value) => {
-            setRowsPerPage(value)
-            setCurrentPage(1)
-            setOpenMenuId(null)
-          }}
-          rowsPerPage={rowsPerPage}
-          totalItems={filteredParticipations.length}
-          totalPages={totalPages}
-        />
+          <MasterPagination
+            currentPage={safePage}
+            itemLabel="data"
+            onPageChange={(page) => {
+              setCurrentPage(page)
+              setOpenMenuId(null)
+            }}
+            onRowsPerPageChange={(value) => {
+              setRowsPerPage(value)
+              setCurrentPage(1)
+              setOpenMenuId(null)
+            }}
+            rowsPerPage={rowsPerPage}
+            totalItems={filteredParticipations.length}
+            totalPages={totalPages}
+          />
         </section>
 
         <aside className="activity-participation-sidebar">
           <section className="activity-side-card">
             <header>
-              <h3>Ekstrakurikuler Populer</h3>
-              <button onClick={() => onNotify('Daftar ekstrakurikuler populer ditampilkan.')} type="button">Lihat Semua</button>
+              <h3>Ekstrakurikuler Aktif</h3>
+              <button onClick={() => onNotify('Daftar ekstrakurikuler aktif dimuat dari database.')} type="button">
+                {availableExtracurriculars.length} Ekskul
+              </button>
             </header>
             <div className="activity-popular-list">
-              {popularActivities.map((item, index) => (
-                <article key={item.name}>
-                  <b>{index + 1}</b>
-                  <span><strong>{item.name}</strong><small>{item.members} siswa aktif</small></span>
-                  <i><em style={{ width: `${item.bar}%` }} /></i>
-                  <small>{item.percentage}</small>
-                </article>
-              ))}
+              {popularActivities.length === 0 ? (
+                <p style={{ color: '#94a3b8', fontSize: '0.85rem', padding: '12px' }}>Belum ada data ekskul.</p>
+              ) : (
+                popularActivities.map((item, index) => (
+                  <article key={item.name}>
+                    <b>{index + 1}</b>
+                    <span><strong>{item.name}</strong><small>{item.members} peserta</small></span>
+                    <i><em style={{ width: `${item.bar}%` }} /></i>
+                    <small>{item.percentage}</small>
+                  </article>
+                ))
+              )}
             </div>
           </section>
 
           <section className="activity-side-card">
             <header>
-              <h3>Kegiatan Mendatang</h3>
-              <button onClick={() => onNotify('Jadwal kegiatan mendatang ditampilkan.')} type="button">Lihat Semua</button>
+              <h3>Keterangan Sistem</h3>
             </header>
-            <div className="activity-upcoming-list">
-              {upcomingActivities.map((item) => (
-                <article key={`${item.day}-${item.title}`}>
-                  <time><b>{item.day}</b><span>{item.month}</span></time>
-                  <div>
-                    <strong>{item.title}</strong>
-                    <small><Icon name="clock" />{item.time}</small>
-                    <small><Icon name="layers" />{item.place}</small>
-                  </div>
-                </article>
-              ))}
+            <div style={{ padding: '16px', fontSize: '0.85rem', color: '#64748b', lineHeight: 1.6 }}>
+              <p style={{ margin: 0 }}>
+                Data keikutsertaan terintegrasi dengan tabel <code>student_extracurriculars</code> di database sekolah. Nilai dan predikat yang tersimpan di sini akan otomatis terbaca pada halaman <strong>Nilai Ekstrakurikuler</strong> dan buku <strong>Rapor Siswa</strong>.
+              </p>
             </div>
           </section>
         </aside>
@@ -574,11 +835,16 @@ function StudentParticipationView({ onNotify = () => {} }) {
 
       {['add', 'edit'].includes(modal?.type) && (
         <ParticipationFormModal
+          availableExtracurriculars={availableExtracurriculars}
+          availableStudents={availableStudents}
+          defaultSemester={activeSemesterName}
+          defaultYear={activeYearName}
           initialData={modal.participation}
+          isSaving={isSaving}
           mode={modal.type}
           onClose={() => setModal(null)}
-          onSave={saveParticipation}
-          participations={participations}
+          onSave={handleSaveParticipation}
+          participations={populatedParticipations}
         />
       )}
 
@@ -587,7 +853,7 @@ function StudentParticipationView({ onNotify = () => {} }) {
           onClose={() => setModal(null)}
           onEdit={() => setModal({ type: 'edit', participation: modal.participation })}
           participation={modal.participation}
-          studentParticipations={participations.filter((item) => (
+          studentParticipations={populatedParticipations.filter((item) => (
             String(item.studentId) === String(modal.participation.studentId)
           ))}
         />

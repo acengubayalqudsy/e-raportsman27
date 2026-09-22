@@ -1,5 +1,6 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import Icon from '../common/Icon.jsx'
+import assessmentService from '../../services/assessmentService.js'
 import {
   calculateStudentAverage,
   calculateStudentTotal,
@@ -23,22 +24,100 @@ function DataSectionHeading({ icon, title, description, meta }) {
 export function LegerNilaiView() {
   const [currentPage, setCurrentPage] = useState(1)
   const [rowsPerPage, setRowsPerPage] = useState(8)
-  const totalPages = Math.ceil(raporStudents.length / rowsPerPage)
-  const visibleStudents = raporStudents.slice((currentPage - 1) * rowsPerPage, currentPage * rowsPerPage)
+  const [recapData, setRecapData] = useState(null)
+  const [loading, setLoading] = useState(false)
+
+  useEffect(() => {
+    let isMounted = true
+    async function loadRecap() {
+      setLoading(true)
+      const ctx = await assessmentService.getContext()
+      if (ctx.success && ctx.data) {
+        const classId = ctx.data.homeroom_class?.id || ctx.data.assigned_courses?.[0]?.class_id
+        const semId = ctx.data.active_semester?.id
+        if (classId && semId) {
+          const res = await assessmentService.getClassRecap(classId, semId)
+          if (isMounted && res.success && res.data?.students?.length) {
+            setRecapData(res.data)
+          }
+        }
+      }
+      if (isMounted) setLoading(false)
+    }
+    loadRecap()
+    return () => { isMounted = false }
+  }, [])
+
+  const isRealData = Boolean(recapData && recapData.students?.length)
+  const studentsList = isRealData ? recapData.students : raporStudents
+  const subjectsList = isRealData
+    ? recapData.subjects.map((s) => ({ key: s.id, code: s.code, label: s.name }))
+    : raporSubjects
+
+  const totalPages = Math.ceil(studentsList.length / rowsPerPage) || 1
+  const visibleStudents = studentsList.slice((currentPage - 1) * rowsPerPage, currentPage * rowsPerPage)
   const rankById = new Map(rankedStudents.map((student) => [student.id, student.rank]))
 
   return (
     <section className="report-secondary-workspace">
       <RaporContextFilters />
       <section className="report-panel">
-        <DataSectionHeading description="Rekap seluruh nilai mata pelajaran kelas X Merdeka 3." icon="table" meta="Geser tabel untuk melihat seluruh mata pelajaran" title="Leger Nilai" />
+        <DataSectionHeading
+          description={isRealData ? `Rekap nilai kelas ${recapData.class?.name || ''} dari database operasional.` : 'Rekap nilai mata pelajaran (Data pratinjau).'}
+          icon="table"
+          meta={loading ? 'Memuat rekap leger...' : 'Geser tabel untuk melihat seluruh mata pelajaran'}
+          title="Leger Nilai"
+        />
         <div className="report-table-scroll report-leger-scroll">
           <table className="report-leger-table">
-            <thead><tr><th>No</th><th>NIS</th><th>Nama Siswa</th>{raporSubjects.map((subject) => <th key={subject.key}>{subject.code}</th>)}<th>Jumlah</th><th>Rata-rata</th><th>Peringkat</th></tr></thead>
-            <tbody>{visibleStudents.map((student, index) => <tr key={student.id}><td>{(currentPage - 1) * rowsPerPage + index + 1}</td><td>{student.nis}</td><td className="report-leger-name">{student.name}</td>{raporSubjects.map((subject) => <td key={`${student.id}-${subject.key}`}>{student.scores[subject.key]}</td>)}<td><strong>{calculateStudentTotal(student)}</strong></td><td><strong className="report-score-emphasis">{formatRaporScore(calculateStudentAverage(student))}</strong></td><td><span className="report-rank-chip">{rankById.get(student.id)}</span></td></tr>)}</tbody>
+            <thead>
+              <tr>
+                <th>No</th>
+                <th>NIS</th>
+                <th>Nama Siswa</th>
+                {subjectsList.map((subject) => <th key={subject.key}>{subject.code}</th>)}
+                <th>Jumlah</th>
+                <th>Rata-rata</th>
+                <th>Status</th>
+              </tr>
+            </thead>
+            <tbody>
+              {visibleStudents.map((student, index) => {
+                const totalVal = isRealData ? student.total : calculateStudentTotal(student)
+                const avgVal = isRealData ? student.average : calculateStudentAverage(student)
+
+                return (
+                  <tr key={student.id || student.student_id}>
+                    <td>{(currentPage - 1) * rowsPerPage + index + 1}</td>
+                    <td>{student.nis}</td>
+                    <td className="report-leger-name">{student.name}</td>
+                    {subjectsList.map((subject) => {
+                      const scoreVal = isRealData
+                        ? (student.scores?.[subject.key] ?? '-')
+                        : (student.scores?.[subject.key] ?? '-')
+                      return <td key={`${student.id || student.student_id}-${subject.key}`}>{scoreVal}</td>
+                    })}
+                    <td><strong>{totalVal}</strong></td>
+                    <td><strong className="report-score-emphasis">{formatRaporScore(avgVal)}</strong></td>
+                    <td>
+                      <span className="report-rank-chip" style={{ background: '#f1f5f9', color: '#475569' }}>
+                        {isRealData ? (student.average >= 75 ? 'Tuntas' : 'Perlu Bimbingan') : (rankById.get(student.id) ? `Peringkat ${rankById.get(student.id)}` : '-')}
+                      </span>
+                    </td>
+                  </tr>
+                )
+              })}
+            </tbody>
           </table>
         </div>
-        <RaporPagination currentPage={currentPage} onPageChange={setCurrentPage} onRowsPerPageChange={(value) => { setRowsPerPage(value); setCurrentPage(1) }} rowsPerPage={rowsPerPage} totalItems={raporStudents.length} totalPages={totalPages} />
+        <RaporPagination
+          currentPage={currentPage}
+          onPageChange={setCurrentPage}
+          onRowsPerPageChange={(value) => { setRowsPerPage(value); setCurrentPage(1) }}
+          rowsPerPage={rowsPerPage}
+          totalItems={studentsList.length}
+          totalPages={totalPages}
+        />
       </section>
     </section>
   )
@@ -88,7 +167,7 @@ export function PeringkatKelasView() {
       <RaporContextFilters />
       <div className="report-ranking-summary">{rankingSummary.map(([label, value], index) => <article key={label}><span className={`tone-${index}`}><Icon name={index === 0 ? 'academic' : index === 1 ? 'users' : 'trend'} /></span><div><small>{label}</small><strong>{value}</strong></div></article>)}</div>
       <section className="report-panel">
-        <DataSectionHeading description="Peringkat dihitung dari rata-rata 16 mata pelajaran pada mock data frontend." icon="award" title="Peringkat Kelas" />
+        <DataSectionHeading description="Peringkat kelas merupakan indikator akademik internal dan tidak dicantumkan dalam buku rapor resmi Kurikulum Merdeka." icon="award" title="Peringkat Kelas" />
         <div className="report-table-scroll">
           <table className="report-ranking-table">
             <thead><tr><th>Peringkat</th><th>NIS</th><th>Nama Siswa</th><th>Jumlah Nilai</th><th>Rata-rata</th><th>Status</th></tr></thead>

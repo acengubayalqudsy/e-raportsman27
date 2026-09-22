@@ -3,16 +3,15 @@ import Button from '../common/Button.jsx'
 import Icon from '../common/Icon.jsx'
 import SearchInput from '../common/SearchInput.jsx'
 import MasterPagination from '../master-data/MasterPagination.jsx'
-import {
-  academicOptions,
-  roomAssignments,
-} from '../../data/akademik.js'
 import AcademicModal from './AcademicModal.jsx'
 import AcademicSummary from './AcademicSummary.jsx'
 import rombelService from '../../services/rombelService.js'
 import assignmentService from '../../services/assignmentService.js'
 import academicService from '../../services/academicService.js'
 import teacherService from '../../services/teacherService.js'
+import { roomService } from '../../services/roomService.js'
+import { scheduleService } from '../../services/scheduleService.js'
+import { useAcademicContext } from '../../context/AcademicContext.jsx'
 
 function toStatusClass(value) {
   return String(value ?? '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '')
@@ -60,13 +59,18 @@ function PaginationFooter({ itemLabel, pagination, totalItems }) {
 // 1. ACADEMIC ROMBEL VIEW (Keanggotaan Rombel per Semester)
 // =============================================================================
 export function AcademicRombelView({ onNotify }) {
-  const [years, setYears] = useState([])
-  const [semesters, setSemesters] = useState([])
+  const {
+    availableYears: years,
+    availableSemesters,
+    selectedYearId,
+    selectedSemesterId,
+    setSelectedYearId,
+    setSelectedSemesterId,
+  } = useAcademicContext()
+
   const [classes, setClasses] = useState([])
   const [loadingRefs, setLoadingRefs] = useState(true)
 
-  const [selectedYearId, setSelectedYearId] = useState('')
-  const [selectedSemesterId, setSelectedSemesterId] = useState('')
   const [selectedGrade, setSelectedGrade] = useState('X')
   const [selectedClassId, setSelectedClassId] = useState('')
   const [searchQuery, setSearchQuery] = useState('')
@@ -98,40 +102,20 @@ export function AcademicRombelView({ onNotify }) {
   const [syncPreview, setSyncPreview] = useState(null)
   const [syncLoading, setSyncLoading] = useState(false)
 
-  // 1. Fetch reference data
+  // 1. Fetch classes reference data
   useEffect(() => {
     let mounted = true
     async function loadRefs() {
       try {
-        const [yrRes, semRes, clsRes] = await Promise.all([
-          academicService.getAcademicYears({ per_page: 50 }),
-          academicService.getSemesters({ per_page: 50 }),
-          academicService.getClasses({ per_page: 100 }),
-        ])
-
+        const clsRes = await academicService.getClasses({ per_page: 100 })
         if (!mounted) return
-        const yrList = yrRes.success ? yrRes.data : []
-        const semList = semRes.success ? semRes.data : []
         const clsList = clsRes.success ? clsRes.data : []
-
-        setYears(yrList)
-        setSemesters(semList)
         setClasses(clsList)
 
-        // Select defaults
-        const activeYr = yrList.find((y) => y.status === 'Aktif') || yrList[0]
-        if (activeYr) {
-          setSelectedYearId(String(activeYr.id))
-          const activeSem = semList.find((s) => s.academic_year_id === activeYr.id && s.status === 'Aktif')
-            || semList.find((s) => s.academic_year_id === activeYr.id)
-            || semList[0]
-          if (activeSem) setSelectedSemesterId(String(activeSem.id))
-
-          const firstClass = clsList.find((c) => c.academic_year_id === activeYr.id && c.grade === 'X')
-            || clsList.find((c) => c.grade === 'X')
-            || clsList[0]
-          if (firstClass) setSelectedClassId(String(firstClass.id))
-        }
+        const firstClass = clsList.find((c) => String(c.academic_year_id) === String(selectedYearId) && c.grade === 'X')
+          || clsList.find((c) => String(c.academic_year_id) === String(selectedYearId))
+          || clsList[0]
+        if (firstClass) setSelectedClassId(String(firstClass.id))
       } catch (err) {
         console.error('Failed to load academic refs', err)
       } finally {
@@ -140,14 +124,9 @@ export function AcademicRombelView({ onNotify }) {
     }
     loadRefs()
     return () => { mounted = false }
-  }, [])
+  }, [selectedYearId])
 
-  // Filtered lists for dropdowns
-  const availableSemesters = useMemo(() => {
-    if (!selectedYearId) return semesters
-    return semesters.filter((s) => String(s.academic_year_id) === String(selectedYearId))
-  }, [semesters, selectedYearId])
-
+  // Filtered classes strictly matching selectedYearId
   const availableClasses = useMemo(() => {
     return classes.filter((c) => {
       const matchYear = !selectedYearId || String(c.academic_year_id) === String(selectedYearId)
@@ -156,18 +135,27 @@ export function AcademicRombelView({ onNotify }) {
     })
   }, [classes, selectedYearId, selectedGrade])
 
+  // Effective class ID
+  const effectiveClassId = useMemo(() => {
+    if (availableClasses.length === 0) return ''
+    if (availableClasses.some((c) => String(c.id) === String(selectedClassId))) {
+      return selectedClassId
+    }
+    return String(availableClasses[0].id)
+  }, [availableClasses, selectedClassId])
+
   const selectedClassObj = useMemo(() => {
-    return classes.find((c) => String(c.id) === String(selectedClassId))
-  }, [classes, selectedClassId])
+    return classes.find((c) => String(c.id) === String(effectiveClassId))
+  }, [classes, effectiveClassId])
 
   // 2. Fetch Members & Stats
   const loadMembers = useCallback(async () => {
-    if (!selectedClassId || !selectedSemesterId) return
+    if (!effectiveClassId || !selectedSemesterId) return
     setLoadingMembers(true)
     try {
       const [res, statsRes] = await Promise.all([
         rombelService.getMembers({
-          class_id: selectedClassId,
+          class_id: effectiveClassId,
           semester_id: selectedSemesterId,
           search: searchQuery,
           page: currentPage,
@@ -196,7 +184,7 @@ export function AcademicRombelView({ onNotify }) {
     } finally {
       setLoadingMembers(false)
     }
-  }, [selectedClassId, selectedSemesterId, selectedYearId, searchQuery, currentPage, rowsPerPage])
+  }, [effectiveClassId, selectedSemesterId, selectedYearId, searchQuery, currentPage, rowsPerPage])
 
   useEffect(() => {
     const timeoutId = window.setTimeout(() => void loadMembers(), 0)
@@ -234,7 +222,7 @@ export function AcademicRombelView({ onNotify }) {
 
     const res = await rombelService.enrollMembers({
       semester_id: Number(selectedSemesterId),
-      class_id: Number(selectedClassId),
+      class_id: Number(effectiveClassId),
       student_ids: [Number(selectedStudentId)],
       join_date: joinDate,
       notes: addNotes,
@@ -266,7 +254,7 @@ export function AcademicRombelView({ onNotify }) {
       setModalError('Pilih rombel tujuan mutasi.')
       return
     }
-    if (String(targetClassId) === String(selectedClassId)) {
+    if (String(targetClassId) === String(effectiveClassId)) {
       setModalError('Rombel tujuan tidak boleh sama dengan rombel asal.')
       return
     }
@@ -292,7 +280,7 @@ export function AcademicRombelView({ onNotify }) {
 
   // Remove member
   const handleRemoveMember = async (member) => {
-    const studentName = member.student?.name || 'Siswa'
+    const studentName = member.student?.name || member.name || 'Siswa'
     if (!window.confirm(`Yakin ingin mengeluarkan ${studentName} dari rombel ini?`)) {
       return
     }
@@ -396,7 +384,7 @@ export function AcademicRombelView({ onNotify }) {
                 setCurrentPage(1)
               }}
               options={availableClasses.map((c) => ({ value: String(c.id), label: `${c.name} (Kapasitas: ${c.capacity})` }))}
-              value={selectedClassId}
+              value={effectiveClassId}
             />
           </div>
           <AcademicSearch
@@ -458,15 +446,19 @@ export function AcademicRombelView({ onNotify }) {
                   </td>
                 </tr>
               ) : members.map((member, index) => {
-                const s = member.student || {}
-                const genderCode = s.gender === 'L' || s.gender === 'Laki-laki' ? 'L' : 'P'
+                const s = member.student || member || {}
+                const studentName = s.name || member.name || '-'
+                const studentNis = s.nis || member.nis || '-'
+                const studentNisn = s.nisn || member.nisn || '-'
+                const genderCode = member.genderCode || (s.gender === 'L' || s.gender === 'Laki-laki' ? 'L' : 'P')
+                const joinDateStr = member.join_date || member.joinDate || ''
                 return (
                   <tr key={member.id}>
                     <td>{(currentPage - 1) * rowsPerPage + index + 1}</td>
-                    <td>{s.nis || '-'}</td>
-                    <td>{s.nisn || '-'}</td>
+                    <td>{studentNis}</td>
+                    <td>{studentNisn}</td>
                     <td className="academic-name-cell">
-                      <strong>{s.name}</strong>
+                      <strong>{studentName}</strong>
                       {member.notes && <small style={{ display: 'block', color: '#64748b' }}>{member.notes}</small>}
                     </td>
                     <td>
@@ -474,7 +466,7 @@ export function AcademicRombelView({ onNotify }) {
                         {genderCode}
                       </span>
                     </td>
-                    <td>{member.join_date ? member.join_date.substring(0, 10) : '-'}</td>
+                    <td>{joinDateStr ? joinDateStr.substring(0, 10) : '-'}</td>
                     <td>
                       <span className={`academic-status ${toStatusClass(member.status)}`}>
                         {member.status}
@@ -483,7 +475,7 @@ export function AcademicRombelView({ onNotify }) {
                     <td>
                       <div className="academic-row-actions">
                         <button
-                          aria-label={`Mutasi ${s.name}`}
+                          aria-label={`Mutasi ${studentName}`}
                           onClick={() => handleOpenTransfer(member)}
                           title="Mutasi / Pindah Rombel"
                           type="button"
@@ -491,7 +483,7 @@ export function AcademicRombelView({ onNotify }) {
                           <Icon name="edit" />
                         </button>
                         <button
-                          aria-label={`Keluarkan ${s.name}`}
+                          aria-label={`Keluarkan ${studentName}`}
                           onClick={() => handleRemoveMember(member)}
                           title="Keluarkan dari Rombel"
                           type="button"
@@ -726,14 +718,19 @@ export function AcademicRombelView({ onNotify }) {
 // 2. ACADEMIC HOMEROOM VIEW (Penugasan Wali Kelas per Semester)
 // =============================================================================
 export function AcademicHomeroomView({ onNotify }) {
-  const [years, setYears] = useState([])
-  const [semesters, setSemesters] = useState([])
+  const {
+    availableYears: years,
+    availableSemesters,
+    selectedYearId,
+    selectedSemesterId,
+    setSelectedYearId,
+    setSelectedSemesterId,
+  } = useAcademicContext()
+
   const [classes, setClasses] = useState([])
   const [teachers, setTeachers] = useState([])
   const [loadingRefs, setLoadingRefs] = useState(true)
 
-  const [selectedYearId, setSelectedYearId] = useState('')
-  const [selectedSemesterId, setSelectedSemesterId] = useState('')
   const [selectedGrade, setSelectedGrade] = useState('Semua Tingkat')
   const [selectedClassId, setSelectedClassId] = useState('Semua Kelas')
   const [searchQuery, setSearchQuery] = useState('')
@@ -754,37 +751,22 @@ export function AcademicHomeroomView({ onNotify }) {
   const [modalSubmitting, setModalSubmitting] = useState(false)
   const [modalError, setModalError] = useState('')
 
-  // 1. Fetch Refs
+  // 1. Fetch Refs (Classes & Teachers)
   useEffect(() => {
     let mounted = true
     async function loadRefs() {
       try {
-        const [yrRes, semRes, clsRes, tchRes] = await Promise.all([
-          academicService.getAcademicYears({ per_page: 50 }),
-          academicService.getSemesters({ per_page: 50 }),
+        const [clsRes, tchRes] = await Promise.all([
           academicService.getClasses({ per_page: 100 }),
           teacherService.getTeachers({ per_page: 200, status: 'Aktif' }),
         ])
 
         if (!mounted) return
-        const yrList = yrRes.success ? yrRes.data : []
-        const semList = semRes.success ? semRes.data : []
         const clsList = clsRes.success ? clsRes.data : []
         const tchList = tchRes.success ? tchRes.data : []
 
-        setYears(yrList)
-        setSemesters(semList)
         setClasses(clsList)
         setTeachers(tchList)
-
-        const activeYr = yrList.find((y) => y.status === 'Aktif') || yrList[0]
-        if (activeYr) {
-          setSelectedYearId(String(activeYr.id))
-          const activeSem = semList.find((s) => s.academic_year_id === activeYr.id && s.status === 'Aktif')
-            || semList.find((s) => s.academic_year_id === activeYr.id)
-            || semList[0]
-          if (activeSem) setSelectedSemesterId(String(activeSem.id))
-        }
       } catch (err) {
         console.error('Failed to load homeroom refs', err)
       } finally {
@@ -794,11 +776,6 @@ export function AcademicHomeroomView({ onNotify }) {
     loadRefs()
     return () => { mounted = false }
   }, [])
-
-  const availableSemesters = useMemo(() => {
-    if (!selectedYearId) return semesters
-    return semesters.filter((s) => String(s.academic_year_id) === String(selectedYearId))
-  }, [semesters, selectedYearId])
 
   const availableClasses = useMemo(() => {
     return classes.filter((c) => {
@@ -1172,15 +1149,22 @@ export function AcademicHomeroomView({ onNotify }) {
 // 3. ACADEMIC TEACHER ASSIGNMENT VIEW (Penugasan Mengajar Guru per Mapel & Rombel)
 // =============================================================================
 export function AcademicTeacherAssignmentView({ onNotify }) {
-  const [years, setYears] = useState([])
-  const [semesters, setSemesters] = useState([])
+  const {
+    availableYears: years,
+    availableSemesters,
+    selectedYearId,
+    selectedSemesterId,
+    selectedYear,
+    selectedSemester,
+    setSelectedYearId,
+    setSelectedSemesterId,
+  } = useAcademicContext()
+
   const [classes, setClasses] = useState([])
   const [subjects, setSubjects] = useState([])
   const [teachers, setTeachers] = useState([])
   const [loadingRefs, setLoadingRefs] = useState(true)
 
-  const [selectedYearId, setSelectedYearId] = useState('')
-  const [selectedSemesterId, setSelectedSemesterId] = useState('')
   const [selectedClassId, setSelectedClassId] = useState('Semua Kelas')
   const [selectedSubjectId, setSelectedSubjectId] = useState('Semua Mata Pelajaran')
   const [selectedTeacherId, setSelectedTeacherId] = useState('Semua Guru')
@@ -1204,40 +1188,25 @@ export function AcademicTeacherAssignmentView({ onNotify }) {
   const [modalSubmitting, setModalSubmitting] = useState(false)
   const [modalError, setModalError] = useState('')
 
-  // 1. Fetch Refs
+  // 1. Fetch Refs (Classes, Subjects, Teachers)
   useEffect(() => {
     let mounted = true
     async function loadRefs() {
       try {
-        const [yrRes, semRes, clsRes, sbjRes, tchRes] = await Promise.all([
-          academicService.getAcademicYears({ per_page: 50 }),
-          academicService.getSemesters({ per_page: 50 }),
+        const [clsRes, sbjRes, tchRes] = await Promise.all([
           academicService.getClasses({ per_page: 100 }),
           academicService.getSubjects({ per_page: 200 }),
           teacherService.getTeachers({ per_page: 200, status: 'Aktif' }),
         ])
 
         if (!mounted) return
-        const yrList = yrRes.success ? yrRes.data : []
-        const semList = semRes.success ? semRes.data : []
         const clsList = clsRes.success ? clsRes.data : []
         const sbjList = sbjRes.success ? sbjRes.data : []
         const tchList = tchRes.success ? tchRes.data : []
 
-        setYears(yrList)
-        setSemesters(semList)
         setClasses(clsList)
         setSubjects(sbjList)
         setTeachers(tchList)
-
-        const activeYr = yrList.find((y) => y.status === 'Aktif') || yrList[0]
-        if (activeYr) {
-          setSelectedYearId(String(activeYr.id))
-          const activeSem = semList.find((s) => s.academic_year_id === activeYr.id && s.status === 'Aktif')
-            || semList.find((s) => s.academic_year_id === activeYr.id)
-            || semList[0]
-          if (activeSem) setSelectedSemesterId(String(activeSem.id))
-        }
       } catch (err) {
         console.error('Failed to load course assignment refs', err)
       } finally {
@@ -1247,11 +1216,6 @@ export function AcademicTeacherAssignmentView({ onNotify }) {
     loadRefs()
     return () => { mounted = false }
   }, [])
-
-  const availableSemesters = useMemo(() => {
-    if (!selectedYearId) return semesters
-    return semesters.filter((s) => String(s.academic_year_id) === String(selectedYearId))
-  }, [semesters, selectedYearId])
 
   const availableClasses = useMemo(() => {
     if (!selectedYearId) return classes
@@ -1568,6 +1532,12 @@ export function AcademicTeacherAssignmentView({ onNotify }) {
           onClose={() => setModal(null)}
           title={`${modal.type === 'edit' ? 'Edit' : 'Tambah'} Penugasan Guru`}
         >
+          <div style={{ marginBottom: '14px', padding: '8px 12px', background: '#f8fafc', borderRadius: '6px', border: '1px solid #e2e8f0', fontSize: '13px' }}>
+            <span style={{ color: '#64748b' }}>Konteks: </span>
+            <strong style={{ color: '#0f172a' }}>{selectedYear?.name || 'Tahun Ajaran'}</strong>
+            <span style={{ color: '#94a3b8', margin: '0 8px' }}>•</span>
+            <strong style={{ color: '#0f172a' }}>{selectedSemester?.name ? (selectedSemester.name.toLowerCase().startsWith('semester') ? selectedSemester.name : `Semester ${selectedSemester.name}`) : 'Semester'}</strong>
+          </div>
           <form className="academic-entity-form" onSubmit={handleModalSubmit}>
             <div className="academic-form-grid">
               <label>
@@ -1681,29 +1651,99 @@ export function AcademicTeacherAssignmentView({ onNotify }) {
 }
 
 // =============================================================================
-// 4. ACADEMIC ROOM ALLOCATION VIEW (Pembagian Ruangan - Preserved Mock/Local State)
+// 4. ACADEMIC ROOM ALLOCATION VIEW (Pembagian Ruangan - Database-Backed)
 // =============================================================================
 export function AcademicRoomAllocationView({ onNotify }) {
-  const [allocations, setAllocations] = useState(() => roomAssignments.map((item) => ({ ...item })))
-  const [filters, setFilters] = useState({ day: 'Semua Hari', className: 'Semua Kelas', room: 'Semua Ruangan', status: 'Semua Status' })
+  const {
+    academicYears,
+    semesters,
+    activeAcademicYear,
+    activeSemester,
+    selectedAcademicYearId,
+    selectedSemesterId,
+  } = useAcademicContext()
+
+  const [allocations, setAllocations] = useState([])
+  const [rooms, setRooms] = useState([])
+  const [classes, setClasses] = useState([])
+  const [subjects, setSubjects] = useState([])
+  const [teachers, setTeachers] = useState([])
+  const [loading, setLoading] = useState(true)
+
+  const [filters, setFilters] = useState({
+    day: 'Semua Hari',
+    className: 'Semua Kelas',
+    room: 'Semua Ruangan',
+    status: 'Semua Status',
+  })
   const [searchQuery, setSearchQuery] = useState('')
   const [modal, setModal] = useState(null)
   const [conflict, setConflict] = useState('')
+  const [submitting, setSubmitting] = useState(false)
   const [currentPage, setCurrentPage] = useState(1)
   const [rowsPerPage, setRowsPerPage] = useState(8)
-  const dayOptions = academicOptions.days.filter((day) => day !== 'Semua Hari')
 
-  function getNextId(items) {
-    return Math.max(0, ...items.map((item) => Number(item.id) || 0)) + 1
-  }
+  const dayOptions = ['Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu']
+
+  const loadData = useCallback(async () => {
+    setLoading(true)
+    try {
+      const [schRes, rmRes, clsRes, sbjRes, tchRes] = await Promise.all([
+        scheduleService.getSchedules({ per_page: 100, academic_year_id: selectedAcademicYearId, semester_id: selectedSemesterId }),
+        roomService.getRooms({ per_page: 100, status: 'Aktif' }),
+        academicService.getClasses({ per_page: 100, academic_year_id: selectedAcademicYearId }),
+        academicService.getSubjects({ per_page: 200 }),
+        teacherService.getTeachers({ per_page: 200, status: 'Aktif' }),
+      ])
+
+      if (schRes.success && Array.isArray(schRes.data)) {
+        setAllocations(schRes.data)
+      }
+      if (rmRes.success && Array.isArray(rmRes.data)) {
+        setRooms(rmRes.data)
+      }
+      if (clsRes.success && Array.isArray(clsRes.data)) {
+        setClasses(clsRes.data)
+      }
+      if (sbjRes.success && Array.isArray(sbjRes.data)) {
+        setSubjects(sbjRes.data)
+      }
+      if (tchRes.success && Array.isArray(tchRes.data)) {
+        setTeachers(tchRes.data)
+      }
+    } catch (err) {
+      console.error('Failed to load room allocation data', err)
+    } finally {
+      setLoading(false)
+    }
+  }, [selectedAcademicYearId, selectedSemesterId])
+
+  useEffect(() => {
+    const timeoutId = window.setTimeout(() => void loadData(), 0)
+    return () => window.clearTimeout(timeoutId)
+  }, [loadData])
 
   const filteredAllocations = useMemo(() => {
     const query = searchQuery.trim().toLowerCase()
-    return allocations.filter((item) => (filters.day === 'Semua Hari' || item.day === filters.day)
-      && (filters.className === 'Semua Kelas' || item.className === filters.className)
-      && (filters.room === 'Semua Ruangan' || item.room === filters.room)
-      && (filters.status === 'Semua Status' || item.status === filters.status)
-      && (!query || [item.subject, item.teacher, item.className, item.room].some((value) => String(value ?? '').toLowerCase().includes(query))))
+    return allocations.filter((item) => {
+      const itemDay = item.day || item.day_of_week
+      const itemClass = item.className || item.school_class?.name || item.class_name || ''
+      const itemRoom = item.room || item.room_name || item.room?.name || ''
+      const itemSubject = item.subject || item.subject_name || item.subject?.name || ''
+      const itemTeacher = item.teacher || item.teacher_name || item.teacher?.name || ''
+      const itemStatus = item.status || 'Aktif'
+
+      const matchDay = filters.day === 'Semua Hari' || itemDay === filters.day
+      const matchClass = filters.className === 'Semua Kelas' || itemClass === filters.className
+      const matchRoom = filters.room === 'Semua Ruangan' || itemRoom === filters.room
+      const matchStatus = filters.status === 'Semua Status' || itemStatus === filters.status
+
+      const matchQuery = !query || [itemSubject, itemTeacher, itemClass, itemRoom].some((val) =>
+        String(val ?? '').toLowerCase().includes(query)
+      )
+
+      return matchDay && matchClass && matchRoom && matchStatus && matchQuery
+    })
   }, [allocations, filters, searchQuery])
 
   const totalPages = Math.max(1, Math.ceil(filteredAllocations.length / rowsPerPage))
@@ -1724,60 +1764,114 @@ export function AcademicRoomAllocationView({ onNotify }) {
     setCurrentPage(1)
   }
 
-  const saveAllocation = (formData) => {
-    const source = modal?.item
-    const existing = formData.status !== 'Tidak Aktif'
-      ? allocations.find((item) => item.id !== source?.id
-        && item.status !== 'Tidak Aktif'
-        && item.day === formData.day
-        && item.time === formData.time
-        && item.room === formData.room)
-      : null
-    if (existing) {
-      setConflict(`${formData.room} sudah digunakan oleh ${existing.className} untuk ${existing.subject} pada waktu yang sama.`)
-      return
-    }
-    const next = { ...(source ?? {}), ...formData, id: source?.id ?? getNextId(allocations), status: formData.status || 'Aktif', conflict: false }
-    setAllocations((current) => source ? current.map((item) => item.id === source.id ? next : item) : [next, ...current])
-    setModal(null)
+  const openModal = (type, item = null) => {
     setConflict('')
-    setCurrentPage(1)
-    onNotify(`Pembagian ${next.room} untuk ${next.className} berhasil disimpan.`)
+    setModal({ type, item })
   }
 
-  const openModal = (type, item) => { setConflict(''); setModal({ type, item }) }
-  const detectedConflicts = allocations.filter((item) => item.conflict).length
+  const saveAllocation = async (formData) => {
+    setConflict('')
+    setSubmitting(true)
+    try {
+      const isEdit = modal?.type === 'edit' && modal.item?.id
+      const payload = {
+        academic_year_id: formData.academic_year_id,
+        semester_id: formData.semester_id,
+        class_id: Number(formData.class_id),
+        subject_id: Number(formData.subject_id),
+        teacher_id: Number(formData.teacher_id),
+        room_id: Number(formData.room_id),
+        day_of_week: formData.day_of_week,
+        start_time: formData.start_time,
+        end_time: formData.end_time,
+        status: formData.status || 'Aktif',
+        notes: formData.notes || '',
+      }
+
+      let res
+      if (isEdit) {
+        res = await scheduleService.updateSchedule(modal.item.id, payload)
+      } else {
+        res = await scheduleService.createSchedule(payload)
+      }
+
+      if (res.success) {
+        setModal(null)
+        onNotify?.('Alokasi ruangan pembelajaran berhasil disimpan ke database.')
+        await loadData()
+      } else {
+        const errorMsg = res.error || (res.errors ? Object.values(res.errors).flat().join(' ') : 'Terjadi bentrok atau kendala validasi jadwal.')
+        setConflict(errorMsg)
+      }
+    } catch (err) {
+      console.error('Error saving room allocation:', err)
+      setConflict('Gagal menghubungi server.')
+    } finally {
+      setSubmitting(false)
+    }
+  }
+
+  const currentYearObj = academicYears.find((y) => Number(y.id) === Number(selectedAcademicYearId)) || activeAcademicYear || academicYears[0]
+  const currentSemesterObj = semesters.find((s) => Number(s.id) === Number(selectedSemesterId)) || activeSemester || semesters[0]
 
   return (
     <>
-      {detectedConflicts > 0 && (
-        <div className="academic-page-alert">
-          <Icon name="info" />
-          <div>
-            <strong>{detectedConflicts} bentrok ruangan terdeteksi</strong>
-            <span>Periksa alokasi ruangan pada hari dan jam yang sama.</span>
-          </div>
-        </div>
-      )}
       <section className="academic-workspace">
+        <div className="academic-context-badge" style={{ marginBottom: '1rem', display: 'flex', alignItems: 'center', gap: '0.75rem', background: '#f8fafc', padding: '0.5rem 1rem', borderRadius: '0.5rem', border: '1px solid #e2e8f0', fontSize: '0.875rem' }}>
+          <span style={{ fontWeight: 600, color: '#475569' }}>Konteks Akademik:</span>
+          <span style={{ background: '#e0f2fe', color: '#0369a1', padding: '0.2rem 0.5rem', borderRadius: '0.25rem', fontWeight: 600 }}>
+            {currentYearObj?.name ?? '2026/2027'} ({currentYearObj?.status ?? 'Aktif'})
+          </span>
+          <span style={{ background: '#f0fdf4', color: '#15803d', padding: '0.2rem 0.5rem', borderRadius: '0.25rem', fontWeight: 600 }}>
+            Semester {currentSemesterObj?.name ?? 'Ganjil'}
+          </span>
+        </div>
+
         <div className="academic-toolbar">
           <div className="academic-filter-grid four-fields">
-            <AcademicField label="Hari" onChange={(event) => updateFilter('day', event.target.value)} options={['Semua Hari', ...dayOptions]} value={filters.day} />
-            <AcademicField label="Kelas" onChange={(event) => updateFilter('className', event.target.value)} options={['Semua Kelas', ...academicOptions.classes]} value={filters.className} />
-            <AcademicField label="Ruangan" onChange={(event) => updateFilter('room', event.target.value)} options={['Semua Ruangan', ...academicOptions.rooms]} value={filters.room} />
-            <AcademicField label="Status" onChange={(event) => updateFilter('status', event.target.value)} options={['Semua Status', ...academicOptions.statuses]} value={filters.status} />
+            <AcademicField
+              label="Hari"
+              onChange={(event) => updateFilter('day', event.target.value)}
+              options={['Semua Hari', ...dayOptions]}
+              value={filters.day}
+            />
+            <AcademicField
+              label="Kelas"
+              onChange={(event) => updateFilter('className', event.target.value)}
+              options={['Semua Kelas', ...classes.map((c) => c.name)]}
+              value={filters.className}
+            />
+            <AcademicField
+              label="Ruangan"
+              onChange={(event) => updateFilter('room', event.target.value)}
+              options={['Semua Ruangan', ...rooms.map((r) => r.name)]}
+              value={filters.room}
+            />
+            <AcademicField
+              label="Status"
+              onChange={(event) => updateFilter('status', event.target.value)}
+              options={['Semua Status', 'Aktif', 'Tidak Aktif']}
+              value={filters.status}
+            />
           </div>
-          <AcademicSearch ariaLabel="Cari alokasi ruangan" onChange={(event) => { setSearchQuery(event.target.value); setCurrentPage(1) }} placeholder="Cari kelas / mapel / ruangan..." value={searchQuery} />
+          <AcademicSearch
+            ariaLabel="Cari alokasi ruangan"
+            onChange={(event) => { setSearchQuery(event.target.value); setCurrentPage(1) }}
+            placeholder="Cari kelas / mapel / ruangan..."
+            value={searchQuery}
+          />
         </div>
+
         <div className="academic-actions">
           <div>
             <h3>Pembagian Ruangan</h3>
-            <p>Atur pemakaian ruang untuk jadwal pembelajaran</p>
+            <p>Atur pemakaian ruang untuk jadwal pembelajaran (Database Realtime)</p>
           </div>
           <Button className="academic-button primary" onClick={() => openModal('add')} type="button">
             <Icon name="plus" /> Tambah Alokasi
           </Button>
         </div>
+
         <div className="academic-table-scroll">
           <table className="academic-table academic-room-table">
             <thead>
@@ -1793,28 +1887,47 @@ export function AcademicRoomAllocationView({ onNotify }) {
               </tr>
             </thead>
             <tbody>
-              {pageItems.length === 0 ? (
+              {loading ? (
+                <tr>
+                  <td className="academic-empty-row" colSpan="8">
+                    <span>Memuat data alokasi ruangan dari database...</span>
+                  </td>
+                </tr>
+              ) : pageItems.length === 0 ? (
                 <tr>
                   <td className="academic-empty-row" colSpan="8">
                     <Icon name="search" />
                     <strong>Alokasi tidak ditemukan</strong>
-                    <span>Coba ubah filter atau kata pencarian.</span>
+                    <span>Belum ada data jadwal/alokasi ruangan yang sesuai filter.</span>
                   </td>
                 </tr>
               ) : pageItems.map((item, index) => {
-                const hasConflict = Boolean(item.conflict)
+                const itemDay = item.day || item.day_of_week
+                const itemTime = item.time || (item.start_time && item.end_time ? `${item.start_time.substring(0, 5)} - ${item.end_time.substring(0, 5)}` : '-')
+                const itemClass = item.className || item.school_class?.name || item.class_name || '-'
+                const itemSubject = item.subject || item.subject_name || item.subject?.name || '-'
+                const itemRoom = item.room || item.room_name || item.room?.name || '-'
+                const itemStatus = item.status || 'Aktif'
                 return (
-                  <tr className={hasConflict ? 'has-conflict' : ''} key={item.id}>
+                  <tr key={item.id}>
                     <td>{startIndex + index + 1}</td>
-                    <td>{item.day}</td>
-                    <td>{item.time}</td>
-                    <td className="academic-name-cell">{item.className}</td>
-                    <td>{item.subject}</td>
-                    <td><span className="academic-room-badge">{item.room}</span></td>
-                    <td><span className={`academic-status ${hasConflict ? 'conflict' : toStatusClass(item.status)}`}>{hasConflict ? 'Bentrok Ruangan' : item.status}</span></td>
+                    <td>{itemDay}</td>
+                    <td>{itemTime}</td>
+                    <td className="academic-name-cell">{itemClass}</td>
+                    <td>{itemSubject}</td>
+                    <td><span className="academic-room-badge">{itemRoom}</span></td>
+                    <td>
+                      <span className={`academic-status ${toStatusClass(itemStatus)}`}>
+                        {itemStatus}
+                      </span>
+                    </td>
                     <td>
                       <div className="academic-row-actions">
-                        <button aria-label={`Edit alokasi ${item.className}`} onClick={() => openModal('edit', item)} type="button">
+                        <button
+                          aria-label={`Edit alokasi ${itemClass}`}
+                          onClick={() => openModal('edit', item)}
+                          type="button"
+                        >
                           <Icon name="edit" />
                         </button>
                       </div>
@@ -1830,7 +1943,7 @@ export function AcademicRoomAllocationView({ onNotify }) {
 
       {modal && (
         <AcademicModal
-          description="Sistem akan memeriksa bentrok ruangan pada local state."
+          description="Sistem akan memvalidasi bentrok ruangan otomatis melalui server database."
           onClose={() => { setModal(null); setConflict('') }}
           title={`${modal.type === 'edit' ? 'Edit' : 'Tambah'} Pembagian Ruangan`}
         >
@@ -1839,66 +1952,133 @@ export function AcademicRoomAllocationView({ onNotify }) {
             onSubmit={(e) => {
               e.preventDefault()
               const fd = new FormData(e.target)
+              const [start_time, end_time] = (fd.get('time') || '07:30 - 09:00').split(' - ')
               saveAllocation({
-                day: fd.get('day'),
-                time: fd.get('time'),
-                className: fd.get('className'),
-                subject: fd.get('subject'),
-                room: fd.get('room'),
+                academic_year_id: modal.item?.academic_year_id || selectedAcademicYearId || currentYearObj?.id || 1,
+                semester_id: modal.item?.semester_id || selectedSemesterId || currentSemesterObj?.id || 1,
+                class_id: fd.get('class_id'),
+                subject_id: fd.get('subject_id'),
+                teacher_id: fd.get('teacher_id'),
+                room_id: fd.get('room_id'),
+                day_of_week: fd.get('day_of_week'),
+                start_time: (start_time || '07:30').trim(),
+                end_time: (end_time || '09:00').trim(),
                 status: fd.get('status'),
+                notes: fd.get('notes'),
               })
             }}
           >
+            <div style={{ background: '#f8fafc', padding: '0.625rem 0.875rem', borderRadius: '0.375rem', border: '1px solid #e2e8f0', fontSize: '0.8125rem', color: '#475569', marginBottom: '0.75rem', display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+              <Icon name="info" />
+              <span>Tahun Ajaran: <strong>{currentYearObj?.name ?? '-'}</strong> | Semester: <strong>{currentSemesterObj?.name ?? '-'}</strong></span>
+            </div>
+
             <div className="academic-form-grid">
               <label>
                 <span>Hari<b>*</b></span>
-                <select defaultValue={modal.item?.day || dayOptions[0]} name="day" required>
+                <select defaultValue={modal.item?.day || modal.item?.day_of_week || dayOptions[0]} name="day_of_week" required>
                   {dayOptions.map((d) => <option key={d} value={d}>{d}</option>)}
                 </select>
               </label>
+
               <label>
-                <span>Jam<b>*</b></span>
-                <select defaultValue={modal.item?.time || academicOptions.timeSlots[0]} name="time" required>
-                  {academicOptions.timeSlots.map((t) => <option key={t} value={t}>{t}</option>)}
+                <span>Sesi Waktu<b>*</b></span>
+                <select
+                  defaultValue={
+                    modal.item?.time ||
+                    (modal.item?.start_time && modal.item?.end_time
+                      ? `${modal.item.start_time.substring(0, 5)} - ${modal.item.end_time.substring(0, 5)}`
+                      : '07:30 - 09:00')
+                  }
+                  name="time"
+                  required
+                >
+                  <option value="07:00 - 07:45">07:00 - 07:45</option>
+                  <option value="07:30 - 09:00">07:30 - 09:00</option>
+                  <option value="07:45 - 08:30">07:45 - 08:30</option>
+                  <option value="08:45 - 09:30">08:45 - 09:30</option>
+                  <option value="09:00 - 10:30">09:00 - 10:30</option>
+                  <option value="09:45 - 10:30">09:45 - 10:30</option>
+                  <option value="10:30 - 12:00">10:30 - 12:00</option>
+                  <option value="10:45 - 11:30">10:45 - 11:30</option>
+                  <option value="12:30 - 14:00">12:30 - 14:00</option>
+                  <option value="13:15 - 14:00">13:15 - 14:00</option>
                 </select>
               </label>
+
               <label>
-                <span>Kelas<b>*</b></span>
-                <select defaultValue={modal.item?.className || academicOptions.classes[0]} name="className" required>
-                  {academicOptions.classes.map((c) => <option key={c} value={c}>{c}</option>)}
+                <span>Kelas / Rombel<b>*</b></span>
+                <select defaultValue={modal.item?.class_id || classes[0]?.id} name="class_id" required>
+                  {classes.map((c) => (
+                    <option key={c.id} value={c.id}>{c.name}</option>
+                  ))}
                 </select>
               </label>
+
               <label>
                 <span>Mata Pelajaran<b>*</b></span>
-                <select defaultValue={modal.item?.subject || academicOptions.subjects[0]} name="subject" required>
-                  {academicOptions.subjects.map((s) => <option key={s} value={s}>{s}</option>)}
+                <select defaultValue={modal.item?.subject_id || subjects[0]?.id} name="subject_id" required>
+                  {subjects.map((s) => (
+                    <option key={s.id} value={s.id}>{s.name} ({s.code})</option>
+                  ))}
                 </select>
               </label>
+
+              <label>
+                <span>Guru Pengajar<b>*</b></span>
+                <select defaultValue={modal.item?.teacher_id || teachers[0]?.id} name="teacher_id" required>
+                  {teachers.map((t) => (
+                    <option key={t.id} value={t.id}>{t.name}</option>
+                  ))}
+                </select>
+              </label>
+
               <label>
                 <span>Ruangan<b>*</b></span>
-                <select defaultValue={modal.item?.room || academicOptions.rooms[0]} name="room" required>
-                  {academicOptions.rooms.map((r) => <option key={r} value={r}>{r}</option>)}
+                <select defaultValue={modal.item?.room_id || rooms[0]?.id} name="room_id" required>
+                  {rooms.map((r) => (
+                    <option key={r.id} value={r.id}>{r.name} ({r.code})</option>
+                  ))}
                 </select>
               </label>
+
               <label>
                 <span>Status<b>*</b></span>
                 <select defaultValue={modal.item?.status || 'Aktif'} name="status" required>
-                  {academicOptions.statuses.map((st) => <option key={st} value={st}>{st}</option>)}
+                  <option value="Aktif">Aktif</option>
+                  <option value="Tidak Aktif">Tidak Aktif</option>
                 </select>
               </label>
+
+              <label>
+                <span>Catatan</span>
+                <input
+                  defaultValue={modal.item?.notes || ''}
+                  name="notes"
+                  placeholder="Keterangan alokasi ruangan..."
+                  type="text"
+                />
+              </label>
             </div>
+
             {conflict && (
               <div className="academic-conflict-alert">
                 <Icon name="info" />
-                <span><strong>Bentrok Ruangan: </strong>{conflict}</span>
+                <span><strong>Validasi / Bentrok: </strong>{conflict}</span>
               </div>
             )}
+
             <footer>
-              <Button className="academic-button secondary" onClick={() => { setModal(null); setConflict('') }} type="button">
+              <Button
+                className="academic-button secondary"
+                disabled={submitting}
+                onClick={() => { setModal(null); setConflict('') }}
+                type="button"
+              >
                 Batal
               </Button>
-              <Button className="academic-button primary" type="submit">
-                <Icon name="save" /> Simpan Alokasi
+              <Button className="academic-button primary" disabled={submitting} type="submit">
+                <Icon name="save" /> {submitting ? 'Menyimpan...' : 'Simpan Alokasi'}
               </Button>
             </footer>
           </form>

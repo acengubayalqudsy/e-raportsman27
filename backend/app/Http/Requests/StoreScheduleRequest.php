@@ -91,4 +91,37 @@ class StoreScheduleRequest extends FormRequest
             'status.in' => 'Status jadwal harus Aktif atau Tidak Aktif.',
         ];
     }
+
+    public function withValidator($validator): void
+    {
+        $validator->after(function ($validator) {
+            if ($this->course_assignment_id) {
+                $ca = CourseAssignment::find($this->course_assignment_id);
+                if ($ca) {
+                    if ($this->teacher_id && (int)$this->teacher_id !== (int)$ca->teacher_id) {
+                        $validator->errors()->add('teacher_id', 'Guru pengampu tidak sesuai dengan Penugasan Guru (Course Assignment).');
+                    }
+                    if ($this->subject_id && (int)$this->subject_id !== (int)$ca->subject_id) {
+                        $validator->errors()->add('subject_id', 'Mata pelajaran tidak sesuai dengan Penugasan Guru (Course Assignment).');
+                    }
+                    if ($this->class_id && (int)$this->class_id !== (int)$ca->class_id) {
+                        $validator->errors()->add('class_id', 'Kelas tidak sesuai dengan Penugasan Guru (Course Assignment).');
+                    }
+                    if ($this->semester_id && (int)$this->semester_id !== (int)$ca->semester_id) {
+                        $validator->errors()->add('semester_id', 'Semester tidak sesuai dengan Penugasan Guru (Course Assignment).');
+                    }
+                    if ($this->academic_year_id && (int)$this->academic_year_id !== (int)$ca->academic_year_id) {
+                        $validator->errors()->add('academic_year_id', 'Tahun ajaran tidak sesuai dengan Penugasan Guru (Course Assignment).');
+                    }
+                }
+            }
+
+            if ($this->class_id && $this->academic_year_id) {
+                $cls = \App\Models\SchoolClass::find($this->class_id);
+                if ($cls && (int)$cls->academic_year_id !== (int)$this->academic_year_id) {
+                    $validator->errors()->add('class_id', 'Tahun ajaran kelas tidak sesuai dengan tahun ajaran jadwal.');
+                }
+            }
+        });
+    }
 }

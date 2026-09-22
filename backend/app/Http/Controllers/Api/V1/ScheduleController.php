@@ -78,6 +78,14 @@ class ScheduleController extends Controller
         return response()->json([
             'success' => true,
             'data' => ScheduleResource::collection($paginator->items()),
+            'meta' => [
+                'current_page' => $paginator->currentPage(),
+                'from' => $paginator->firstItem(),
+                'last_page' => $paginator->lastPage(),
+                'per_page' => $paginator->perPage(),
+                'to' => $paginator->lastItem(),
+                'total' => $paginator->total(),
+            ],
             'pagination' => [
                 'current_page' => $paginator->currentPage(),
                 'per_page' => $paginator->perPage(),
@@ -104,14 +112,7 @@ class ScheduleController extends Controller
         AuditLog::create([
             'user_id' => $request->user()->id,
             'action' => 'create_schedule',
-            'details' => json_encode([
-                'id' => $schedule->id,
-                'class_id' => $schedule->class_id,
-                'teacher_id' => $schedule->teacher_id,
-                'room_id' => $schedule->room_id,
-                'day' => $schedule->day_of_week,
-                'time' => "{$schedule->start_time}-{$schedule->end_time}",
-            ]),
+            'description' => "Menambahkan jadwal pelajaran: {$schedule->day_of_week} ({$schedule->start_time}-{$schedule->end_time})",
             'ip_address' => $request->ip(),
         ]);
 
@@ -184,7 +185,7 @@ class ScheduleController extends Controller
         AuditLog::create([
             'user_id' => $request->user()->id,
             'action' => 'update_schedule',
-            'details' => json_encode(['id' => $schedule->id, 'changes' => $validated]),
+            'description' => "Memperbarui jadwal pelajaran ID {$schedule->id}",
             'ip_address' => $request->ip(),
         ]);
 
@@ -215,7 +216,7 @@ class ScheduleController extends Controller
         AuditLog::create([
             'user_id' => $request->user()->id,
             'action' => 'delete_schedule',
-            'details' => json_encode(['id' => $id]),
+            'description' => "Menghapus jadwal pelajaran ID {$id}",
             'ip_address' => $request->ip(),
         ]);
 

@@ -32,6 +32,8 @@ class StudentResource extends JsonResource
             'grade' => $this->grade,
             'study_group' => $this->study_group,
             'religion' => $this->religion ?? 'Islam',
+            'religion_id' => $this->religion_id,
+            'religionId' => $this->religion_id,
             'address' => $this->address ?? '',
             'phone' => $this->phone ?? '',
             'previous_school' => $this->previous_school ?? '',

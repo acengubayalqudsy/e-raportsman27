@@ -51,12 +51,22 @@ class CourseAssignment extends Model
 
     public function subject(): BelongsTo
     {
-        return $this->belongsTo(Subject::class, 'subject_id');
+        return $this->belongsTo(Subject::class, 'subject_id')->withTrashed();
     }
 
     public function teacher(): BelongsTo
     {
-        return $this->belongsTo(Teacher::class, 'teacher_id');
+        return $this->belongsTo(Teacher::class, 'teacher_id')->withTrashed();
+    }
+
+    public function assessments(): \Illuminate\Database\Eloquent\Relations\HasMany
+    {
+        return $this->hasMany(Assessment::class, 'course_assignment_id');
+    }
+
+    public function finalCourseGrades(): \Illuminate\Database\Eloquent\Relations\HasMany
+    {
+        return $this->hasMany(FinalCourseGrade::class, 'course_assignment_id');
     }
 
     public function scopeFilter($query, array $filters)
