@@ -1,27 +1,39 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import Button from '../common/Button.jsx'
 import Icon from '../common/Icon.jsx'
 import sman27Logo from '../../assets/logo/sman-27-garut-logo.png'
 import assessmentService from '../../services/assessmentService.js'
-import { formatRaporScore, raporStudents, schoolIdentity } from '../../data/rapor.js'
+import { formatRaporScore, schoolIdentity } from '../../data/rapor.js'
 import RaporContextFilters from './RaporContextFilters.jsx'
 
 function StudentRaporPreview({ onNotify }) {
-  const [studentId, setStudentId] = useState(String(raporStudents[0].id))
+  const [studentId, setStudentId] = useState('')
   const [reportData, setReportData] = useState(null)
   const [loading, setLoading] = useState(false)
-
-  const fallbackStudent = raporStudents.find((item) => String(item.id) === studentId) ?? raporStudents[0]
+  const [errorMessage, setErrorMessage] = useState('')
+  const [supplementaryStudent, setSupplementaryStudent] = useState(null)
+  const [supplementaryLoading, setSupplementaryLoading] = useState(false)
+  const [supplementaryError, setSupplementaryError] = useState('')
+  const [filterState, setFilterState] = useState({ loading: true, error: '', classData: null })
+  const handleOptionsReady = useCallback((state) => {
+    setFilterState(state)
+    const firstStudent = state.classData?.students?.[0]
+    if (firstStudent) setStudentId((current) => current || String(firstStudent.student_id))
+  }, [])
 
   useEffect(() => {
+    if (!studentId) return undefined
     let isMounted = true
     async function loadReport() {
       setLoading(true)
+      setErrorMessage('')
+      setReportData(null)
       const res = await assessmentService.getReportCard(studentId)
       if (isMounted && res.success && res.data) {
         setReportData(res.data)
       } else if (isMounted) {
         setReportData(null)
+        setErrorMessage(res.error || 'Gagal memuat data rapor siswa.')
       }
       if (isMounted) setLoading(false)
     }
@@ -29,26 +41,40 @@ function StudentRaporPreview({ onNotify }) {
     return () => { isMounted = false }
   }, [studentId])
 
-  const studentInfo = reportData?.student || {
-    name: fallbackStudent.name,
-    nis: fallbackStudent.nis,
-    nisn: fallbackStudent.nisn,
-    birth: fallbackStudent.birth,
-    class_name: fallbackStudent.className,
-    semester_name: fallbackStudent.semester,
-    academic_year_name: fallbackStudent.academicYear,
-  }
+  useEffect(() => {
+    const classId = filterState.context?.homeroom_class?.id || filterState.context?.assigned_courses?.[0]?.class_id
+    const semesterId = filterState.context?.active_semester?.id
+    if (!studentId || !classId || !semesterId) return undefined
 
-  const results = reportData?.academic_results?.length
-    ? reportData.academic_results.map((r) => ({
+    let isMounted = true
+    async function loadSupplementary() {
+      setSupplementaryLoading(true)
+      setSupplementaryError('')
+      const res = await assessmentService.getSupplementaryData(classId, semesterId)
+      if (!isMounted) return
+      if (res.success) {
+        setSupplementaryStudent(res.data?.students?.find((student) => String(student.student_id) === String(studentId)) ?? null)
+      } else {
+        setSupplementaryStudent(null)
+        setSupplementaryError(res.error || 'Gagal memuat data pelengkap rapor siswa.')
+      }
+      setSupplementaryLoading(false)
+    }
+    loadSupplementary()
+    return () => { isMounted = false }
+  }, [filterState.context, studentId])
+
+  const studentInfo = reportData?.student
+  const results = reportData?.academic_results?.map((r) => ({
         subject: r.subject_name,
         score: r.score,
         predicate: r.score >= 85 ? 'A' : r.score >= 75 ? 'B' : 'C',
         description: r.highest_achievement || '-',
-      }))
-    : fallbackStudent.academicResults
-
-  const reportStatus = reportData?.report_status || 'DRAF PRATINJAU'
+      })) ?? []
+  const reportStatus = reportData?.report_status ?? '-'
+  const cocurriculars = supplementaryStudent
+    ? (supplementaryStudent.cocurriculars ?? [])
+    : (reportData?.cocurricular ? [reportData.cocurricular] : [])
 
   const handlePrint = () => {
     window.print()
@@ -58,11 +84,15 @@ function StudentRaporPreview({ onNotify }) {
   return (
     <section className="report-secondary-workspace">
       <RaporContextFilters
+        authoritative
         includeStudent
         onChange={(key, value) => { if (key === 'studentId') setStudentId(value) }}
+        onOptionsReady={handleOptionsReady}
         values={{ studentId }}
       />
-      <div className="report-preview-toolbar">
+      {filterState.loading && <p role="status" style={{ textAlign: 'center', padding: '1rem' }}>Memuat pilihan siswa...</p>}
+      {filterState.error && <p role="alert" style={{ textAlign: 'center', padding: '1rem', color: '#b91c1c' }}>{filterState.error}</p>}
+      {studentInfo && <div className="report-preview-toolbar">
         <div>
           <span><Icon name="user" /></span>
           <div>
@@ -91,10 +121,14 @@ function StudentRaporPreview({ onNotify }) {
             Cetak / Simpan PDF
           </Button>
         </div>
-      </div>
+      </div>}
 
       {loading ? (
         <p style={{ textAlign: 'center', padding: '3rem', color: '#64748b' }}>Memuat data rapor...</p>
+      ) : errorMessage ? (
+        <p role="alert" style={{ textAlign: 'center', padding: '3rem', color: '#b91c1c' }}>{errorMessage}</p>
+      ) : !reportData ? (
+        <p style={{ textAlign: 'center', padding: '3rem', color: '#64748b' }}>Pilih siswa untuk melihat rapor.</p>
       ) : (
         <article className="report-paper">
           <header className="report-paper-header">
@@ -116,8 +150,8 @@ function StudentRaporPreview({ onNotify }) {
             </dl>
             <dl>
               <div><dt>Kelas</dt><dd>{studentInfo.class_name}</dd></div>
-              <div><dt>Semester</dt><dd>{studentInfo.semester_name}</dd></div>
-              <div><dt>Tahun Ajaran</dt><dd>{studentInfo.academic_year_name}</dd></div>
+              <div><dt>Semester</dt><dd>{studentInfo.semester_name || filterState.context?.active_semester?.name || '-'}</dd></div>
+              <div><dt>Tahun Ajaran</dt><dd>{studentInfo.academic_year_name || filterState.context?.active_academic_year?.name || '-'}</dd></div>
             </dl>
           </section>
 
@@ -135,7 +169,9 @@ function StudentRaporPreview({ onNotify }) {
                   </tr>
                 </thead>
                 <tbody>
-                  {results.map((result, index) => (
+                  {results.length === 0 ? (
+                    <tr><td colSpan="5" style={{ textAlign: 'center', color: '#64748b' }}>Belum ada nilai akademik untuk semester ini.</td></tr>
+                  ) : results.map((result, index) => (
                     <tr key={result.subject || index}>
                       <td>{index + 1}</td>
                       <td>{result.subject}</td>
@@ -182,18 +218,28 @@ function StudentRaporPreview({ onNotify }) {
             </section>
           </div>
 
-          {reportData?.cocurricular && (
-            <section className="report-paper-section">
-              <h4>D. PROJEK PENGUATAN PROFIL PELAJAR PANCASILA (P5)</h4>
-              <div style={{ padding: '0.5rem 0' }}>
-                <strong style={{ display: 'block', marginBottom: '0.25rem' }}>{reportData.cocurricular.title}</strong>
-                <p style={{ fontSize: '0.85rem', lineHeight: 1.5, color: '#334155' }}>{reportData.cocurricular.description}</p>
-              </div>
-            </section>
-          )}
+          <section className="report-paper-section">
+            <h4>D. PROJEK PENGUATAN PROFIL PELAJAR PANCASILA (P5)</h4>
+            {supplementaryError ? (
+              <p role="alert" style={{ color: '#b91c1c' }}>{supplementaryError}</p>
+            ) : supplementaryLoading ? (
+              <p role="status" style={{ color: '#64748b' }}>Memuat data projek...</p>
+            ) : cocurriculars.length ? (
+              cocurriculars.map((project, index) => (
+                <div style={{ padding: '0.5rem 0' }} key={`${project.title || 'project'}-${index}`}>
+                  <strong style={{ display: 'block', marginBottom: '0.25rem' }}>{project.title}</strong>
+                  <p style={{ fontSize: '0.85rem', lineHeight: 1.5, color: '#334155' }}>{project.description}</p>
+                </div>
+              ))
+            ) : (
+              <p style={{ color: '#94a3b8', fontStyle: 'italic', fontSize: '0.85rem' }}>
+                Belum ada projek kokurikuler yang dicatat untuk semester ini.
+              </p>
+            )}
+          </section>
 
           <section className="report-paper-section">
-            <h4>{reportData?.cocurricular ? 'E.' : 'D.'} CATATAN WALI KELAS</h4>
+            <h4>E. CATATAN WALI KELAS</h4>
             {reportData?.homeroom_note ? (
               <p className="report-homeroom-note">{reportData.homeroom_note}</p>
             ) : (

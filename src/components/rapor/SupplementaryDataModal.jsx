@@ -69,8 +69,10 @@ function SupplementaryDataModal({ isOpen, onClose, activeTab = 'absensi', classI
             student_id: s.student_id,
             name: s.name,
             nis: s.nis,
-            title: s.cocurriculars?.[0]?.title || 'Projek Penguatan Profil Pelajar Pancasila (P5)',
-            description: s.cocurriculars?.[0]?.description || '',
+            projects: (s.cocurriculars ?? []).map((project) => ({
+              title: project.title || '',
+              description: project.description || '',
+            })),
           })))
 
           // 4. Homeroom notes mapping
@@ -110,9 +112,14 @@ function SupplementaryDataModal({ isOpen, onClose, activeTab = 'absensi', classI
     )
   }
 
-  const handleCocurricularChange = (studentId, field, value) => {
+  const handleCocurricularChange = (studentId, projectIndex, field, value) => {
     setCocurricularList((prev) =>
-      prev.map((item) => (item.student_id === studentId ? { ...item, [field]: value } : item))
+      prev.map((item) => {
+        if (item.student_id !== studentId) return item
+        const projects = [...item.projects]
+        projects[projectIndex] = { ...projects[projectIndex], [field]: value }
+        return { ...item, projects }
+      })
     )
   }
 
@@ -195,13 +202,13 @@ function SupplementaryDataModal({ isOpen, onClose, activeTab = 'absensi', classI
     setErrorMessage('')
     setSuccessMessage('')
 
-    const payload = cocurricularList
-      .filter((item) => item.description?.trim())
-      .map((item) => ({
+    const payload = cocurricularList.flatMap((item) => item.projects
+      .filter((project) => project.description?.trim())
+      .map((project) => ({
         student_id: item.student_id,
-        title: item.title?.trim() || 'Projek Penguatan Profil Pelajar Pancasila (P5)',
-        description: item.description?.trim(),
-      }))
+        title: project.title?.trim() || 'Projek Penguatan Profil Pelajar Pancasila (P5)',
+        description: project.description.trim(),
+      })))
 
     if (!payload.length) {
       setErrorMessage('Isi deskripsi projek kokurikuler minimal untuk satu siswa.')
@@ -552,20 +559,25 @@ function SupplementaryDataModal({ isOpen, onClose, activeTab = 'absensi', classI
                         <div style={{ marginBottom: '0.5rem' }}>
                           <strong>{idx + 1}. {item.name}</strong> <small style={{ color: '#64748b' }}>({item.nis})</small>
                         </div>
-                        <input
-                          type="text"
-                          value={item.title}
-                          onChange={(e) => handleCocurricularChange(item.student_id, 'title', e.target.value)}
-                          placeholder="Judul / Tema Projek P5..."
-                          style={{ width: '100%', padding: '0.4rem', borderRadius: '4px', border: '1px solid #cbd5e1', marginBottom: '0.5rem', fontSize: '0.85rem' }}
-                        />
-                        <textarea
-                          rows="2"
-                          value={item.description}
-                          onChange={(e) => handleCocurricularChange(item.student_id, 'description', e.target.value)}
-                          placeholder="Deskripsi pencapaian dimensi dan elemen P5 siswa..."
-                          style={{ width: '100%', padding: '0.4rem', borderRadius: '4px', border: '1px solid #cbd5e1', fontSize: '0.85rem' }}
-                        />
+                        {item.projects.length === 0 && <p>Belum ada projek kokurikuler.</p>}
+                        {item.projects.map((project, projectIndex) => (
+                          <div key={`${item.student_id}-${projectIndex}`}>
+                            <input
+                              type="text"
+                              value={project.title}
+                              onChange={(e) => handleCocurricularChange(item.student_id, projectIndex, 'title', e.target.value)}
+                              placeholder="Judul / Tema Projek P5..."
+                              style={{ width: '100%', padding: '0.4rem', borderRadius: '4px', border: '1px solid #cbd5e1', marginBottom: '0.5rem', fontSize: '0.85rem' }}
+                            />
+                            <textarea
+                              rows="2"
+                              value={project.description}
+                              onChange={(e) => handleCocurricularChange(item.student_id, projectIndex, 'description', e.target.value)}
+                              placeholder="Deskripsi pencapaian dimensi dan elemen P5 siswa..."
+                              style={{ width: '100%', padding: '0.4rem', borderRadius: '4px', border: '1px solid #cbd5e1', fontSize: '0.85rem' }}
+                            />
+                          </div>
+                        ))}
                       </div>
                     ))}
                   </div>
