@@ -48,6 +48,7 @@ function DaftarRaporView({ onNotify }) {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [openMenuId, setOpenMenuId] = useState(null)
+  const [reloadNonce, setReloadNonce] = useState(0)
 
   useEffect(() => {
     let active = true
@@ -103,7 +104,7 @@ function DaftarRaporView({ onNotify }) {
     }
     loadList()
     return () => { active = false }
-  }, [filters.classId, filters.semesterId, filters.status, pagination.current_page, pagination.per_page, searchQuery])
+  }, [filters.classId, filters.semesterId, filters.status, pagination.current_page, pagination.per_page, searchQuery, reloadNonce])
 
   const selectedClass = contextOptions.classes.find((item) => String(item.id) === String(filters.classId))
   const selectedSemester = contextOptions.semesters.find((item) => String(item.id) === String(filters.semesterId))
@@ -116,6 +117,7 @@ function DaftarRaporView({ onNotify }) {
 
   const refreshData = () => {
     setPagination((current) => ({ ...current, current_page: 1 }))
+    setReloadNonce((current) => current + 1)
     onNotify('Memuat ulang daftar rapor dari server.')
   }
 

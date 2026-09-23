@@ -20,6 +20,7 @@ use App\Models\Subject;
 use App\Models\Teacher;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\DB;
 use Tests\TestCase;
 
 class ReportCardSupplementaryApiTest extends TestCase
@@ -213,6 +214,60 @@ class ReportCardSupplementaryApiTest extends TestCase
         $this->assertSame($detailData['is_locked'], $listStudent['is_locked']);
         $this->assertSame($detailData['is_approved_by_school'], $listStudent['is_approved_by_school']);
         $this->assertSame($detailData['is_data_complete'], $listStudent['is_data_complete']);
+    }
+
+    public function test_report_list_uses_database_pagination_status_filter_and_context_wide_summary(): void
+    {
+        $secondStudent = Student::factory()->create([
+            'nis' => '10002',
+            'nisn' => '0010000002',
+            'name' => 'Siswa Sintetis 2',
+            'status' => 'Aktif',
+        ]);
+        ClassMember::create([
+            'academic_year_id' => $this->year->id,
+            'semester_id' => $this->semester->id,
+            'class_id' => $this->class->id,
+            'student_id' => $secondStudent->id,
+            'status' => 'Aktif',
+        ]);
+        FinalCourseGrade::create([
+            'academic_year_id' => $this->year->id,
+            'semester_id' => $this->semester->id,
+            'class_id' => $this->class->id,
+            'subject_id' => $this->assignment->subject_id,
+            'student_id' => $this->student->id,
+            'course_assignment_id' => $this->assignment->id,
+            'final_score' => 88,
+            'status' => 'Terkunci',
+        ]);
+
+        DB::flushQueryLog();
+        DB::enableQueryLog();
+        $response = $this->actingAs($this->adminUser)->getJson(
+            "/api/v1/assessment/report-list?class_id={$this->class->id}&semester_id={$this->semester->id}&page=2&per_page=1"
+        )->assertOk()
+            ->assertJsonPath('data.pagination.current_page', 2)
+            ->assertJsonPath('data.pagination.per_page', 1)
+            ->assertJsonPath('data.pagination.total', 2)
+            ->assertJsonPath('data.pagination.last_page', 2)
+            ->assertJsonPath('data.summary.total_students', 2)
+            ->assertJsonPath('data.summary.validated_draft_count', 1)
+            ->assertJsonPath('data.summary.draft_count', 1)
+            ->assertJsonPath('data.students.0.student_id', $secondStudent->id);
+
+        $hasLimitedPageQuery = collect(DB::getQueryLog())->contains(
+            fn (array $query) => str_contains(strtolower($query['query']), 'limit 1')
+        );
+        $this->assertTrue($hasLimitedPageQuery, 'Expected the report-list page query to use database LIMIT pagination.');
+
+        $this->actingAs($this->adminUser)->getJson(
+            "/api/v1/assessment/report-list?class_id={$this->class->id}&semester_id={$this->semester->id}&status=TERVALIDASI%20(DRAF%20-%20Menunggu%20Konfirmasi%20Kebijakan%20Sekolah)"
+        )->assertOk()
+            ->assertJsonCount(1, 'data.students')
+            ->assertJsonPath('data.students.0.student_id', $this->student->id)
+            ->assertJsonPath('data.pagination.total', 1)
+            ->assertJsonPath('data.summary.total_students', 2);
     }
 
     public function test_admin_can_access_valid_supplementary_context(): void

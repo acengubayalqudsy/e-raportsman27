@@ -126,57 +126,35 @@ class AssessmentService
     public function getReportList(int $classId, int $semesterId, ?string $search, ?string $status, int $page, int $perPage): array
     {
         [$schoolClass, $semester] = $this->authService->assertAcademicContext($classId, $semesterId);
+        $configApproved = AssessmentConfig::where('semester_id', $semesterId)
+            ->where('is_approved_by_school', true)
+            ->exists();
+        $allRowsQuery = $this->getReportRowsQuery($classId, $semesterId, $schoolClass->academic_year_id, $configApproved);
 
-        $members = ClassMember::query()
-            ->with('student')
-            ->where('class_id', $classId)
-            ->where('semester_id', $semesterId)
-            ->where('academic_year_id', $schoolClass->academic_year_id)
-            ->where('status', 'Aktif')
-            ->get();
+        $summaryRow = DB::query()
+            ->fromSub($allRowsQuery, 'report_rows')
+            ->selectRaw('COUNT(*) as total_students')
+            ->selectRaw("SUM(CASE WHEN report_status = 'DRAF PRATINJAU' THEN 1 ELSE 0 END) as draft_count")
+            ->selectRaw("SUM(CASE WHEN report_status = 'TERVALIDASI (DRAF - Menunggu Konfirmasi Kebijakan Sekolah)' THEN 1 ELSE 0 END) as validated_draft_count")
+            ->selectRaw("SUM(CASE WHEN report_status = 'RAPOR FINAL' THEN 1 ELSE 0 END) as final_count")
+            ->selectRaw('SUM(CASE WHEN is_locked = 1 THEN 1 ELSE 0 END) as locked_count')
+            ->selectRaw('SUM(CASE WHEN is_data_complete = 1 THEN 1 ELSE 0 END) as complete_count')
+            ->first();
 
-        $studentIds = $members->pluck('student_id')->map(fn ($id) => (int) $id)->all();
-        $gradesByStudent = FinalCourseGrade::where('semester_id', $semesterId)->whereIn('student_id', $studentIds)->get()->groupBy('student_id');
-        $attendanceIds = StudentAttendance::where('semester_id', $semesterId)->whereIn('student_id', $studentIds)->pluck('student_id')->map(fn ($id) => (int) $id)->all();
-        $notesByStudent = HomeroomNote::where('semester_id', $semesterId)->whereIn('student_id', $studentIds)->whereNotNull('note')->where('note', '<>', '')->pluck('student_id')->map(fn ($id) => (int) $id)->all();
-        $configApproved = AssessmentConfig::where('semester_id', $semesterId)->where('is_approved_by_school', true)->exists();
+        $filteredQuery = DB::query()
+            ->fromSub($this->getReportRowsQuery($classId, $semesterId, $schoolClass->academic_year_id, $configApproved), 'report_rows')
+            ->when($search, function ($query) use ($search) {
+                $term = '%' . trim($search) . '%';
+                $query->where(function ($searchQuery) use ($term) {
+                    $searchQuery->where('name', 'like', $term)
+                        ->orWhere('nis', 'like', $term)
+                        ->orWhere('nisn', 'like', $term);
+                });
+            })
+            ->when($status, fn ($query) => $query->where('report_status', $status))
+            ->orderBy('name');
 
-        $rows = $members->map(function ($member) use ($gradesByStudent, $attendanceIds, $notesByStudent, $configApproved) {
-            $student = $member->student;
-            $grades = $gradesByStudent->get($member->student_id, new Collection());
-            $isLocked = $grades->isNotEmpty() && $grades->every(fn ($grade) => $grade->status === 'Terkunci');
-            $isDataComplete = in_array((int) $member->student_id, $attendanceIds, true) && in_array((int) $member->student_id, $notesByStudent, true);
-
-            return [
-                'student_id' => $student?->id,
-                'nis' => $student?->nis,
-                'nisn' => $student?->nisn,
-                'name' => $student?->name,
-                'birth' => ($student?->birth_place ? $student->birth_place . ', ' : '') . ($student?->birth_date ? $student->birth_date->format('d F Y') : '-'),
-                'report_status' => $this->deriveReportStatus($grades, $configApproved, $isDataComplete),
-                'is_locked' => $isLocked,
-                'is_approved_by_school' => $configApproved,
-                'is_data_complete' => $isDataComplete,
-            ];
-        })->filter(fn ($row) => $row['student_id'] !== null)->sortBy('name')->values();
-
-        $summaryRows = $rows;
-        $summary = [
-            'total_students' => $summaryRows->count(),
-            'draft_count' => $summaryRows->where('report_status', 'DRAF PRATINJAU')->count(),
-            'validated_draft_count' => $summaryRows->where('report_status', 'TERVALIDASI (DRAF - Menunggu Konfirmasi Kebijakan Sekolah)')->count(),
-            'final_count' => $summaryRows->where('report_status', 'RAPOR FINAL')->count(),
-            'locked_count' => $summaryRows->where('is_locked', true)->count(),
-            'complete_count' => $summaryRows->where('is_data_complete', true)->count(),
-        ];
-        $filteredRows = $rows->filter(function ($row) use ($search, $status) {
-            $searchMatch = !$search
-                || str_contains(strtolower((string) $row['name']), strtolower($search))
-                || str_contains(strtolower((string) $row['nis']), strtolower($search))
-                || str_contains(strtolower((string) $row['nisn']), strtolower($search));
-            return $searchMatch && ($status === null || $row['report_status'] === $status);
-        })->values();
-        $total = $filteredRows->count();
+        $paginator = $filteredQuery->paginate($perPage, ['*'], 'page', $page);
 
         return [
             'context' => [
@@ -184,15 +162,65 @@ class AssessmentService
                 'semester' => ['id' => $semester->id, 'name' => $semester->name],
                 'academic_year' => ['id' => $semester->academic_year_id, 'name' => $semester->academicYear?->name],
             ],
-            'students' => $filteredRows->forPage($page, $perPage)->values(),
-            'summary' => $summary,
+            'students' => collect($paginator->items())->map(fn ($row) => [
+                'student_id' => (int) $row->student_id,
+                'nis' => $row->nis,
+                'nisn' => $row->nisn,
+                'name' => $row->name,
+                'birth' => ($row->birth_place ? $row->birth_place . ', ' : '') . ($row->birth_date ? date('d F Y', strtotime($row->birth_date)) : '-'),
+                'report_status' => $row->report_status,
+                'is_locked' => (bool) $row->is_locked,
+                'is_approved_by_school' => (bool) $row->is_approved_by_school,
+                'is_data_complete' => (bool) $row->is_data_complete,
+            ])->values(),
+            'summary' => [
+                'total_students' => (int) $summaryRow->total_students,
+                'draft_count' => (int) $summaryRow->draft_count,
+                'validated_draft_count' => (int) $summaryRow->validated_draft_count,
+                'final_count' => (int) $summaryRow->final_count,
+                'locked_count' => (int) $summaryRow->locked_count,
+                'complete_count' => (int) $summaryRow->complete_count,
+            ],
             'pagination' => [
-                'current_page' => $page,
-                'per_page' => $perPage,
-                'last_page' => $total === 0 ? 1 : (int) ceil($total / $perPage),
-                'total' => $total,
+                'current_page' => $paginator->currentPage(),
+                'per_page' => $paginator->perPage(),
+                'last_page' => $paginator->lastPage(),
+                'total' => $paginator->total(),
             ],
         ];
+    }
+
+    private function getReportRowsQuery(int $classId, int $semesterId, int $academicYearId, bool $configApproved)
+    {
+        $gradeCount = "(SELECT COUNT(*) FROM final_course_grades report_grades WHERE report_grades.student_id = class_members.student_id AND report_grades.semester_id = {$semesterId} AND report_grades.deleted_at IS NULL)";
+        $unlockedCount = "(SELECT COUNT(*) FROM final_course_grades report_unlocked_grades WHERE report_unlocked_grades.student_id = class_members.student_id AND report_unlocked_grades.semester_id = {$semesterId} AND report_unlocked_grades.status <> 'Terkunci' AND report_unlocked_grades.deleted_at IS NULL)";
+        $attendanceExists = "EXISTS (SELECT 1 FROM student_attendances report_attendance WHERE report_attendance.student_id = class_members.student_id AND report_attendance.semester_id = {$semesterId} AND report_attendance.deleted_at IS NULL)";
+        $noteExists = "EXISTS (SELECT 1 FROM homeroom_notes report_notes WHERE report_notes.student_id = class_members.student_id AND report_notes.semester_id = {$semesterId} AND report_notes.note IS NOT NULL AND report_notes.note <> '' AND report_notes.deleted_at IS NULL)";
+        $lockedExpression = "CASE WHEN {$gradeCount} > 0 AND {$unlockedCount} = 0 THEN 1 ELSE 0 END";
+        $completeExpression = "CASE WHEN {$attendanceExists} AND {$noteExists} THEN 1 ELSE 0 END";
+        $approvedExpression = $configApproved ? '1' : '0';
+        $statusExpression = "CASE WHEN {$lockedExpression} = 1 AND {$approvedExpression} = 1 AND {$completeExpression} = 1 THEN 'RAPOR FINAL' WHEN {$lockedExpression} = 1 THEN 'TERVALIDASI (DRAF - Menunggu Konfirmasi Kebijakan Sekolah)' ELSE 'DRAF PRATINJAU' END";
+
+        return ClassMember::query()
+            ->join('students', 'students.id', '=', 'class_members.student_id')
+            ->where('class_members.class_id', $classId)
+            ->where('class_members.semester_id', $semesterId)
+            ->where('class_members.academic_year_id', $academicYearId)
+            ->where('class_members.status', 'Aktif')
+            ->whereNull('class_members.deleted_at')
+            ->whereNull('students.deleted_at')
+            ->select([
+                'students.id as student_id',
+                'students.nis',
+                'students.nisn',
+                'students.name',
+                'students.birth_place',
+                'students.birth_date',
+            ])
+            ->selectRaw("{$statusExpression} as report_status")
+            ->selectRaw("{$lockedExpression} as is_locked")
+            ->selectRaw("{$approvedExpression} as is_approved_by_school")
+            ->selectRaw("{$completeExpression} as is_data_complete");
     }
 
     /**
