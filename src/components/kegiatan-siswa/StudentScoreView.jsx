@@ -6,20 +6,9 @@ import SearchInput from '../common/SearchInput.jsx'
 import MasterPagination from '../master-data/MasterPagination.jsx'
 import assessmentService from '../../services/assessmentService.js'
 import { extracurricularService } from '../../services/extracurricularService.js'
-import { activityOptions, scores as initialScores } from '../../data/kegiatanSiswa.js'
+import { activityOptions } from '../../data/kegiatanSiswa.js'
 
 const DEFAULT_ROWS_PER_PAGE = 8
-
-function normalizeScores(rows) {
-  return rows.map((row) => ({
-    ...row,
-    name: row.name || row.studentName || '-',
-    extracurricular: row.extracurricular || row.extracurricularName || '-',
-    predicate: row.predicate || row.predikat || '',
-    description: row.description || row.keterangan || '',
-    isDirty: false,
-  }))
-}
 
 function getScoreStatus(row) {
   return row.predicate && row.description.trim() ? 'Sudah Dinilai' : 'Belum Dinilai'
@@ -37,14 +26,15 @@ function SelectFilter({ label, options, value, onChange }) {
 }
 
 function StudentScoreView({ onNotify }) {
-  const [scoreRows, setScoreRows] = useState(() => normalizeScores(initialScores))
+  const [scoreRows, setScoreRows] = useState([])
   const [context, setContext] = useState(null)
   const [availableExtracurriculars, setAvailableExtracurriculars] = useState([])
   const [isSaving, setIsSaving] = useState(false)
+  const [refreshTrigger, setRefreshTrigger] = useState(0)
   const [filters, setFilters] = useState({
     className: 'Semua Kelas',
-    academicYear: activityOptions.academicYears?.[0] || 'Semua Tahun',
-    semester: activityOptions.semesters?.[0] || 'Semua Semester',
+    academicYear: 'Semua Tahun',
+    semester: 'Semua Semester',
     extracurricular: 'Semua Ekskul',
     status: 'Semua Status',
     searchQuery: '',
@@ -105,33 +95,16 @@ function StudentScoreView({ onNotify }) {
                     isDirty: false,
                   })
                 })
-              } else {
-                mapped.push({
-                  id: `${st.student_id}-default`,
-                  studentId: st.student_id,
-                  nis: st.nis,
-                  name: st.name,
-                  className: suppRes.data.class?.name || 'Kelas X',
-                  academicYear: ctxRes.data.active_semester?.academic_year || '2025/2026',
-                  semester: ctxRes.data.active_semester?.name || 'Semester Ganjil',
-                  extracurricular: 'Pramuka',
-                  predicate: '',
-                  description: '',
-                  status: 'Belum Dinilai',
-                  isDirty: false,
-                })
               }
             })
-            if (mapped.length > 0) {
-              setScoreRows(mapped)
-            }
+            setScoreRows(mapped)
           }
         }
       }
     }
     loadData()
     return () => { isMounted = false }
-  }, [])
+  }, [refreshTrigger])
 
   const filteredScores = useMemo(() => {
     const keyword = filters.searchQuery.trim().toLowerCase()
@@ -191,11 +164,7 @@ function StudentScoreView({ onNotify }) {
     setIsSaving(false)
 
     if (!res || res.success) {
-      setScoreRows((current) => current.map((row) => (
-        row.id === id
-          ? { ...row, status: getScoreStatus(row), predikat: row.predicate, keterangan: row.description, isDirty: false }
-          : row
-      )))
+      setRefreshTrigger((current) => current + 1)
       onNotify?.(`Nilai ekstrakurikuler ${target.name} berhasil disimpan ke database.`)
     } else {
       onNotify?.(res.error || 'Gagal menyimpan nilai ekstrakurikuler.')
@@ -232,11 +201,7 @@ function StudentScoreView({ onNotify }) {
     setIsSaving(false)
 
     if (!res || res.success) {
-      setScoreRows((current) => current.map((row) => (
-        row.isDirty
-          ? { ...row, status: getScoreStatus(row), predikat: row.predicate, keterangan: row.description, isDirty: false }
-          : row
-      )))
+      setRefreshTrigger((current) => current + 1)
       onNotify?.(`${dirtyCount} perubahan nilai ekstrakurikuler berhasil disimpan ke database.`)
     } else {
       onNotify?.(res.error || 'Gagal menyimpan nilai ekstrakurikuler.')
@@ -268,7 +233,7 @@ function StudentScoreView({ onNotify }) {
           <SelectFilter
             label="Ekstrakurikuler"
             onChange={(value) => updateFilter('extracurricular', value)}
-            options={['Semua Ekskul', ...(availableExtracurriculars.length > 0 ? availableExtracurriculars : (activityOptions.extracurriculars || []))]}
+            options={['Semua Ekskul', ...availableExtracurriculars]}
             value={filters.extracurricular}
           />
           <SelectFilter

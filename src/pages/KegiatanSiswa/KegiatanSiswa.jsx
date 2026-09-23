@@ -3,14 +3,13 @@ import { useLocation } from 'react-router-dom'
 import Icon from '../../components/common/Icon.jsx'
 import Breadcrumb from '../../components/layout/Breadcrumb.jsx'
 import StudentActivityTabs from '../../components/kegiatan-siswa/StudentActivityTabs.jsx'
-import StudentActivitySummary from '../../components/kegiatan-siswa/StudentActivitySummary.jsx'
 import StudentParticipationView from '../../components/kegiatan-siswa/StudentParticipationView.jsx'
 import StudentScoreView from '../../components/kegiatan-siswa/StudentScoreView.jsx'
 import {
   CocurricularNotesView,
   HomeroomNotesView,
 } from '../../components/kegiatan-siswa/StudentNotesViews.jsx'
-import { activitySummaryByTab, activityTabs } from '../../data/kegiatanSiswa.js'
+import { activityTabs } from '../../data/kegiatanSiswa.js'
 import './KegiatanSiswa.css'
 
 function KegiatanSiswa() {
@@ -38,7 +37,6 @@ function KegiatanSiswa() {
       </header>
 
       <StudentActivityTabs activeKey={activeTab.key} />
-      <StudentActivitySummary items={activitySummaryByTab[activeTab.key]} />
       {views[activeTab.key]}
 
       {notice && (
