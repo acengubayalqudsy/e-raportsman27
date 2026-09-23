@@ -1,10 +1,10 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import Button from '../common/Button.jsx'
 import EmptyState from '../common/EmptyState.jsx'
 import Icon from '../common/Icon.jsx'
 import Pagination from '../common/Pagination.jsx'
 import assessmentService from '../../services/assessmentService.js'
-import { activityOptions, homeroomContext, homeroomNotes } from '../../data/kegiatanSiswa.js'
+import { activityOptions } from '../../data/kegiatanSiswa.js'
 
 const DEFAULT_ROWS_PER_PAGE = activityOptions.rowsPerPageOptions?.[0] || 8
 
@@ -18,16 +18,6 @@ function getStudentName(row) {
 
 function getRowStatus(row) {
   return getNote(row).trim() ? 'Terisi' : 'Belum Terisi'
-}
-
-function createNoteRows(rows) {
-  return rows.map((row) => ({
-    ...row,
-    name: getStudentName(row),
-    note: getNote(row),
-    status: getRowStatus(row),
-    isDirty: false,
-  }))
 }
 
 function getPageItems(currentPage, totalPages) {
@@ -171,28 +161,33 @@ function NotesFilters({ filters, onFilterChange, onSearchChange, isHomeroom }) {
   )
 }
 
-function HomeroomContextCard() {
+function HomeroomContextCard({ context, supplementary }) {
+  const className = supplementary?.class?.name || context?.homeroom_class?.class_name || 'Kelas aktif'
+  const academicYear = supplementary?.semester?.academic_year?.name || context?.active_academic_year?.name || 'Tahun ajaran aktif'
+  const semester = supplementary?.semester?.name || context?.active_semester?.name || 'Semester aktif'
+  const studentCount = Array.isArray(supplementary?.students) ? supplementary.students.length : 0
+
   return (
     <section className="activity-homeroom-context" aria-label="Konteks catatan wali kelas">
       <div>
         <span>Kelas</span>
-        <strong>{homeroomContext.className}</strong>
+        <strong>{className}</strong>
       </div>
       <div>
         <span>Wali Kelas</span>
-        <strong>{homeroomContext.homeroomTeacherFullName || homeroomContext.homeroomTeacher}</strong>
+        <strong>{context?.homeroom_teacher?.name || context?.homeroom_teacher?.full_name || 'Tidak tersedia'}</strong>
       </div>
       <div>
         <span>Tahun Ajaran</span>
-        <strong>{homeroomContext.academicYear}</strong>
+        <strong>{academicYear}</strong>
       </div>
       <div>
         <span>Semester</span>
-        <strong>{homeroomContext.semester}</strong>
+        <strong>{semester}</strong>
       </div>
       <div>
         <span>Siswa</span>
-        <strong>{homeroomContext.studentCount} siswa</strong>
+        <strong>{studentCount} siswa</strong>
       </div>
     </section>
   )
@@ -274,12 +269,11 @@ function NotesErrorState({ message }) {
 
 function StudentNotesView({ type, onNotify }) {
   const isHomeroom = type === 'homeroom'
-  const rowsSource = homeroomNotes
   const noteLabel = isHomeroom ? 'Catatan Wali Kelas' : 'Catatan Kokurikuler'
-  const initialClass = isHomeroom ? homeroomContext.className : (activityOptions.classes?.[0] || 'Semua Kelas')
-  const initialAcademicYear = isHomeroom ? homeroomContext.academicYear : (activityOptions.academicYears?.[0] || 'Semua Tahun')
-  const initialSemester = isHomeroom ? homeroomContext.semester : (activityOptions.semesters?.[0] || 'Semua Semester')
-  const [notes, setNotes] = useState(() => (isHomeroom ? createNoteRows(rowsSource) : []))
+  const initialClass = isHomeroom ? 'Kelas aktif' : (activityOptions.classes?.[0] || 'Semua Kelas')
+  const initialAcademicYear = isHomeroom ? 'Tahun ajaran aktif' : (activityOptions.academicYears?.[0] || 'Semua Tahun')
+  const initialSemester = isHomeroom ? 'Semester aktif' : (activityOptions.semesters?.[0] || 'Semua Semester')
+  const [notes, setNotes] = useState([])
   const [filters, setFilters] = useState({
     className: initialClass,
     academicYear: initialAcademicYear,
@@ -325,82 +319,101 @@ function StudentNotesView({ type, onNotify }) {
 
   const [context, setContext] = useState(null)
   const [isSaving, setIsSaving] = useState(false)
-  const [refreshTrigger, setRefreshTrigger] = useState(0)
   const [loadError, setLoadError] = useState('')
+  const [supplementary, setSupplementary] = useState(null)
+  const [isLoading, setIsLoading] = useState(true)
+  const isMountedRef = useRef(true)
 
-  const classId = context?.homeroom_class?.id || context?.assigned_courses?.[0]?.class_id
+  const classId = context?.homeroom_class?.class_id || context?.homeroom_class?.id || context?.assigned_courses?.[0]?.class_id
   const semesterId = context?.active_semester?.id
 
-  useEffect(() => {
-    let isMounted = true
-    async function loadData() {
-      const ctxRes = await assessmentService.getContext()
-      if (isMounted && ctxRes.success && ctxRes.data) {
-        setContext(ctxRes.data)
-        const cId = ctxRes.data.homeroom_class?.id || ctxRes.data.assigned_courses?.[0]?.class_id
-        const sId = ctxRes.data.active_semester?.id
-        if (cId && sId) {
-          const suppRes = await assessmentService.getSupplementaryData(cId, sId)
-          if (!suppRes.success) {
-            if (!isHomeroom) {
-              setNotes([])
-              setLoadError(suppRes.error || 'Gagal memuat catatan kokurikuler dari server.')
-            }
-            return
-          }
-          if (!isHomeroom) setLoadError('')
-          if (isMounted && suppRes.success && suppRes.data?.students?.length) {
-            const mapped = suppRes.data.students.flatMap((st) => {
-              if (isHomeroom) {
-                return [{
-                  id: st.student_id,
-                  studentId: st.student_id,
-                  nis: st.nis,
-                  name: st.name,
-                  note: st.homeroom_note || '',
-                  status: st.homeroom_note ? 'Terisi' : 'Belum Terisi',
-                  isDirty: false,
-                }]
-              }
-
-              const base = {
-                studentId: st.student_id,
-                nis: st.nis,
-                name: st.name,
-                className: suppRes.data.class?.name || homeroomContext.className,
-                academicYear: ctxRes.data.active_semester?.academic_year || homeroomContext.academicYear,
-                semester: ctxRes.data.active_semester?.name || homeroomContext.semester,
-              }
-
-              const records = Array.isArray(st.cocurriculars) ? st.cocurriculars : []
-              return records.map((record, index) => ({
-                ...base,
-                id: `${st.student_id}-${record.id || index}`,
-                note: record.description || '',
-                title: record.title || '',
-                status: record.description ? 'Terisi' : 'Belum Terisi',
-                isDirty: false,
-              }))
-            })
-            setNotes(mapped)
-          } else if (isMounted && !isHomeroom) {
-            setNotes([])
-          }
-        }
-      }
-      if (isMounted && !isHomeroom && (!ctxRes.success || !ctxRes.data)) {
-        setNotes([])
-        setLoadError(ctxRes.error || 'Gagal memuat konteks akademik dari server.')
-      }
+  const loadData = useCallback(async () => {
+    if (!isMountedRef.current) return false
+    setIsLoading(true)
+    setLoadError('')
+    const ctxRes = await assessmentService.getContext()
+    if (!isMountedRef.current) return false
+    if (!ctxRes.success || !ctxRes.data) {
+      setNotes([])
+      setSupplementary(null)
+      setLoadError(ctxRes.error || 'Gagal memuat konteks akademik dari server.')
+      setIsLoading(false)
+      return false
     }
-    loadData().catch((error) => {
-      if (isMounted && !isHomeroom) {
+
+    setContext(ctxRes.data)
+    const cId = ctxRes.data.homeroom_class?.id || ctxRes.data.assigned_courses?.[0]?.class_id
+    const sId = ctxRes.data.active_semester?.id
+    if (!cId || !sId) {
+      setNotes([])
+      setSupplementary(null)
+      setLoadError('Konteks kelas atau semester aktif tidak tersedia.')
+      setIsLoading(false)
+      return false
+    }
+
+    const suppRes = await assessmentService.getSupplementaryData(cId, sId)
+    if (!isMountedRef.current) return false
+    if (!suppRes.success) {
+      setNotes([])
+      setSupplementary(null)
+      setLoadError(suppRes.error || `Gagal memuat ${noteLabel.toLowerCase()} dari server.`)
+      setIsLoading(false)
+      return false
+    }
+
+    const students = Array.isArray(suppRes.data?.students) ? suppRes.data.students : []
+    setSupplementary(suppRes.data)
+    const mapped = students.flatMap((st) => {
+      if (isHomeroom) {
+        return [{
+          id: st.student_id,
+          studentId: st.student_id,
+          nis: st.nis,
+          name: st.name,
+          note: st.homeroom_note || '',
+          status: st.homeroom_note ? 'Terisi' : 'Belum Terisi',
+          isDirty: false,
+        }]
+      }
+
+      const base = {
+        studentId: st.student_id,
+        nis: st.nis,
+        name: st.name,
+        className: suppRes.data?.class?.name || 'Kelas aktif',
+        academicYear: suppRes.data?.semester?.academic_year?.name || 'Tahun ajaran aktif',
+        semester: suppRes.data?.semester?.name || 'Semester aktif',
+      }
+
+      const records = Array.isArray(st.cocurriculars) ? st.cocurriculars : []
+      return records.map((record, index) => ({
+        ...base,
+        id: `${st.student_id}-${record.id || index}`,
+        note: record.description || '',
+        title: record.title || '',
+        status: record.description ? 'Terisi' : 'Belum Terisi',
+        isDirty: false,
+      }))
+    })
+    setNotes(mapped)
+    setIsLoading(false)
+    return true
+  }, [isHomeroom, noteLabel])
+
+  useEffect(() => {
+    isMountedRef.current = true
+    const load = () => loadData().catch((error) => {
+      if (isMountedRef.current) {
         setNotes([])
-        setLoadError(error.message || 'Gagal memuat catatan kokurikuler dari server.')
+        setSupplementary(null)
+        setLoadError(error.message || `Gagal memuat ${noteLabel.toLowerCase()} dari server.`)
+        setIsLoading(false)
       }
     })
-    return () => { isMounted = false }
-  }, [isHomeroom, refreshTrigger])
+    queueMicrotask(load)
+    return () => { isMountedRef.current = false }
+  }, [loadData, noteLabel])
 
   const saveRow = async (id) => {
     const target = notes.find((row) => row.id === id)
@@ -423,18 +436,16 @@ function StudentNotesView({ type, onNotify }) {
         ])
       }
     }
-    setIsSaving(false)
-
-    if (!res || res.success) {
-      if (isHomeroom) {
-        setNotes((current) => current.map((row) => (
-          row.id === id ? { ...row, status: getRowStatus(row), isDirty: false } : row
-        )))
-      } else {
-        setRefreshTrigger((current) => current + 1)
+    if (res?.success) {
+      const refreshed = await loadData()
+      setIsSaving(false)
+      if (!refreshed) {
+        onNotify?.(`${noteLabel} tersimpan, tetapi verifikasi data terbaru gagal. Silakan muat ulang.`)
+        return
       }
       onNotify?.(`${noteLabel} ${getStudentName(target)} berhasil disimpan ke database.`)
     } else {
+      setIsSaving(false)
       onNotify?.(res.error || 'Gagal menyimpan catatan.')
     }
   }
@@ -469,25 +480,23 @@ function StudentNotesView({ type, onNotify }) {
         res = await assessmentService.saveCocurriculars(classId, semesterId, payload)
       }
     }
-    setIsSaving(false)
-
-    if (!res || res.success) {
-      if (isHomeroom) {
-        setNotes((current) => current.map((row) => (
-          row.isDirty ? { ...row, status: getRowStatus(row), isDirty: false } : row
-        )))
-      } else {
-        setRefreshTrigger((current) => current + 1)
+    if (res?.success) {
+      const refreshed = await loadData()
+      setIsSaving(false)
+      if (!refreshed) {
+        onNotify?.(`${noteLabel} tersimpan, tetapi verifikasi data terbaru gagal. Silakan muat ulang.`)
+        return
       }
       onNotify?.(`${dirtyCount} ${noteLabel.toLowerCase()} berhasil disimpan ke database.`)
     } else {
+      setIsSaving(false)
       onNotify?.(res.error || 'Gagal menyimpan catatan.')
     }
   }
 
   return (
     <section className="activity-notes-view">
-      {isHomeroom ? <HomeroomContextCard /> : null}
+      {isHomeroom ? <HomeroomContextCard context={context} supplementary={supplementary} /> : null}
 
       <div className="activity-notes-toolbar">
         <NotesFilters
@@ -514,8 +523,12 @@ function StudentNotesView({ type, onNotify }) {
           <span className="activity-notes-total">{filteredNotes.length} siswa</span>
         </div>
 
-        {!isHomeroom && loadError ? (
+        {loadError ? (
           <NotesErrorState message={loadError} />
+        ) : isLoading ? (
+          <EmptyState className="activity-notes-empty">
+            <strong>Memuat {noteLabel.toLowerCase()}...</strong>
+          </EmptyState>
         ) : visibleRows.length > 0 ? (
           <NotesTable
             firstItem={firstItem}

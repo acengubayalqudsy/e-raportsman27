@@ -252,9 +252,14 @@ export const assessmentService = {
       items,
     })
     if (res.success) {
-      return { success: true, message: res.message, data: res.data }
+      return { success: true, message: res.message, data: res.data, status: res.status }
     }
-    return { success: false, error: res.message || 'Gagal menyimpan catatan wali kelas.' }
+    return {
+      success: false,
+      error: res.message || 'Gagal menyimpan catatan wali kelas.',
+      status: res.status,
+      errors: res.errors || null,
+    }
   },
 }
 
