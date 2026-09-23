@@ -335,6 +335,39 @@ class AssessmentController extends Controller
         ]);
     }
 
+    public function getReportList(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'class_id' => 'required|integer|exists:classes,id',
+            'semester_id' => 'required|integer|exists:semesters,id',
+            'page' => 'nullable|integer|min:1',
+            'per_page' => 'nullable|integer|min:1|max:100',
+            'search' => 'nullable|string|max:100',
+            'status' => 'nullable|string|in:DRAF PRATINJAU,TERVALIDASI (DRAF - Menunggu Konfirmasi Kebijakan Sekolah),RAPOR FINAL',
+        ]);
+
+        if (!$this->authService->canAccessClass($request->user(), (int) $validated['class_id'], (int) $validated['semester_id'])) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Akses ditolak. Anda tidak memiliki izin untuk melihat daftar rapor kelas ini.',
+            ], 403);
+        }
+
+        $this->authService->assertAcademicContext((int) $validated['class_id'], (int) $validated['semester_id']);
+
+        return response()->json([
+            'success' => true,
+            'data' => $this->assessmentService->getReportList(
+                (int) $validated['class_id'],
+                (int) $validated['semester_id'],
+                $validated['search'] ?? null,
+                $validated['status'] ?? null,
+                (int) ($validated['page'] ?? 1),
+                (int) ($validated['per_page'] ?? 25)
+            ),
+        ]);
+    }
+
     /**
      * Get Validation Status for all courses in a class.
      */
@@ -520,12 +553,7 @@ class AssessmentController extends Controller
         $isConfigApproved = (bool)$config;
         $isDataComplete = $attendance !== null && $homeroomNote !== null && !empty($homeroomNote->note);
 
-        $reportStatus = 'DRAF PRATINJAU';
-        if ($isAllLocked && $isConfigApproved && $isDataComplete) {
-            $reportStatus = 'RAPOR FINAL';
-        } elseif ($isAllLocked) {
-            $reportStatus = 'TERVALIDASI (DRAF - Menunggu Konfirmasi Kebijakan Sekolah)';
-        }
+        $reportStatus = $this->assessmentService->deriveReportStatus($grades, $isConfigApproved, $isDataComplete);
 
         return response()->json([
             'success' => true,

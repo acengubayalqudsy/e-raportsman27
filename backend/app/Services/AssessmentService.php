@@ -108,6 +108,93 @@ class AssessmentService
         ];
     }
 
+    public function deriveReportStatus(Collection $grades, bool $isApprovedBySchool, bool $isDataComplete): string
+    {
+        $isLocked = $grades->isNotEmpty() && $grades->every(fn ($grade) => $grade->status === 'Terkunci');
+
+        if ($isLocked && $isApprovedBySchool && $isDataComplete) {
+            return 'RAPOR FINAL';
+        }
+
+        if ($isLocked) {
+            return 'TERVALIDASI (DRAF - Menunggu Konfirmasi Kebijakan Sekolah)';
+        }
+
+        return 'DRAF PRATINJAU';
+    }
+
+    public function getReportList(int $classId, int $semesterId, ?string $search, ?string $status, int $page, int $perPage): array
+    {
+        [$schoolClass, $semester] = $this->authService->assertAcademicContext($classId, $semesterId);
+
+        $members = ClassMember::query()
+            ->with('student')
+            ->where('class_id', $classId)
+            ->where('semester_id', $semesterId)
+            ->where('academic_year_id', $schoolClass->academic_year_id)
+            ->where('status', 'Aktif')
+            ->get();
+
+        $studentIds = $members->pluck('student_id')->map(fn ($id) => (int) $id)->all();
+        $gradesByStudent = FinalCourseGrade::where('semester_id', $semesterId)->whereIn('student_id', $studentIds)->get()->groupBy('student_id');
+        $attendanceIds = StudentAttendance::where('semester_id', $semesterId)->whereIn('student_id', $studentIds)->pluck('student_id')->map(fn ($id) => (int) $id)->all();
+        $notesByStudent = HomeroomNote::where('semester_id', $semesterId)->whereIn('student_id', $studentIds)->whereNotNull('note')->where('note', '<>', '')->pluck('student_id')->map(fn ($id) => (int) $id)->all();
+        $configApproved = AssessmentConfig::where('semester_id', $semesterId)->where('is_approved_by_school', true)->exists();
+
+        $rows = $members->map(function ($member) use ($gradesByStudent, $attendanceIds, $notesByStudent, $configApproved) {
+            $student = $member->student;
+            $grades = $gradesByStudent->get($member->student_id, new Collection());
+            $isLocked = $grades->isNotEmpty() && $grades->every(fn ($grade) => $grade->status === 'Terkunci');
+            $isDataComplete = in_array((int) $member->student_id, $attendanceIds, true) && in_array((int) $member->student_id, $notesByStudent, true);
+
+            return [
+                'student_id' => $student?->id,
+                'nis' => $student?->nis,
+                'nisn' => $student?->nisn,
+                'name' => $student?->name,
+                'birth' => ($student?->birth_place ? $student->birth_place . ', ' : '') . ($student?->birth_date ? $student->birth_date->format('d F Y') : '-'),
+                'report_status' => $this->deriveReportStatus($grades, $configApproved, $isDataComplete),
+                'is_locked' => $isLocked,
+                'is_approved_by_school' => $configApproved,
+                'is_data_complete' => $isDataComplete,
+            ];
+        })->filter(fn ($row) => $row['student_id'] !== null)->sortBy('name')->values();
+
+        $summaryRows = $rows;
+        $summary = [
+            'total_students' => $summaryRows->count(),
+            'draft_count' => $summaryRows->where('report_status', 'DRAF PRATINJAU')->count(),
+            'validated_draft_count' => $summaryRows->where('report_status', 'TERVALIDASI (DRAF - Menunggu Konfirmasi Kebijakan Sekolah)')->count(),
+            'final_count' => $summaryRows->where('report_status', 'RAPOR FINAL')->count(),
+            'locked_count' => $summaryRows->where('is_locked', true)->count(),
+            'complete_count' => $summaryRows->where('is_data_complete', true)->count(),
+        ];
+        $filteredRows = $rows->filter(function ($row) use ($search, $status) {
+            $searchMatch = !$search
+                || str_contains(strtolower((string) $row['name']), strtolower($search))
+                || str_contains(strtolower((string) $row['nis']), strtolower($search))
+                || str_contains(strtolower((string) $row['nisn']), strtolower($search));
+            return $searchMatch && ($status === null || $row['report_status'] === $status);
+        })->values();
+        $total = $filteredRows->count();
+
+        return [
+            'context' => [
+                'class' => ['id' => $schoolClass->id, 'name' => $schoolClass->name, 'grade' => $schoolClass->grade],
+                'semester' => ['id' => $semester->id, 'name' => $semester->name],
+                'academic_year' => ['id' => $semester->academic_year_id, 'name' => $semester->academicYear?->name],
+            ],
+            'students' => $filteredRows->forPage($page, $perPage)->values(),
+            'summary' => $summary,
+            'pagination' => [
+                'current_page' => $page,
+                'per_page' => $perPage,
+                'last_page' => $total === 0 ? 1 : (int) ceil($total / $perPage),
+                'total' => $total,
+            ],
+        ];
+    }
+
     /**
      * Get Gradebook data for a course assignment: assessments, students, scores, final grades.
      */

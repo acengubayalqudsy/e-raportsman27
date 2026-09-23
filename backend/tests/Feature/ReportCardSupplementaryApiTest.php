@@ -8,6 +8,7 @@ use App\Models\AssessmentConfig;
 use App\Models\ClassMember;
 use App\Models\CourseAssignment;
 use App\Models\GradeModificationLog;
+use App\Models\FinalCourseGrade;
 use App\Models\HomeroomAssignment;
 use App\Models\Role;
 use App\Models\SchoolClass;
@@ -141,6 +142,77 @@ class ReportCardSupplementaryApiTest extends TestCase
             "/api/v1/assessment/supplementary/{$this->class->id}/{$this->semester->id}"
         );
         $response->assertStatus(403);
+    }
+
+    public function test_report_list_requires_authentication_and_valid_context(): void
+    {
+        $this->getJson("/api/v1/assessment/report-list?class_id={$this->class->id}&semester_id={$this->semester->id}")
+            ->assertStatus(401);
+
+        $this->actingAs($this->adminUser)
+            ->getJson("/api/v1/assessment/report-list?class_id={$this->class->id}&semester_id=999999")
+            ->assertStatus(422);
+    }
+
+    public function test_report_list_supports_admin_guru_walikelas_and_rejects_unauthorized_class(): void
+    {
+        foreach ([$this->adminUser, $this->guruWalikelasUser] as $user) {
+            $this->actingAs($user)
+                ->getJson("/api/v1/assessment/report-list?class_id={$this->class->id}&semester_id={$this->semester->id}")
+                ->assertOk()
+                ->assertJsonPath('data.students.0.student_id', $this->student->id);
+        }
+
+        $this->actingAs($this->otherGuruUser)
+            ->getJson("/api/v1/assessment/report-list?class_id={$this->class->id}&semester_id={$this->semester->id}")
+            ->assertStatus(403);
+    }
+
+    public function test_report_list_searches_nis_nisn_and_name_and_returns_empty_without_mock_fallback(): void
+    {
+        foreach (['Siswa Sintetis', '10001', '0010000001'] as $search) {
+            $this->actingAs($this->adminUser)
+                ->getJson("/api/v1/assessment/report-list?class_id={$this->class->id}&semester_id={$this->semester->id}&search=" . urlencode($search))
+                ->assertOk()
+                ->assertJsonCount(1, 'data.students');
+        }
+
+        $this->actingAs($this->adminUser)
+            ->getJson("/api/v1/assessment/report-list?class_id={$this->class->id}&semester_id={$this->semester->id}&search=tidak-ada")
+            ->assertOk()
+            ->assertJsonPath('data.students', [])
+            ->assertJsonPath('data.pagination.total', 0);
+    }
+
+    public function test_report_list_paginates_and_derives_status_consistently_with_report_card(): void
+    {
+        FinalCourseGrade::create([
+            'academic_year_id' => $this->year->id,
+            'semester_id' => $this->semester->id,
+            'class_id' => $this->class->id,
+            'subject_id' => $this->assignment->subject_id,
+            'student_id' => $this->student->id,
+            'course_assignment_id' => $this->assignment->id,
+            'final_score' => 88,
+            'status' => 'Terkunci',
+        ]);
+
+        $list = $this->actingAs($this->adminUser)
+            ->getJson("/api/v1/assessment/report-list?class_id={$this->class->id}&semester_id={$this->semester->id}&per_page=1")
+            ->assertOk()
+            ->assertJsonPath('data.pagination.total', 1)
+            ->assertJsonPath('data.students.0.report_status', 'TERVALIDASI (DRAF - Menunggu Konfirmasi Kebijakan Sekolah)');
+
+        $detail = $this->actingAs($this->adminUser)
+            ->getJson("/api/v1/assessment/report-card/{$this->student->id}?semester_id={$this->semester->id}")
+            ->assertOk();
+
+        $listStudent = $list->json('data.students.0');
+        $detailData = $detail->json('data');
+        $this->assertSame($detailData['report_status'], $listStudent['report_status']);
+        $this->assertSame($detailData['is_locked'], $listStudent['is_locked']);
+        $this->assertSame($detailData['is_approved_by_school'], $listStudent['is_approved_by_school']);
+        $this->assertSame($detailData['is_data_complete'], $listStudent['is_data_complete']);
     }
 
     public function test_admin_can_access_valid_supplementary_context(): void

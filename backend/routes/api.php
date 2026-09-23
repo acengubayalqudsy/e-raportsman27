@@ -247,6 +247,7 @@ Route::prefix('v1')->group(function () {
         Route::post('/final-grades/calculate', [AssessmentController::class, 'calculateFinalGrades']);
         Route::put('/competencies/batch', [AssessmentController::class, 'updateCompetencyAchievements']);
         Route::get('/class-recap', [AssessmentController::class, 'getClassRecap']);
+        Route::get('/report-list', [AssessmentController::class, 'getReportList']);
         Route::get('/validation-status', [AssessmentController::class, 'getValidationStatus']);
         Route::post('/validate-course', [AssessmentController::class, 'validateCourse']);
         Route::post('/unlock-course', [AssessmentController::class, 'unlockCourse']);

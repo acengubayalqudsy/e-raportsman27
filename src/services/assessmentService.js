@@ -125,6 +125,26 @@ export const assessmentService = {
   },
 
   /**
+   * Mengambil daftar rapor siswa secara aggregate dengan status derived backend.
+   */
+  async getReportList(params = {}) {
+    const query = new URLSearchParams()
+    Object.entries(params).forEach(([key, value]) => {
+      if (value !== undefined && value !== null && value !== '') query.set(key, value)
+    })
+    const res = await apiClient.get(`/api/v1/assessment/report-list?${query.toString()}`)
+    if (res.success) {
+      return { success: true, data: res.data }
+    }
+    return {
+      success: false,
+      error: res.message || 'Gagal memuat daftar rapor.',
+      data: { context: null, students: [], summary: null, pagination: { current_page: 1, per_page: 25, last_page: 1, total: 0 } },
+      status: res.status,
+    }
+  },
+
+  /**
    * Mengambil status kelengkapan nilai seluruh mapel pada suatu kelas.
    */
   async getValidationStatus(classId, semesterId) {
