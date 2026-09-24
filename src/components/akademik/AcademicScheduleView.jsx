@@ -687,16 +687,6 @@ function AcademicScheduleView({ onNotify }) {
     <div className="academic-schedule-view">
       <AcademicSummary items={summaryCards} />
 
-      <div className="academic-context-badge" style={{ marginBottom: '1rem', display: 'flex', alignItems: 'center', gap: '0.75rem', background: '#f8fafc', padding: '0.5rem 1rem', borderRadius: '0.5rem', border: '1px solid #e2e8f0', fontSize: '0.875rem' }}>
-        <span style={{ fontWeight: 600, color: '#475569' }}>Konteks Akademik:</span>
-        <span style={{ background: '#e0f2fe', color: '#0369a1', padding: '0.2rem 0.5rem', borderRadius: '0.25rem', fontWeight: 600 }}>
-          {currentYearObj?.name ?? '2026/2027'} ({currentYearObj?.status ?? 'Aktif'})
-        </span>
-        <span style={{ background: '#f0fdf4', color: '#15803d', padding: '0.2rem 0.5rem', borderRadius: '0.25rem', fontWeight: 600 }}>
-          Semester {currentSemesterObj?.name ?? 'Ganjil'}
-        </span>
-      </div>
-
       <section className="academic-filter-card" aria-label="Filter jadwal pelajaran">
         <div className="academic-filter-row">
           <div className="academic-filter-fields">

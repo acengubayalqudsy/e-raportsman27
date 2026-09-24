@@ -39,29 +39,33 @@ function ScoreTable({
 }) {
   const activeFields = assessments && assessments.length > 0
     ? assessments.map((a) => ({
-        key: String(a.id),
-        label: a.title,
-        weight: a.type === 'Sumatif Lingkup Materi' ? 'Sumatif' : a.type === 'Sumatif Akhir Semester' ? 'SAS' : 'Formatif',
-      }))
+      key: String(a.id),
+      label: a.title,
+      weight: a.type === 'Sumatif Lingkup Materi' ? 'Sumatif' : a.type === 'Sumatif Akhir Semester' ? 'SAS' : 'Formatif',
+    }))
     : scoreFields
 
   return (
     <div className="assessment-table-card">
-      <div className="assessment-table-title" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <div>
-          <strong>Daftar Nilai - {subject} ({assessmentType})</strong>
-          <span>{isLocked ? '🔒 Nilai telah divalidasi & dikunci oleh Wali Kelas' : 'Bobot nilai & capaian kompetensi dikalkulasi otomatis'}</span>
+      <div className="assessment-table-title">
+        <div className="assessment-table-title-main">
+          <span className="assessment-table-icon">
+            <Icon name="clipboardCheck" />
+          </span>
+          <div>
+            <h3>Daftar Nilai - {subject} ({assessmentType})</h3>
+            <p>{isLocked ? '🔒 Nilai telah divalidasi & dikunci oleh Wali Kelas' : 'Bobot nilai & capaian kompetensi dikalkulasi otomatis'}</p>
+          </div>
         </div>
         {onCalculateFinal && (
           <button
             className="assessment-button secondary"
             disabled={isLocked}
             onClick={onCalculateFinal}
-            style={{ fontSize: '0.85rem', padding: '0.35rem 0.75rem' }}
             type="button"
           >
             <Icon name="trend" />
-            Kalkulasi Nilai Akhir
+            <span>Kalkulasi Nilai Akhir</span>
           </button>
         )}
       </div>
@@ -99,13 +103,16 @@ function ScoreTable({
               </tr>
             ) : (
               students.map((student, index) => {
-                const finalScore = student.final_grade?.score ?? calculateFinalScore(student.scores || {})
-                const predicate = getPredicate(finalScore)
+                const rawFinalScore = student.final_grade?.score ?? calculateFinalScore(student.scores || {})
+                const hasFinalScore = rawFinalScore !== null && rawFinalScore !== undefined && !Number.isNaN(Number(rawFinalScore))
+                const finalScore = hasFinalScore ? Number(rawFinalScore) : null
+                const predicate = hasFinalScore ? getPredicate(finalScore) : '-'
                 const kkmVal = student.kkm ?? 75
-                const belowKkm = finalScore < kkmVal
+                const belowKkm = hasFinalScore && finalScore < kkmVal
+                const isSaved = savedRows.has(student.id)
 
                 return (
-                  <tr className={savedRows.has(student.id) ? 'saved' : ''} key={student.id}>
+                  <tr className={isSaved ? 'saved' : ''} key={student.id}>
                     <td>{startIndex + index + 1}</td>
                     <td>{student.nis}</td>
                     <td className="assessment-student-name">{student.name}</td>
@@ -121,26 +128,30 @@ function ScoreTable({
                       </td>
                     ))}
                     <td>
-                      <strong className={`assessment-final-score ${belowKkm ? 'warning' : ''}`}>
-                        {finalScore !== null && finalScore !== undefined ? formatScore(finalScore) : '-'}
+                      <strong className={`assessment-final-score ${hasFinalScore ? (belowKkm ? 'warning' : 'complete') : 'empty'}`}>
+                        {hasFinalScore ? formatScore(finalScore) : '-'}
                       </strong>
                     </td>
                     <td>
-                      <span className={`assessment-predicate predicate-${predicate.toLowerCase().replace('-', 'minus')}`}>
-                        {predicate}
-                      </span>
+                      {hasFinalScore && predicate !== '-' ? (
+                        <span className={`assessment-predicate ${belowKkm ? 'predicate-c' : 'complete'}`}>
+                          {predicate}
+                        </span>
+                      ) : (
+                        <span className="assessment-predicate empty">-</span>
+                      )}
                     </td>
                     <td>
                       <div className="assessment-row-actions">
                         <button
                           aria-label={`Simpan nilai ${student.name}`}
-                          className={savedRows.has(student.id) ? 'saved' : ''}
+                          className={isSaved ? 'saved' : ''}
                           disabled={isLocked}
                           onClick={() => onSave(student)}
-                          title={savedRows.has(student.id) ? 'Tersimpan' : 'Simpan'}
+                          title={isSaved ? 'Tersimpan' : 'Simpan'}
                           type="button"
                         >
-                          <Icon name={savedRows.has(student.id) ? 'check' : 'save'} />
+                          <Icon name={isSaved ? 'check' : 'save'} />
                         </button>
                         <button
                           aria-label={`Reset nilai ${student.name}`}

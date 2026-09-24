@@ -133,16 +133,33 @@ export const validationSubjects = [
 ]
 
 export function calculateFinalScore(scores) {
-  return scores.tugas * 0.2 + scores.uts * 0.3 + scores.uas * 0.4 + scores.praktik * 0.1
+  if (!scores || typeof scores !== 'object') return null
+  if ('tugas' in scores || 'uts' in scores || 'uas' in scores || 'praktik' in scores) {
+    const t = Number(scores.tugas)
+    const u = Number(scores.uts)
+    const ua = Number(scores.uas)
+    const p = Number(scores.praktik)
+    if (isNaN(t) && isNaN(u) && isNaN(ua) && isNaN(p)) return null
+    return (t || 0) * 0.2 + (u || 0) * 0.3 + (ua || 0) * 0.4 + (p || 0) * 0.1
+  }
+  const vals = Object.values(scores)
+    .filter((v) => v !== '' && v !== null && v !== undefined && !isNaN(Number(v)))
+    .map(Number)
+  if (vals.length === 0) return null
+  const sum = vals.reduce((acc, curr) => acc + curr, 0)
+  return Math.round((sum / vals.length) * 100) / 100
 }
 
 export function getPredicate(score) {
-  if (score >= 84) return 'A'
-  if (score >= 80) return 'A-'
-  if (score >= 70) return 'B'
+  if (score === null || score === undefined || isNaN(Number(score))) return '-'
+  const num = Number(score)
+  if (num >= 84) return 'A'
+  if (num >= 80) return 'A-'
+  if (num >= 70) return 'B'
   return 'C'
 }
 
 export function formatScore(score) {
-  return score.toLocaleString('id-ID', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+  if (score === null || score === undefined || isNaN(Number(score))) return '-'
+  return Number(score).toLocaleString('id-ID', { minimumFractionDigits: 0, maximumFractionDigits: 2 })
 }
