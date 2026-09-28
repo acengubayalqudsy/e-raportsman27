@@ -2,7 +2,9 @@
 
 use App\Http\Controllers\Api\V1\AcademicController;
 use App\Http\Controllers\Api\V1\AssessmentController;
+use App\Http\Controllers\Api\V1\AttendanceEntryController;
 use App\Http\Controllers\Api\V1\TeachingJournalController;
+use App\Http\Controllers\Api\V1\SavedReportController;
 use App\Http\Controllers\Api\V1\AuthController;
 use App\Http\Controllers\Api\V1\CourseAssignmentController;
 use App\Http\Controllers\Api\V1\ExtracurricularController;
@@ -11,6 +13,8 @@ use App\Http\Controllers\Api\V1\ReligionController;
 use App\Http\Controllers\Api\V1\RombelMemberController;
 use App\Http\Controllers\Api\V1\RoomController;
 use App\Http\Controllers\Api\V1\ScheduleController;
+use App\Http\Controllers\Api\V1\SettingsController;
+use App\Http\Controllers\Api\V1\DatabaseBackupController;
 use App\Http\Controllers\Api\V1\StudentController;
 use App\Http\Controllers\Api\V1\TeacherController;
 use App\Http\Controllers\Api\V1\UserController;
@@ -23,6 +27,15 @@ use Illuminate\Support\Facades\Route;
 */
 
 Route::prefix('v1')->group(function () {
+
+    Route::prefix('settings')->middleware(['auth:sanctum', 'role:admin'])->group(function () {
+        Route::get('/activity-logs', [SettingsController::class, 'logs']);
+        Route::get('/backups', [DatabaseBackupController::class, 'index']);
+        Route::post('/backups', [DatabaseBackupController::class, 'store']);
+        Route::post('/backups/{id}/restore', [DatabaseBackupController::class, 'restore'])->whereNumber('id');
+        Route::get('/{group}', [SettingsController::class, 'show']);
+        Route::put('/{group}', [SettingsController::class, 'update']);
+    });
 
     // Authentication Routes
     Route::prefix('auth')->group(function () {
@@ -42,8 +55,8 @@ Route::prefix('v1')->group(function () {
 
     // Master Data Siswa Routes
     Route::prefix('master/students')->middleware('auth:sanctum')->group(function () {
-        // Read access with row-level ownership: Administrator, Guru, Walikelas
-        Route::middleware('role:admin,guru,walikelas')->group(function () {
+        // Read access with row-level ownership for teachers and homeroom teachers.
+        Route::middleware('role:admin,guru,walikelas,kepala_sekolah')->group(function () {
             Route::get('/', [StudentController::class, 'index']);
             Route::get('/{id}', [StudentController::class, 'show'])->whereNumber('id');
         });
@@ -256,12 +269,26 @@ Route::prefix('v1')->group(function () {
         // Supplementary report card data (Wali Kelas & Admin)
         Route::get('/supplementary/{classId}/{semesterId}', [AssessmentController::class, 'getSupplementary'])->whereNumber(['classId', 'semesterId']);
         Route::post('/attendance/batch', [AssessmentController::class, 'saveAttendance']);
+        Route::get('/attendance/classes', [AttendanceEntryController::class, 'classes']);
+        Route::get('/attendance/entries', [AttendanceEntryController::class, 'index']);
+        Route::post('/attendance/entries/batch', [AttendanceEntryController::class, 'saveBatch']);
         Route::post('/extracurriculars/batch', [AssessmentController::class, 'saveExtracurriculars']);
         Route::post('/cocurriculars/batch', [AssessmentController::class, 'saveCocurriculars']);
         Route::post('/homeroom-notes/batch', [AssessmentController::class, 'saveHomeroomNotes']);
     });
 
+    Route::prefix('reports')->middleware(['auth:sanctum', 'role:admin,walikelas,kepala_sekolah'])->group(function () {
+        Route::get('/options', [SavedReportController::class, 'options']);
+        Route::get('/', [SavedReportController::class, 'index']);
+        Route::post('/', [SavedReportController::class, 'store']);
+        Route::get('/{report}', [SavedReportController::class, 'show'])->whereNumber('report');
+        Route::put('/{report}', [SavedReportController::class, 'update'])->whereNumber('report');
+        Route::post('/{report}/refresh', [SavedReportController::class, 'refresh'])->whereNumber('report');
+        Route::delete('/{report}', [SavedReportController::class, 'destroy'])->whereNumber('report');
+    });
+
     Route::prefix('journals')->middleware(['auth:sanctum', 'role:admin,guru'])->group(function () {
+        Route::get('/options', [TeachingJournalController::class, 'options']);
         Route::get('/', [TeachingJournalController::class, 'index']);
         Route::get('/{id}', [TeachingJournalController::class, 'show'])->whereNumber('id');
         Route::post('/', [TeachingJournalController::class, 'store']);

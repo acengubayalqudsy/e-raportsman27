@@ -3,13 +3,8 @@ import AssessmentFilters from './AssessmentFilters.jsx'
 import ScorePagination from './ScorePagination.jsx'
 import ScoreTable from './ScoreTable.jsx'
 import assessmentService from '../../services/assessmentService.js'
-import { assessmentOptions, scoreStudents } from '../../data/penilaian.js'
 
-const createInitialStudents = () =>
-  scoreStudents.map((student) => ({
-    ...student,
-    scores: { ...student.initialScores },
-  }))
+const assessmentTypes = ['Semua Jenis', 'Formatif', 'Sumatif Lingkup Materi', 'Sumatif Akhir Semester']
 
 function InputNilaiView({ onNotify }) {
   const [assignedCourses, setAssignedCourses] = useState([])
@@ -18,15 +13,22 @@ function InputNilaiView({ onNotify }) {
   const [isLocked, setIsLocked] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
   const [isSaving, setIsSaving] = useState(false)
+  const [loadError, setLoadError] = useState('')
+  const [reloadKey, setReloadKey] = useState(0)
+  const [savedScores, setSavedScores] = useState({})
+  const [showCreate, setShowCreate] = useState(false)
+  const [objectives, setObjectives] = useState([])
+  const [newObjective, setNewObjective] = useState({ code: '', description: '' })
+  const [newAssessment, setNewAssessment] = useState({ title: '', type: 'Formatif', learning_objective_id: '', passing_grade: '75', assessment_date: '' })
 
   const [filters, setFilters] = useState({
-    className: assessmentOptions.classes[0],
-    subject: assessmentOptions.subjects[0],
-    assessmentType: assessmentOptions.assessmentTypes[0],
-    semester: assessmentOptions.semesters[0],
+    className: '',
+    subject: '',
+    assessmentType: assessmentTypes[0],
+    semester: '',
   })
 
-  const [students, setStudents] = useState(createInitialStudents)
+  const [students, setStudents] = useState([])
   const [searchQuery, setSearchQuery] = useState('')
   const [currentPage, setCurrentPage] = useState(1)
   const [rowsPerPage, setRowsPerPage] = useState(8)
@@ -49,9 +51,13 @@ function InputNilaiView({ onNotify }) {
             ...prev,
             className: first.class_name,
             subject: first.subject_name,
-            semester: res.data.active_semester?.name || prev.semester,
+            semester: first.semester_name || res.data.active_semester?.name || '',
           }))
+        } else {
+          setLoadError('Belum ada penugasan mengajar aktif untuk akun ini.')
         }
+      } else if (isMounted) {
+        setLoadError(res.error || 'Gagal memuat penugasan mengajar.')
       }
       if (isMounted) setIsLoading(false)
     }
@@ -66,15 +72,20 @@ function InputNilaiView({ onNotify }) {
 
     async function loadGradebook() {
       setIsLoading(true)
+      setLoadError('')
+      setStudents([])
+      setAssessments([])
+      setSavedScores({})
+      setIsLocked(false)
+      setSavedRows(new Set())
       const res = await assessmentService.getGradebook(selectedCourseId)
       if (isMounted && res.success && res.data) {
         const gb = res.data
         setIsLocked(Boolean(gb.is_locked))
         setAssessments(gb.assessments || [])
 
-        if (gb.students && gb.students.length > 0) {
-          // Normalize student score structure
-          const loadedStudents = gb.students.map((st) => {
+        {
+          const loadedStudents = (gb.students || []).map((st) => {
             const scoresObj = {}
             if (st.scores) {
               Object.entries(st.scores).forEach(([assId, sc]) => {
@@ -85,34 +96,53 @@ function InputNilaiView({ onNotify }) {
               id: st.id,
               nis: st.nis,
               name: st.name,
-              kkm: 75,
+              kkm: gb.assessments?.[0]?.passing_grade ?? 75,
               scores: scoresObj,
               final_grade: st.final_grade,
             }
           })
           setStudents(loadedStudents)
+          setSavedScores(Object.fromEntries(loadedStudents.map((s) => [s.id, { ...s.scores }])))
           // Mark all loaded rows as saved initially
           setSavedRows(new Set(loadedStudents.map((s) => s.id)))
         }
+      } else if (isMounted) {
+        setLoadError(res.error || 'Gagal memuat buku nilai.')
       }
       if (isMounted) setIsLoading(false)
     }
 
     loadGradebook()
     return () => { isMounted = false }
-  }, [selectedCourseId])
+  }, [selectedCourseId, reloadKey])
+
+  const selectedCourse = assignedCourses.find((course) => course.course_assignment_id === selectedCourseId)
+
+  useEffect(() => {
+    if (!showCreate || !selectedCourse?.subject_id) return
+    let active = true
+    assessmentService.getLearningObjectives({
+      subject_id: selectedCourse.subject_id,
+      semester_id: selectedCourse.semester_id,
+      grade: selectedCourse.grade,
+    }).then((res) => {
+      if (active) setObjectives(res.success ? res.data : [])
+    })
+    return () => { active = false }
+  }, [showCreate, selectedCourse?.subject_id, selectedCourse?.semester_id, selectedCourse?.grade])
 
   // Derive dropdown options from assigned courses
   const classOptions = useMemo(() => {
-    if (!assignedCourses.length) return assessmentOptions.classes
     return [...new Set(assignedCourses.map((c) => c.class_name))]
   }, [assignedCourses])
 
   const subjectOptions = useMemo(() => {
-    if (!assignedCourses.length) return assessmentOptions.subjects
-    const filtered = assignedCourses.filter((c) => c.class_name === filters.className)
+    const filtered = assignedCourses.filter((c) => c.class_name === filters.className && c.semester_name === filters.semester)
     return [...new Set(filtered.map((c) => c.subject_name))]
-  }, [assignedCourses, filters.className])
+  }, [assignedCourses, filters.className, filters.semester])
+
+  const semesterOptions = useMemo(() => [...new Set(assignedCourses.map((c) => c.semester_name).filter(Boolean))], [assignedCourses])
+  const visibleAssessments = assessments.filter((assessment) => filters.assessmentType === 'Semua Jenis' || assessment.type === filters.assessmentType)
 
   const filteredStudents = useMemo(() => {
     const query = searchQuery.trim().toLowerCase()
@@ -132,27 +162,26 @@ function InputNilaiView({ onNotify }) {
   const visibleStudents = filteredStudents.slice(startIndex, startIndex + rowsPerPage)
 
   const handleFilterChange = (key, value) => {
-    setFilters((current) => {
-      const next = { ...current, [key]: value }
-
-      // If class changed, pick matching course assignment
-      if (key === 'className' || key === 'subject') {
-        const cls = key === 'className' ? value : next.className
-        const sbj = key === 'subject' ? value : next.subject
-        const match = assignedCourses.find((c) => c.class_name === cls && c.subject_name === sbj)
-        if (match) {
-          setSelectedCourseId(match.course_assignment_id)
-        } else {
-          const firstForClass = assignedCourses.find((c) => c.class_name === cls)
-          if (firstForClass) {
-            next.subject = firstForClass.subject_name
-            setSelectedCourseId(firstForClass.course_assignment_id)
-          }
-        }
+    const next = { ...filters, [key]: value }
+    if (key === 'className' || key === 'subject' || key === 'semester') {
+      let matching = assignedCourses.filter((course) =>
+        course.class_name === next.className && course.semester_name === next.semester)
+      if (!matching.length) {
+        matching = assignedCourses.filter((course) =>
+          key === 'semester' ? course.semester_name === next.semester : course.class_name === next.className)
       }
-
-      return next
-    })
+      const chosen = matching.find((course) => course.subject_name === next.subject) || matching[0]
+      next.className = chosen?.class_name || next.className
+      next.semester = chosen?.semester_name || next.semester
+      next.subject = chosen?.subject_name || ''
+      setSelectedCourseId(chosen?.course_assignment_id || null)
+      setShowCreate(false)
+      if (!chosen) {
+        setStudents([])
+        setAssessments([])
+      }
+    }
+    setFilters(next)
     setCurrentPage(1)
   }
 
@@ -190,22 +219,29 @@ function InputNilaiView({ onNotify }) {
     }
 
     if (!selectedCourseId || !assessments.length) {
-      setSavedRows((current) => new Set(current).add(student.id))
-      onNotify(`Nilai ${student.name} berhasil disimpan secara lokal.`)
+      onNotify('Buat instrumen penilaian terlebih dahulu sebelum mengisi nilai.')
       return
     }
 
-    const payloadScores = assessments.map((ass) => ({
+    const payloadScores = assessments.filter((ass) =>
+      (student.scores[ass.id] ?? '') !== (savedScores[student.id]?.[ass.id] ?? '')
+    ).map((ass) => ({
       assessment_id: ass.id,
       student_id: student.id,
       score: student.scores[ass.id] !== '' && student.scores[ass.id] !== undefined ? student.scores[ass.id] : null,
     }))
+
+    if (!payloadScores.length) {
+      onNotify(`Tidak ada perubahan nilai ${student.name}.`)
+      return
+    }
 
     setIsSaving(true)
     const res = await assessmentService.saveBatchScores(selectedCourseId, payloadScores)
     setIsSaving(false)
 
     if (res.success) {
+      setSavedScores((current) => ({ ...current, [student.id]: { ...student.scores } }))
       setSavedRows((current) => new Set(current).add(student.id))
       onNotify(`Nilai ${student.name} berhasil disimpan ke database.`)
     } else {
@@ -218,9 +254,10 @@ function InputNilaiView({ onNotify }) {
     if (isLocked) return
     setStudents((current) =>
       current.map((item) =>
-        item.id === student.id ? { ...item, scores: { ...item.scores } } : item,
+        item.id === student.id ? { ...item, scores: { ...(savedScores[student.id] || {}) } } : item,
       ),
     )
+    setSavedRows((current) => new Set(current).add(student.id))
     onNotify(`Nilai ${student.name} dikembalikan ke nilai awal.`)
   }
 
@@ -232,8 +269,7 @@ function InputNilaiView({ onNotify }) {
     }
 
     if (!selectedCourseId || !assessments.length) {
-      setSavedRows(new Set(students.map((s) => s.id)))
-      onNotify('Semua nilai berhasil disimpan secara lokal.')
+      onNotify('Buat instrumen penilaian terlebih dahulu sebelum mengisi nilai.')
       return
     }
 
@@ -241,11 +277,11 @@ function InputNilaiView({ onNotify }) {
     students.forEach((st) => {
       assessments.forEach((ass) => {
         const val = st.scores[ass.id]
-        if (val !== undefined && val !== '') {
+        if ((val ?? '') !== (savedScores[st.id]?.[ass.id] ?? '')) {
           allScores.push({
             assessment_id: ass.id,
             student_id: st.id,
-            score: Number(val),
+            score: val === '' || val === undefined ? null : Number(val),
           })
         }
       })
@@ -261,6 +297,7 @@ function InputNilaiView({ onNotify }) {
     setIsSaving(false)
 
     if (res.success) {
+      setSavedScores(Object.fromEntries(students.map((st) => [st.id, { ...st.scores }])))
       setSavedRows(new Set(students.map((s) => s.id)))
       onNotify(res.message || 'Semua nilai berhasil disimpan secara transaksional ke database.')
     } else {
@@ -270,7 +307,14 @@ function InputNilaiView({ onNotify }) {
 
   // Calculate final grades and competency achievements
   const handleCalculateFinal = async () => {
-    if (!selectedCourseId) return
+    if (!selectedCourseId || !assessments.length || isLocked) return
+    const hasUnsavedScores = students.some((student) => assessments.some((assessment) =>
+      (student.scores[assessment.id] ?? '') !== (savedScores[student.id]?.[assessment.id] ?? '')
+    ))
+    if (hasUnsavedScores) {
+      onNotify('Simpan perubahan nilai sebelum menghitung nilai akhir.')
+      return
+    }
 
     setIsSaving(true)
     const res = await assessmentService.calculateFinalGrades(selectedCourseId)
@@ -298,14 +342,63 @@ function InputNilaiView({ onNotify }) {
     setCurrentPage(1)
   }
 
+  const handleCreateObjective = async (event) => {
+    event.preventDefault()
+    if (!selectedCourse || !newObjective.code.trim() || !newObjective.description.trim()) return
+    setIsSaving(true)
+    const res = await assessmentService.createLearningObjective({
+      subject_id: selectedCourse.subject_id,
+      academic_year_id: selectedCourse.academic_year_id,
+      semester_id: selectedCourse.semester_id,
+      grade: selectedCourse.grade,
+      code: newObjective.code.trim(),
+      description: newObjective.description.trim(),
+    })
+    setIsSaving(false)
+    if (res.success) {
+      setObjectives((current) => [...current, res.data])
+      setNewAssessment((current) => ({ ...current, learning_objective_id: String(res.data.id) }))
+      setNewObjective({ code: '', description: '' })
+      onNotify('Tujuan pembelajaran berhasil ditambahkan.')
+    } else {
+      onNotify(res.error || 'Gagal menambahkan tujuan pembelajaran.')
+    }
+  }
+
+  const handleCreateAssessment = async (event) => {
+    event.preventDefault()
+    if (!selectedCourseId || !newAssessment.title.trim()) return
+    setIsSaving(true)
+    const res = await assessmentService.createAssessment({
+      course_assignment_id: selectedCourseId,
+      type: newAssessment.type,
+      title: newAssessment.title.trim(),
+      passing_grade: Number(newAssessment.passing_grade),
+      ...(newAssessment.learning_objective_id ? { learning_objective_id: Number(newAssessment.learning_objective_id) } : {}),
+      ...(newAssessment.assessment_date ? { assessment_date: newAssessment.assessment_date } : {}),
+    })
+    setIsSaving(false)
+    if (res.success) {
+      setNewAssessment({ title: '', type: 'Formatif', learning_objective_id: '', passing_grade: '75', assessment_date: '' })
+      setFilters((current) => ({ ...current, assessmentType: 'Semua Jenis' }))
+      setShowCreate(false)
+      setReloadKey((current) => current + 1)
+      onNotify('Instrumen penilaian berhasil ditambahkan. Kolom nilai siap diisi.')
+    } else {
+      onNotify(res.error || 'Gagal menambahkan instrumen penilaian.')
+    }
+  }
+
   return (
     <section className="assessment-workspace">
       <AssessmentFilters
         classOptions={classOptions}
+        canSave={Boolean(selectedCourseId && assessments.length && students.length && !isLoading && !loadError)}
+        semesterOptions={semesterOptions}
+        assessmentTypes={assessmentTypes}
         filters={filters}
         isLocked={isLocked}
         isSaving={isSaving}
-        onDownload={() => onNotify('Fitur unduh template Excel telah disiapkan.')}
         onFilterChange={handleFilterChange}
         onSaveAll={handleSaveAll}
         onSearchChange={handleSearchChange}
@@ -313,15 +406,52 @@ function InputNilaiView({ onNotify }) {
         subjectOptions={subjectOptions}
       />
 
+      {loadError && <div className="assessment-data-message" role="alert">{loadError}</div>}
+
+      {selectedCourseId && !loadError && (
+        <div className="assessment-create-area">
+          <button className="assessment-button secondary" disabled={isLocked || isSaving} onClick={() => setShowCreate((current) => !current)} type="button">
+            {showCreate ? 'Tutup Formulir' : '+ Tambah Instrumen Penilaian'}
+          </button>
+          {!assessments.length && !isLoading && <span>Belum ada instrumen penilaian. Tambahkan instrumen untuk mulai mengisi nilai.</span>}
+        </div>
+      )}
+
+      {showCreate && selectedCourse && !isLocked && (
+        <div className="assessment-create-panel">
+          <form onSubmit={handleCreateObjective}>
+            <h3>Tambah Tujuan Pembelajaran</h3>
+            <p>Opsional. Tujuan pembelajaran baru akan langsung terpilih untuk instrumen berikutnya.</p>
+            <div className="assessment-create-fields">
+              <label>Kode TP<input maxLength="30" onChange={(event) => setNewObjective((current) => ({ ...current, code: event.target.value }))} placeholder="Contoh: TP-01" required value={newObjective.code} /></label>
+              <label>Deskripsi TP<input onChange={(event) => setNewObjective((current) => ({ ...current, description: event.target.value }))} required value={newObjective.description} /></label>
+              <button className="assessment-button secondary" disabled={isSaving} type="submit">Simpan TP</button>
+            </div>
+          </form>
+          <form onSubmit={handleCreateAssessment}>
+            <h3>Tambah Instrumen Penilaian</h3>
+            <div className="assessment-create-fields">
+              <label>Judul<input maxLength="100" onChange={(event) => setNewAssessment((current) => ({ ...current, title: event.target.value }))} required value={newAssessment.title} /></label>
+              <label>Jenis<select onChange={(event) => setNewAssessment((current) => ({ ...current, type: event.target.value }))} value={newAssessment.type}>{assessmentTypes.slice(1).map((type) => <option key={type} value={type}>{type}</option>)}</select></label>
+              <label>Tujuan Pembelajaran<select onChange={(event) => setNewAssessment((current) => ({ ...current, learning_objective_id: event.target.value }))} value={newAssessment.learning_objective_id}><option value="">Tanpa TP</option>{objectives.map((objective) => <option key={objective.id} value={objective.id}>{objective.code} — {objective.description}</option>)}</select></label>
+              <label>KKTP<input max="100" min="0" onChange={(event) => setNewAssessment((current) => ({ ...current, passing_grade: event.target.value }))} required type="number" value={newAssessment.passing_grade} /></label>
+              <label>Tanggal<input onChange={(event) => setNewAssessment((current) => ({ ...current, assessment_date: event.target.value }))} type="date" value={newAssessment.assessment_date} /></label>
+              <button className="assessment-button primary" disabled={isSaving} type="submit">{isSaving ? 'Menyimpan...' : 'Simpan Instrumen'}</button>
+            </div>
+          </form>
+        </div>
+      )}
+
       {isLoading ? (
         <div style={{ textAlign: 'center', padding: '3rem', color: '#64748b' }}>
           <p>Memuat data nilai dari server...</p>
         </div>
-      ) : (
+      ) : selectedCourseId && !loadError ? (
         <ScoreTable
           assessmentType={filters.assessmentType}
-          assessments={assessments}
+          assessments={visibleAssessments}
           isLocked={isLocked}
+          isSaving={isSaving}
           onCalculateFinal={handleCalculateFinal}
           onReset={handleResetRow}
           onSave={handleSaveRow}
@@ -331,16 +461,16 @@ function InputNilaiView({ onNotify }) {
           students={visibleStudents}
           subject={filters.subject}
         />
-      )}
+      ) : null}
 
-      <ScorePagination
+      {selectedCourseId && !loadError && <ScorePagination
         currentPage={safePage}
         onPageChange={setCurrentPage}
         onRowsPerPageChange={handleRowsPerPageChange}
         rowsPerPage={rowsPerPage}
         totalItems={filteredStudents.length}
         totalPages={totalPages}
-      />
+      />}
     </section>
   )
 }

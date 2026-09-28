@@ -1,0 +1,43 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "E-Raport: Jalankan proyek",
+      "type": "shell",
+      "command": "npm",
+      "args": ["run", "dev"],
+      "windows": {
+        "command": "npm.cmd"
+      },
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "isBackground": true,
+      "runOptions": {
+        "runOn": "folderOpen",
+        "instanceLimit": 1
+      },
+      "presentation": {
+        "reveal": "silent",
+        "focus": false,
+        "panel": "dedicated",
+        "showReuseMessage": false
+      },
+      "problemMatcher": {
+        "owner": "eraport-dev",
+        "pattern": {
+          "regexp": "^(.+):(\\d+):(\\d+):\\s+(.*)$",
+          "file": 1,
+          "line": 2,
+          "column": 3,
+          "message": 4
+        },
+        "background": {
+          "activeOnStart": true,
+          "beginsPattern": "^\\[MULAI\\] E-Raport",
+          "endsPattern": "^\\[SIAP\\] E-Raport"
+        }
+      }
+    }
+  ]
+}

@@ -24,7 +24,7 @@ class AcademicAuthorizationService
      */
     public function getAllowedClassIds(User $user, ?int $semesterId = null): array
     {
-        if ($user->hasRole('admin')) {
+        if ($user->hasAnyRole(['admin', 'kepala_sekolah'])) {
             return SchoolClass::pluck('id')->toArray();
         }
 
@@ -60,7 +60,7 @@ class AcademicAuthorizationService
      */
     public function canAccessStudent(User $user, Student|int $student, ?int $semesterId = null): bool
     {
-        if ($user->hasRole('admin')) {
+        if ($user->hasAnyRole(['admin', 'kepala_sekolah'])) {
             return true;
         }
 

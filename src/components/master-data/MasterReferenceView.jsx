@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import Button from '../common/Button.jsx'
 import Icon from '../common/Icon.jsx'
 import SearchInput from '../common/SearchInput.jsx'
-import { masterSchemas, masterOptions } from '../../data/masterData.js'
+import { masterSchemas } from '../../data/masterData.js'
 import { MasterDeleteModal, MasterDetailModal, MasterEntityModal } from './MasterModals.jsx'
 import MasterPagination from './MasterPagination.jsx'
 import academicService from '../../services/academicService.js'
@@ -18,7 +18,7 @@ const referenceConfig = {
   'tahun-ajaran': { filterKey: 'status', filterLabel: 'Status', allLabel: 'Semua Status', canActivate: true },
   semester: { filterKey: 'academicYear', filterLabel: 'Tahun Ajaran', allLabel: 'Semua Tahun', canActivate: true },
   agama: { filterKey: 'status', filterLabel: 'Status', allLabel: 'Semua Status', canToggleStatus: true },
-  ekstrakurikuler: { filterKey: 'status', filterLabel: 'Status', allLabel: 'Semua Status' },
+  ekstrakurikuler: { filterKey: 'status', filterLabel: 'Status', allLabel: 'Semua Status', canToggleStatus: true },
   'pengguna-role': { filterKey: 'role', filterLabel: 'Role', allLabel: 'Semua Role', canToggleStatus: true },
 }
 
@@ -39,11 +39,11 @@ function getDefaultRecord(activeKey) {
     kelas: { capacity: 36, status: 'Aktif' },
     ruangan: { capacity: 36, status: 'Aktif' },
     'mata-pelajaran': { weeklyHours: 2, grades: 'X, XI, XII', status: 'Aktif' },
-    'tahun-ajaran': { status: 'Tidak Aktif' },
-    semester: { status: 'Tidak Aktif' },
+    'tahun-ajaran': { status: 'Akan Datang' },
+    semester: { status: 'Akan Datang' },
     agama: { status: 'Aktif' },
     ekstrakurikuler: { status: 'Aktif', teacher_id: '' },
-    'pengguna-role': { status: 'Aktif', role: 'Guru' },
+    'pengguna-role': { status: 'Aktif', roles: [] },
   }
 
   return defaults[activeKey] ?? {}
@@ -120,7 +120,7 @@ function getModuleService(activeKey) {
       createItem: (data) => religionService.createReligion(data),
       updateItem: (id, data) => religionService.updateReligion(id, data),
       deleteItem: (id) => religionService.deleteReligion(id),
-      toggleStatus: (id) => religionService.toggleReligionStatus(id),
+      toggleStatus: (id) => religionService.toggleStatus(id),
     }
   }
   if (activeKey === 'ekstrakurikuler') {
@@ -130,6 +130,7 @@ function getModuleService(activeKey) {
       createItem: (data) => extracurricularService.createExtracurricular(data),
       updateItem: (id, data) => extracurricularService.updateExtracurricular(id, data),
       deleteItem: (id) => extracurricularService.deleteExtracurricular(id),
+      toggleStatus: (id) => extracurricularService.toggleStatus(id),
     }
   }
   if (activeKey === 'pengguna-role') {
@@ -139,7 +140,7 @@ function getModuleService(activeKey) {
       createItem: (data) => userService.createUser(data),
       updateItem: (id, data) => userService.updateUser(id, data),
       deleteItem: (id) => userService.deleteUser(id),
-      toggleStatus: (id) => userService.toggleUserStatus(id),
+      toggleStatus: (id) => userService.toggleStatus(id),
     }
   }
   return null
@@ -184,8 +185,7 @@ function MasterReferenceView({ activeKey, onNotify }) {
         .getAcademicYears({ per_page: 100 })
         .then((res) => {
           if (isMounted && res.success && Array.isArray(res.data)) {
-            const names = res.data.map((y) => y.name)
-            setAvailableYears(names)
+            setAvailableYears(res.data)
           }
         })
         .catch(() => {})
@@ -204,8 +204,7 @@ function MasterReferenceView({ activeKey, onNotify }) {
         .getRoles()
         .then((res) => {
           if (isMounted && res.success && Array.isArray(res.data)) {
-            const names = res.data.map((r) => r.display_name || r.name)
-            if (names.length > 0) setAvailableRoles(names)
+            setAvailableRoles(res.data)
           }
         })
         .catch(() => {})
@@ -218,16 +217,21 @@ function MasterReferenceView({ activeKey, onNotify }) {
 
   // Load available teachers from backend for extracurricular supervisor selection
   useEffect(() => {
-    if (activeKey === 'ekstrakurikuler') {
+    if (activeKey === 'ekstrakurikuler' || activeKey === 'pengguna-role') {
       let isMounted = true
-      teacherService
-        .getTeachers({ per_page: 100 })
-        .then((res) => {
-          if (isMounted && res.success && Array.isArray(res.data)) {
-            setAvailableTeachers(res.data)
-          }
-        })
-        .catch(() => {})
+      const loadTeachers = async () => {
+        const teachers = []
+        let page = 1
+        while (true) {
+          const result = await teacherService.getTeachers({ page, per_page: 100 })
+          if (!result.success || !isMounted) return
+          teachers.push(...result.data)
+          if (page >= (result.meta?.last_page || 1)) break
+          page += 1
+        }
+        if (isMounted) setAvailableTeachers(teachers)
+      }
+      void loadTeachers()
 
       return () => {
         isMounted = false
@@ -283,8 +287,7 @@ function MasterReferenceView({ activeKey, onNotify }) {
   // Computed filter options
   const filterOptions = useMemo(() => {
     if (activeKey === 'kelas' || activeKey === 'semester') {
-      if (availableYears.length > 0) return availableYears
-      return masterOptions.academicYears || []
+      return availableYears.map((year) => year.name)
     }
     if (activeKey === 'mata-pelajaran') return ['Umum', 'IPA', 'IPS', 'Muatan Lokal', 'Layanan']
     if (activeKey === 'tahun-ajaran') return ['Aktif', 'Tidak Aktif', 'Selesai', 'Akan Datang']
@@ -292,7 +295,7 @@ function MasterReferenceView({ activeKey, onNotify }) {
       return ['Aktif', 'Tidak Aktif']
     }
     if (activeKey === 'pengguna-role') {
-      return availableRoles.length > 0 ? availableRoles : ['Admin', 'Guru', 'Wali Kelas', 'Kepala Sekolah', 'Siswa']
+      return availableRoles.map((role) => role.display_name || role.name)
     }
     return []
   }, [activeKey, availableYears, availableRoles])
@@ -300,8 +303,10 @@ function MasterReferenceView({ activeKey, onNotify }) {
   // Dynamic form fields for modals
   const activeFormFields = useMemo(() => {
     if (!schema) return []
-    if (['semester', 'kelas'].includes(activeKey) && availableYears.length > 0) {
-      return schema.formFields.map((f) => (f.key === 'academicYear' ? { ...f, options: availableYears } : f))
+    if (['semester', 'kelas'].includes(activeKey)) {
+      return schema.formFields.map((field) => field.key === 'academic_year_id'
+        ? { ...field, options: availableYears.map((year) => ({ value: String(year.id), label: year.name })) }
+        : field)
     }
     if (activeKey === 'agama') {
       return [
@@ -329,14 +334,24 @@ function MasterReferenceView({ activeKey, onNotify }) {
         { key: 'code', label: 'Kode Ekstrakurikuler', required: true },
         { key: 'name', label: 'Nama Ekstrakurikuler', required: true },
         { key: 'teacher_id', label: 'Pembina', type: 'select', options: teacherOptions },
+        { key: 'description', label: 'Deskripsi Kegiatan', type: 'textarea', fullWidth: true },
         { key: 'status', label: 'Status', type: 'select', options: ['Aktif', 'Tidak Aktif'] },
       ]
     }
     if (activeKey === 'pengguna-role') {
       const isEdit = modal?.type === 'edit'
+      const currentUserId = modal?.item?.id
+      const teacherOptions = [
+        { value: '', label: 'Tidak ditautkan' },
+        ...availableTeachers.filter((teacher) => !teacher.user_id || teacher.user_id === currentUserId)
+          .map((teacher) => ({ value: String(teacher.id), label: teacher.name })),
+      ]
       return [
         { key: 'name', label: 'Nama Pengguna', required: true },
-        { key: 'username', label: 'Email / Username', required: true },
+        { key: 'username', label: 'Username', required: true },
+        { key: 'email', label: 'Email', type: 'email', required: true },
+        { key: 'phone', label: 'Nomor Telepon', type: 'tel' },
+        { key: 'teacher_id', label: 'Profil Guru (jika diperlukan)', type: 'select', options: teacherOptions },
         {
           key: 'password',
           label: isEdit ? 'Password Baru (Kosongkan jika tidak diubah)' : 'Password',
@@ -344,10 +359,10 @@ function MasterReferenceView({ activeKey, onNotify }) {
           required: !isEdit,
         },
         {
-          key: 'role',
+          key: 'roles',
           label: 'Role',
-          type: 'select',
-          options: availableRoles.length > 0 ? availableRoles : ['Admin', 'Guru', 'Wali Kelas', 'Kepala Sekolah', 'Siswa'],
+          type: 'multiselect',
+          options: availableRoles.map((role) => ({ value: role.name, label: role.display_name || role.name })),
           required: true,
         },
         { key: 'status', label: 'Status', type: 'select', options: ['Aktif', 'Tidak Aktif'] },
@@ -686,6 +701,10 @@ function MasterReferenceView({ activeKey, onNotify }) {
               ? {
                   ...currentModal.item,
                   teacher_id: currentModal.item.teacher_id ? String(currentModal.item.teacher_id) : '',
+                  phone: currentModal.item.phone === '-' ? '' : currentModal.item.phone,
+                  roles: Array.isArray(currentModal.item.roles)
+                    ? currentModal.item.roles.map((role) => role.name)
+                    : [],
                 }
               : getDefaultRecord(activeKey)
           }

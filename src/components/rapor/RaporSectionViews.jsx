@@ -9,7 +9,7 @@ function RaporSectionViews({ activeKey, onNotify }) {
   if (activeKey === 'leger-nilai') return <LegerNilaiView />
   if (activeKey === 'leger-deskripsi') return <LegerDeskripsiView />
   if (activeKey === 'peringkat-kelas') return <PeringkatKelasView />
-  if (activeKey === 'cover-rapor') return <CoverRaporView onNotify={onNotify} />
+  if (activeKey === 'cover-rapor') return <CoverRaporView />
   if (activeKey === 'cetak-export') return <ExportRaporView onNotify={onNotify} />
   return null
 }

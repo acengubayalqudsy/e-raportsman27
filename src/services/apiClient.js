@@ -184,6 +184,7 @@ export default {
   get: (endpoint, headers) => request(endpoint, { method: 'GET', headers }),
   post: (endpoint, body, headers) => request(endpoint, { method: 'POST', body, headers }),
   put: (endpoint, body, headers) => request(endpoint, { method: 'PUT', body, headers }),
+  patch: (endpoint, body, headers) => request(endpoint, { method: 'PATCH', body, headers }),
   delete: (endpoint, headers) => request(endpoint, { method: 'DELETE', headers }),
   auth: authApi,
   getCsrfCookie,

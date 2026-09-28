@@ -3,6 +3,7 @@ import Button from '../common/Button.jsx'
 import Icon from '../common/Icon.jsx'
 import SearchInput from '../common/SearchInput.jsx'
 import roomService from '../../services/roomService.js'
+import { useAcademicContext } from '../../context/AcademicContext.jsx'
 import { MasterDeleteModal, MasterDetailModal } from './MasterModals.jsx'
 import MasterPagination from './MasterPagination.jsx'
 import MasterSummary from './MasterSummary.jsx'
@@ -37,10 +38,10 @@ function RoomModal({ initialData = null, onClose, onSave }) {
     name: initialData?.name || '',
     capacity: initialData?.capacity || 36,
     room_type: initialData?.room_type || 'Kelas',
-    building: initialData?.building || '',
-    floor: initialData?.floor || '',
+    building: initialData?.building === '-' ? '' : initialData?.building || '',
+    floor: initialData?.floor === '-' ? '' : initialData?.floor || '',
     status: initialData?.status || 'Aktif',
-    notes: initialData?.notes || initialData?.description || '',
+    notes: initialData?.notes === '-' ? '' : initialData?.notes || initialData?.description || '',
   })
   const [errorMessage, setErrorMessage] = useState('')
   const [fieldErrors, setFieldErrors] = useState({})
@@ -67,7 +68,7 @@ function RoomModal({ initialData = null, onClose, onSave }) {
     try {
       const payload = {
         ...formData,
-        capacity: Number(formData.capacity) || 36,
+        capacity: Number(formData.capacity),
         status: formData.status === 'Tidak Aktif' || formData.status === 'Nonaktif' ? 'Tidak Aktif' : 'Aktif',
         notes: formData.notes || '',
       }
@@ -151,7 +152,7 @@ function RoomModal({ initialData = null, onClose, onSave }) {
                 <label>
                   <span>Kapasitas (Siswa) <b>*</b></span>
                   <input
-                    min="0"
+                    min="1"
                     placeholder="36"
                     required
                     style={fieldErrors.capacity ? { borderColor: '#ef4444' } : {}}
@@ -228,6 +229,7 @@ function RoomModal({ initialData = null, onClose, onSave }) {
 }
 
 function MasterRoomView({ onNotify }) {
+  const { selectedYearId } = useAcademicContext()
   const [rooms, setRooms] = useState([])
   const [stats, setStats] = useState(null)
   const [meta, setMeta] = useState({ current_page: 1, last_page: 1, per_page: 10, total: 0 })
@@ -247,7 +249,7 @@ function MasterRoomView({ onNotify }) {
   useEffect(() => {
     let isMounted = true
     roomService
-      .getStats()
+      .getStats(selectedYearId)
       .then((res) => {
         if (!isMounted) return
         if (res.success) setStats(res.data)
@@ -257,7 +259,7 @@ function MasterRoomView({ onNotify }) {
     return () => {
       isMounted = false
     }
-  }, [refreshTrigger])
+  }, [selectedYearId, refreshTrigger])
 
   // 2. Fetch paginated rooms
   useEffect(() => {
@@ -270,11 +272,16 @@ function MasterRoomView({ onNotify }) {
           per_page: perPage,
           search,
           room_type: roomTypeFilter,
+          academic_year_id: selectedYearId,
           status: statusFilter,
         })
         .then((res) => {
           if (!isMounted) return
           if (res.success) {
+            if (page > (res.meta?.last_page || 1)) {
+              setPage(1)
+              return
+            }
             setRooms(res.data)
             setMeta(res.meta)
           } else {
@@ -293,10 +300,10 @@ function MasterRoomView({ onNotify }) {
       isMounted = false
       window.clearTimeout(timeoutId)
     }
-  }, [page, perPage, roomTypeFilter, statusFilter, search, refreshTrigger, onNotify])
+  }, [page, perPage, roomTypeFilter, statusFilter, search, selectedYearId, refreshTrigger, onNotify])
 
   const handleCreate = async (payload) => {
-    const res = await roomService.createRoom(payload)
+    const res = await roomService.createRoom({ ...payload, academic_year_id: selectedYearId || undefined })
     if (res.success) {
       onNotify?.(res.message || 'Ruangan berhasil ditambahkan.')
       setActiveModal(null)

@@ -50,7 +50,7 @@ class AssessmentService
         $homeroomClass = null;
 
         if ($user->hasRole('admin')) {
-            $query = CourseAssignment::with(['schoolClass', 'subject', 'teacher'])
+            $query = CourseAssignment::with(['schoolClass', 'subject', 'teacher', 'semester'])
                 ->where('status', 'Aktif');
             if ($activeSemester && $query->clone()->where('semester_id', $activeSemester->id)->exists()) {
                 $query->where('semester_id', $activeSemester->id);
@@ -60,6 +60,10 @@ class AssessmentService
                     'course_assignment_id' => $ca->id,
                     'class_id' => $ca->class_id,
                     'class_name' => $ca->schoolClass?->name ?? 'Kelas ' . $ca->class_id,
+                    'grade' => $ca->schoolClass?->grade,
+                    'academic_year_id' => $ca->academic_year_id,
+                    'semester_id' => $ca->semester_id,
+                    'semester_name' => $ca->semester?->name,
                     'subject_id' => $ca->subject_id,
                     'subject_name' => $ca->subject?->name ?? 'Mapel ' . $ca->subject_id,
                     'teacher_name' => $ca->teacher?->name ?? '-',
@@ -67,8 +71,23 @@ class AssessmentService
                 ])
                 ->values()
                 ->all();
+            $firstCourse = !empty($assignedCourses) ? $assignedCourses[0] : null;
+            if ($firstCourse) {
+                $homeroomClass = [
+                    'class_id' => $firstCourse['class_id'],
+                    'class_name' => $firstCourse['class_name'],
+                ];
+            } else {
+                $firstClass = SchoolClass::where('status', 'Aktif')->first() ?? SchoolClass::first();
+                if ($firstClass) {
+                    $homeroomClass = [
+                        'class_id' => $firstClass->id,
+                        'class_name' => $firstClass->name,
+                    ];
+                }
+            }
         } elseif ($teacher) {
-            $query = CourseAssignment::with(['schoolClass', 'subject'])
+            $query = CourseAssignment::with(['schoolClass', 'subject', 'semester'])
                 ->where('teacher_id', $teacher->id)
                 ->where('status', 'Aktif');
             if ($activeSemester && $query->clone()->where('semester_id', $activeSemester->id)->exists()) {
@@ -79,6 +98,10 @@ class AssessmentService
                     'course_assignment_id' => $ca->id,
                     'class_id' => $ca->class_id,
                     'class_name' => $ca->schoolClass?->name ?? 'Kelas ' . $ca->class_id,
+                    'grade' => $ca->schoolClass?->grade,
+                    'academic_year_id' => $ca->academic_year_id,
+                    'semester_id' => $ca->semester_id,
+                    'semester_name' => $ca->semester?->name,
                     'subject_id' => $ca->subject_id,
                     'subject_name' => $ca->subject?->name ?? 'Mapel ' . $ca->subject_id,
                     'role' => $ca->role,
@@ -90,12 +113,35 @@ class AssessmentService
                 ->where('teacher_id', $teacher->id)
                 ->where('status', 'Aktif')
                 ->when($activeSemester, fn($q) => $q->where('semester_id', $activeSemester->id))
-                ->first();
+                ->first()
+                ?? HomeroomAssignment::with('schoolClass')
+                    ->where('teacher_id', $teacher->id)
+                    ->where('status', 'Aktif')
+                    ->latest('id')
+                    ->first();
 
             if ($homeroom) {
                 $homeroomClass = [
                     'class_id' => $homeroom->class_id,
                     'class_name' => $homeroom->schoolClass?->name ?? 'Kelas ' . $homeroom->class_id,
+                ];
+            } elseif (!empty($assignedCourses)) {
+                $homeroomClass = [
+                    'class_id' => $assignedCourses[0]['class_id'],
+                    'class_name' => $assignedCourses[0]['class_name'],
+                ];
+            }
+        } elseif ($user->hasRole('walikelas')) {
+            $activeHomeroom = HomeroomAssignment::with('schoolClass')
+                ->where('status', 'Aktif')
+                ->when($activeSemester, fn($q) => $q->where('semester_id', $activeSemester->id))
+                ->first()
+                ?? HomeroomAssignment::with('schoolClass')->where('status', 'Aktif')->first();
+
+            if ($activeHomeroom) {
+                $homeroomClass = [
+                    'class_id' => $activeHomeroom->class_id,
+                    'class_name' => $activeHomeroom->schoolClass?->name ?? 'Kelas ' . $activeHomeroom->class_id,
                 ];
             }
         }
@@ -1005,20 +1051,57 @@ class AssessmentService
         DB::transaction(function () use ($classId, $semesterId, $items, $user, &$saved) {
             foreach ($items as $item) {
                 $studentId = (int)$item['student_id'];
-                if (!empty($item['title']) && !empty($item['description'])) {
-                    StudentCocurricular::updateOrCreate(
-                        [
-                            'student_id' => $studentId,
-                            'semester_id' => $semesterId,
-                            'class_id' => $classId,
-                            'title' => trim($item['title']),
-                        ],
-                        [
-                            'description' => trim($item['description']),
-                        ]
-                    );
-                    $saved++;
+                if (array_key_exists('projects', $item)) {
+                    $keptIds = [];
+                    foreach ($item['projects'] as $project) {
+                        $record = null;
+                        if (!empty($project['id'])) {
+                            $record = StudentCocurricular::where('student_id', $studentId)
+                                ->where('semester_id', $semesterId)
+                                ->where('class_id', $classId)
+                                ->find((int)$project['id']);
+                            if (!$record) {
+                                throw ValidationException::withMessages([
+                                    'items' => ['Projek kokurikuler tidak termasuk siswa dan kelas yang dipilih.'],
+                                ]);
+                            }
+                        }
+
+                        $record ??= new StudentCocurricular();
+                        $record->student_id = $studentId;
+                        $record->semester_id = $semesterId;
+                        $record->class_id = $classId;
+                        $record->title = trim($project['title']);
+                        $record->description = trim($project['description']);
+                        $record->save();
+                        $keptIds[] = $record->id;
+                        $saved++;
+                    }
+
+                    StudentCocurricular::where('student_id', $studentId)
+                        ->where('semester_id', $semesterId)
+                        ->where('class_id', $classId)
+                        ->when($keptIds, fn ($query) => $query->whereNotIn('id', $keptIds))
+                        ->delete();
+                    continue;
                 }
+                if (empty($item['title']) || empty($item['description'])) {
+                    throw ValidationException::withMessages([
+                        'items' => ['Judul dan deskripsi projek kokurikuler wajib diisi.'],
+                    ]);
+                }
+                StudentCocurricular::updateOrCreate(
+                    [
+                        'student_id' => $studentId,
+                        'semester_id' => $semesterId,
+                        'class_id' => $classId,
+                        'title' => trim($item['title']),
+                    ],
+                    [
+                        'description' => trim($item['description']),
+                    ]
+                );
+                $saved++;
             }
 
             AuditLog::create([

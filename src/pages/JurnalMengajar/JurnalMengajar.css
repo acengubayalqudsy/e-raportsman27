@@ -34,6 +34,48 @@
 .journal-live-form .journal-form-field-wide, .journal-live-form-actions { grid-column: 1 / -1; }
 .journal-live-form textarea { min-height: 76px; resize: vertical; }
 .journal-live-form-actions { display: flex; justify-content: flex-end; gap: 9px; padding-top: 5px; }
+
+.journal-workspace { display: flex; min-width: 0; flex-direction: column; gap: 14px; }
+.journal-workspace-toolbar {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(145px, 1fr)) minmax(210px, 1.3fr);
+  gap: 12px;
+  padding: 16px;
+  background: #fff;
+  border: 1px solid #dfe7ef;
+  border-radius: 11px;
+}
+.journal-workspace-toolbar .journal-filter-field { font-size: 11px; }
+.journal-workspace-toolbar .journal-filter-field input,
+.journal-workspace-toolbar .journal-filter-field select { min-height: 38px; font-size: 12px; }
+.journal-workspace-heading { display: flex; align-items: center; justify-content: space-between; gap: 14px; }
+.journal-workspace-heading h3 { margin: 0 0 4px; color: #17243a; font-size: 17px; }
+.journal-workspace-heading p { margin: 0; color: #64748b; font-size: 12px; }
+.journal-workspace-table td, .journal-workspace-table th { padding: 13px 14px; font-size: 12px; }
+.journal-workspace-table td strong { font-size: 12px; }
+.journal-workspace-table td small { font-size: 11px; }
+.journal-workspace-detail { max-width: 400px; white-space: pre-wrap; overflow-wrap: anywhere; }
+.journal-workspace-table td .journal-workspace-icon-button,
+.journal-workspace-table td .journal-workspace-icon-button:last-child { margin-right: 6px; padding: 7px; color: #07895a; background: #effaf4; border: 1px solid #d4eee0; border-radius: 7px; }
+.journal-workspace-table td .journal-workspace-icon-button.is-danger { color: #b42318; background: #fff5f5; border-color: #f9d7d7; }
+.journal-workspace-pagination { display: flex; align-items: center; justify-content: flex-end; gap: 8px; color: #64748b; font-size: 12px; }
+.journal-workspace-pagination span { margin-right: auto; }
+.journal-workspace-modal .journal-live-form { overflow-y: auto; }
+.journal-workspace-modal .journal-form-field { font-size: 12px; }
+.journal-workspace-modal .journal-form-field input,
+.journal-workspace-modal .journal-form-field select,
+.journal-workspace-modal .journal-form-field textarea { min-height: 38px; font-size: 12px; }
+.journal-workspace-modal .journal-form-field textarea { min-height: 82px; }
+.journal-workspace-modal .journal-live-error { font-size: 12px; }
+
+@media (max-width: 900px) {
+  .journal-workspace-toolbar { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (max-width: 600px) {
+  .journal-workspace-toolbar { grid-template-columns: 1fr; }
+  .journal-workspace-heading { align-items: stretch; flex-direction: column; }
+  .journal-workspace-pagination { flex-wrap: wrap; }
+}
 @media (max-width: 900px) {
   .journal-live-toolbar { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }

@@ -133,31 +133,75 @@ Detail lengkap tersedia di [PRD.md](./PRD.md).
 - PHP 8.2+
 - Composer 2+
 - Extension PHP SQLite untuk automated test
+- MariaDB/MySQL dan extension PHP `pdo_mysql` jika `backend/.env` memakai koneksi tersebut; startup otomatis Windows mendukung XAMPP
 
 ## Local Setup
 
-```bash
-npm install
-copy .env.example .env.local
+Instalasi dependency dan penyalinan konfigurasi awal dari root project (PowerShell):
 
-cd backend
+```powershell
+npm install
+if (!(Test-Path .env.local)) { Copy-Item .env.example .env.local }
+
+Push-Location backend
 composer install
-copy .env.example .env
+if (!(Test-Path .env)) { Copy-Item .env.example .env }
+Pop-Location
+```
+
+Untuk instalasi baru, sesuaikan koneksi database pada `backend/.env`, lalu jalankan perintah berikut dari folder `backend` setelah database tersedia:
+
+```bash
 php artisan key:generate
 php artisan migrate
 php artisan db:seed
-php artisan serve
 ```
 
-Jalankan frontend dari root project pada terminal lain:
+Konfigurasi contoh memakai SQLite. Jika memakai MariaDB/MySQL, buat database terlebih dahulu dan isi `DB_CONNECTION`, `DB_HOST`, `DB_PORT`, `DB_DATABASE`, `DB_USERNAME`, serta `DB_PASSWORD` sesuai instalasi lokal. Untuk proyek yang sudah berjalan, pertahankan `.env`, `APP_KEY`, dan database yang ada; setup awal tidak perlu diulang setiap membuka folder.
+
+Variabel frontend utama adalah `VITE_API_BASE_URL`. Untuk autentikasi cookie lintas origin lokal, selaraskan `APP_URL`, `FRONTEND_URL`, `SANCTUM_STATEFUL_DOMAINS`, `SESSION_DOMAIN`, `SESSION_SECURE_COOKIE`, dan `SESSION_SAME_SITE` di backend.
+
+Seeder akun development hanya berjalan pada environment `local` atau `testing`, serta hanya jika `DEV_ADMIN_PASSWORD`, `DEV_GURU_PASSWORD`, dan `DEV_INACTIVE_PASSWORD` disediakan. Environment production hanya menjalankan reference role dan tidak membuat akun default.
+
+## Menjalankan Proyek Setiap Hari
+
+Dari root project, jalankan:
 
 ```bash
 npm run dev
 ```
 
-Variabel frontend utama adalah `VITE_API_BASE_URL`. Untuk autentikasi cookie lintas origin lokal, selaraskan `APP_URL`, `FRONTEND_URL`, `SANCTUM_STATEFUL_DOMAINS`, `SESSION_DOMAIN`, `SESSION_SECURE_COOKIE`, dan `SESSION_SAME_SITE` di backend.
+Di Windows, `start-dev.bat` menjalankan proses yang sama dan dapat dibuka dari folder mana pun. Tunggu pesan `[SIAP] E-Raport`, lalu buka **http://localhost:5173** untuk tampilan aplikasi. **http://127.0.0.1:8000** adalah backend Laravel.
 
-Seeder akun development hanya berjalan pada environment `local` atau `testing`, serta hanya jika `DEV_ADMIN_PASSWORD`, `DEV_GURU_PASSWORD`, dan `DEV_INACTIVE_PASSWORD` disediakan. Environment production hanya menjalankan reference role dan tidak membuat akun default.
+Starter membaca konfigurasi Laravel, membersihkan cache konfigurasi lokal, memeriksa database dan penyimpanan session, lalu menjalankan backend serta frontend. Jika MariaDB lokal belum aktif di Windows, starter mencoba menjalankan MariaDB XAMPP dan menunggu koneksi siap. Starter tidak menjalankan migration atau seeder dan tidak mengganti konfigurasi maupun data yang ada. Biarkan terminal tetap terbuka; `Ctrl+C` menghentikan backend/frontend yang dijalankan starter, sedangkan MariaDB tetap berjalan.
+
+### Mengakses dari HP pada Wi-Fi yang sama
+
+Jalankan mode jaringan lokal dari root project:
+
+```bash
+npm run dev:lan
+```
+
+Saat pesan `[SIAP]` muncul, buka alamat E-Raport yang tercetak di terminal pada browser HP. Pastikan HP dan komputer terhubung ke jaringan Wi-Fi yang sama, dan biarkan terminal tetap aktif. Jika Windows meminta izin firewall untuk Node.js atau PHP, izinkan akses pada **jaringan privat** saja. Jika komputer memiliki beberapa adapter jaringan dan alamat yang terpilih bukan alamat Wi-Fi, jalankan dengan `LAN_HOST=alamat_IP_Wi-Fi` (PowerShell: `$env:LAN_HOST="192.168.1.7"; npm run dev:lan`). Mode ini hanya untuk pengujian lokal dan tidak boleh digunakan untuk mengekspos aplikasi ke internet.
+
+Error `SQLSTATE[HY000] [2002] ... actively refused` berarti koneksi database ditolak, biasanya karena MariaDB belum menyala. Menutup folder atau memulai ulang komputer tidak menjamin database ikut aktif saat proyek dibuka lagi. `php artisan serve` sendiri hanya menjalankan backend; gunakan starter di atas agar database diperiksa terlebih dahulu.
+
+Untuk VS Code, task `E-Raport: Jalankan proyek` di `.vscode/tasks.json` otomatis dijalankan saat folder proyek dibuka. Pada penggunaan pertama, percayai folder proyek dan izinkan task melalui Command Palette **Tasks: Manage Automatic Tasks in Folder**, lalu pilih **Allow Automatic Tasks in Folder** dan buka ulang folder. Persetujuan ini mengikuti pengamanan editor dan tidak dapat diberikan oleh konfigurasi proyek. Task juga dapat dijalankan manual melalui **Tasks: Run Task**, lalu pilih **E-Raport: Jalankan proyek**. Editor lain dapat menggunakan `start-dev.bat` atau `npm run dev`.
+
+Jika XAMPP terpasang selain di `C:\xampp`, atur `XAMPP_HOME` sebelum menjalankan starter, misalnya di PowerShell:
+
+```powershell
+$env:XAMPP_HOME = 'D:\xampp'
+npm run dev
+```
+
+Untuk task otomatis, simpan `XAMPP_HOME` sebagai environment variable pengguna Windows dan buka ulang editor. Database di server lain harus sudah aktif; starter hanya menyalakan XAMPP lokal.
+
+Perintah tambahan:
+
+- `npm run dev:check`: periksa database/session yang dikonfigurasi tanpa menyalakan layanan.
+- `npm run dev:frontend`: jalankan Vite saja jika backend dan database dikelola terpisah.
 
 ## Database Notes
 
@@ -196,6 +240,8 @@ Command yang tersedia berdasarkan `package.json`:
 ```bash
 npm install
 npm run dev
+npm run dev:check
+npm run dev:frontend
 npm run build
 npm run lint
 npm run preview

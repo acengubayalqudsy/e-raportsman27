@@ -111,6 +111,53 @@ class RoomApiTest extends TestCase
         ]);
     }
 
+    public function test_edit_room_keeps_original_academic_year_when_not_changed(): void
+    {
+        $historicYear = AcademicYear::create([
+            'name' => '2023/2024',
+            'start_date' => '2023-07-15',
+            'end_date' => '2024-06-30',
+            'status' => 'Selesai',
+        ]);
+        $room = Room::create([
+            'academic_year_id' => $historicYear->id,
+            'code' => 'HIST-01',
+            'name' => 'Ruang Lama',
+            'capacity' => 30,
+            'room_type' => 'Kelas',
+            'status' => 'Aktif',
+        ]);
+
+        $this->actingAs($this->adminUser)->putJson("/api/v1/rooms/{$room->id}", [
+            'name' => 'Ruang Lama Diperbarui',
+        ])->assertOk()->assertJsonPath('data.academic_year_id', $historicYear->id);
+        $this->assertDatabaseHas('rooms', ['id' => $room->id, 'academic_year_id' => $historicYear->id]);
+    }
+
+    public function test_room_stats_follow_selected_academic_year(): void
+    {
+        $otherYear = AcademicYear::create([
+            'name' => '2023/2024',
+            'start_date' => '2023-07-15',
+            'end_date' => '2024-06-30',
+            'status' => 'Selesai',
+        ]);
+        foreach ([$this->year->id, $otherYear->id] as $index => $yearId) {
+            Room::create([
+                'academic_year_id' => $yearId,
+                'code' => "YEAR-{$index}",
+                'name' => "Ruang Tahun {$index}",
+                'capacity' => $index === 0 ? 30 : 40,
+                'room_type' => 'Kelas',
+                'status' => 'Aktif',
+            ]);
+        }
+        $this->actingAs($this->adminUser)
+            ->getJson("/api/v1/rooms/stats?academic_year_id={$this->year->id}")
+            ->assertOk()->assertJsonPath('data.total_rooms', 1)
+            ->assertJsonPath('data.total_capacity', 30);
+    }
+
     public function test_cannot_create_room_with_duplicate_code(): void
     {
         Room::create([

@@ -1,7 +1,9 @@
 import { useMemo } from 'react'
+import { Link } from 'react-router-dom'
 import Icon from '../../components/common/Icon.jsx'
 import { activities, announcements, attendanceData, scheduleRows, stats } from '../../data/dashboard.js'
-import { user } from '../../data/navigation.js'
+import { useAuth } from '../../auth/AuthContext.jsx'
+import { canAccessModule } from '../../constants/roles.js'
 
 function formatDate(date) {
   const formatted = new Intl.DateTimeFormat('id-ID', {
@@ -14,11 +16,48 @@ function formatDate(date) {
   return formatted.charAt(0).toUpperCase() + formatted.slice(1)
 }
 
-function DashboardHeader({ date }) {
+function MobileMenuGrid({ roles = [] }) {
+  const allItems = [
+    { key: 'absensi', label: 'Absensi', icon: 'clipboardCheck', route: '/absensi/rekap', tone: 'green' },
+    { key: 'penilaian', label: 'Nilai', icon: 'grade', route: '/penilaian', tone: 'green' },
+    { key: 'rapor-leger', label: 'Rapor', icon: 'report', route: '/rapor-leger', tone: 'green' },
+    { key: 'master-data', label: 'Siswa', icon: 'layers', route: '/master-data/siswa', tone: 'teal' },
+    { key: 'kegiatan-siswa', label: 'Kegiatan', icon: 'cap', route: '/kegiatan-siswa/keikutsertaan-ekstrakurikuler', tone: 'amber' },
+    { key: 'jurnal-mengajar', label: 'Jurnal', icon: 'journal', route: '/jurnal-mengajar/jurnal', tone: 'blue' },
+    { key: 'laporan', label: 'Laporan', icon: 'document', route: '/laporan', tone: 'purple' },
+    { key: 'pengaturan', label: 'Pengaturan', icon: 'settings', route: '/pengaturan/identitas-sekolah', tone: 'gray' },
+  ]
+
+  const items = allItems.filter((item) => canAccessModule(roles, item.key))
+
+  if (items.length === 0) return null
+
+  return (
+    <section className="mobile-menu-section" aria-label="Menu Utama">
+      <div className="mobile-section-header">
+        <h3 className="mobile-section-title">Menu Utama</h3>
+        <span className="mobile-section-desc">Akses cepat fitur akademik</span>
+      </div>
+
+      <div className="mobile-menu-grid">
+        {items.map((item) => (
+          <Link key={item.key} to={item.route} className="mobile-menu-item">
+            <div className={`mobile-menu-icon-box tone-${item.tone}`}>
+              <Icon name={item.icon} />
+            </div>
+            <span className="mobile-menu-label">{item.label}</span>
+          </Link>
+        ))}
+      </div>
+    </section>
+  )
+}
+
+function DashboardHeader({ date, userName }) {
   return (
     <section className="dashboard-header">
       <div>
-        <h2>Selamat datang, {user.greetingName} <span aria-hidden="true">{'\u{1F44B}'}</span></h2>
+        <h2>Selamat datang, {userName} <span aria-hidden="true">{'\u{1F44B}'}</span></h2>
         <p>Kelola data akademik dengan mudah dan terintegrasi</p>
       </div>
       <div className="date-pill">
@@ -189,10 +228,14 @@ function SchoolAnnouncements() {
 
 function Dashboard() {
   const currentDate = useMemo(() => formatDate(new Date()), [])
+  const { user, roles } = useAuth()
+  const userName = user?.name ? user.name.split(' ')[0] : 'Pengguna'
 
   return (
     <>
-      <DashboardHeader date={currentDate} />
+      <DashboardHeader date={currentDate} userName={userName} />
+
+      <MobileMenuGrid roles={roles} />
 
       <section className="stats-grid" aria-label="Ringkasan dashboard">
         {stats.map((stat) => (

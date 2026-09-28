@@ -703,8 +703,12 @@ class AssessmentController extends Controller
             'semester_id' => 'required|integer|exists:semesters,id',
             'items' => 'required|array',
             'items.*.student_id' => 'required|integer|exists:students,id',
-            'items.*.title' => 'required|string|max:150',
-            'items.*.description' => 'required|string',
+            'items.*.title' => 'nullable|string|max:150',
+            'items.*.description' => 'nullable|string',
+            'items.*.projects' => 'sometimes|array',
+            'items.*.projects.*.id' => 'nullable|integer|exists:student_cocurriculars,id',
+            'items.*.projects.*.title' => 'required|string|max:150',
+            'items.*.projects.*.description' => 'required|string',
         ]);
 
         if (!$this->authService->isHomeroomTeacher($request->user(), $validated['class_id'], $validated['semester_id']) && !$request->user()->hasRole('admin')) {

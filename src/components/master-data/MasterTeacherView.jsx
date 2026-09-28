@@ -8,6 +8,7 @@ import {
   teacherSummary as defaultTeacherSummary,
 } from '../../data/masterData.js'
 import teacherService from '../../services/teacherService.js'
+import academicService from '../../services/academicService.js'
 import {
   MasterDeleteModal,
   MasterDetailModal,
@@ -107,6 +108,25 @@ function MasterTeacherView({ onNotify }) {
   const [modal, setModal] = useState(null)
 
   const [refreshTrigger, setRefreshTrigger] = useState(0)
+  const [availableSubjects, setAvailableSubjects] = useState([])
+
+  useEffect(() => {
+    let isMounted = true
+    academicService.getSubjects({ status: 'Aktif', per_page: 100 }).then((result) => {
+      if (isMounted && result.success) setAvailableSubjects(result.data.map((subject) => subject.name))
+    })
+    return () => { isMounted = false }
+  }, [refreshTrigger])
+
+  const activeTeacherFormFields = useMemo(() => teacherFormFields.map((field) => {
+    if (field.key !== 'subject') return field
+    const currentSubject = modal?.teacher?.subject === '-' ? '' : modal?.teacher?.subject
+    return { ...field, options: currentSubject && !availableSubjects.includes(currentSubject)
+      ? [currentSubject, ...availableSubjects] : availableSubjects }
+  }), [availableSubjects, modal])
+  const activeTeacherFilterFields = useMemo(() => teacherFilterFields.map((field) => field.key === 'subject'
+    ? { ...field, options: ['Semua Mata Pelajaran', ...availableSubjects] }
+    : field), [availableSubjects])
 
   // 1. Fetch statistics from REST API
   useEffect(() => {
@@ -304,7 +324,7 @@ function MasterTeacherView({ onNotify }) {
       <section className="master-data-workspace">
         <div className="master-data-toolbar">
           <div className="master-filter-grid teacher-filters">
-            {teacherFilterFields.map((field) => (
+            {activeTeacherFilterFields.map((field) => (
               <label className="master-field" key={field.key}>
                 <span>{field.label}</span>
                 <select
@@ -545,8 +565,16 @@ function MasterTeacherView({ onNotify }) {
       {['add', 'edit'].includes(modal?.type) && (
         <MasterEntityModal
           entityLabel="Guru"
-          fields={teacherFormFields}
-          initialData={modal.teacher}
+          fields={activeTeacherFormFields}
+          initialData={modal.teacher ? {
+            ...modal.teacher,
+            nip: modal.teacher.nip === '-' ? '' : modal.teacher.nip,
+            nuptk: modal.teacher.nuptk === '-' ? '' : modal.teacher.nuptk,
+            phone: modal.teacher.phone === '-' ? '' : modal.teacher.phone,
+            email: modal.teacher.email === '-' ? '' : modal.teacher.email,
+            address: modal.teacher.address === '-' ? '' : modal.teacher.address,
+            subject: modal.teacher.subject === '-' ? '' : modal.teacher.subject,
+          } : undefined}
           mode={modal.type}
           onClose={() => setModal(null)}
           onSave={saveTeacher}

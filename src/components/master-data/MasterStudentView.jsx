@@ -8,6 +8,8 @@ import {
 } from '../../data/masterData.js'
 import { studentService } from '../../services/studentService.js'
 import { religionService } from '../../services/religionService.js'
+import academicService from '../../services/academicService.js'
+import { useAcademicContext } from '../../context/AcademicContext.jsx'
 import { MasterDeleteModal, MasterDetailModal, MasterEntityModal, MasterImportModal } from './MasterModals.jsx'
 import MasterPagination from './MasterPagination.jsx'
 import MasterSummary from './MasterSummary.jsx'
@@ -34,7 +36,7 @@ const studentFormFields = [
             : 'Data Wali',
     fullWidth: ['address', 'guardianAddress'].includes(field.key),
   })),
-  { key: 'className', label: 'Kelas Saat Ini', type: 'select', options: masterOptions.classes, section: 'Data Akademik Awal' },
+  { key: 'className', label: 'Kelas Saat Ini', type: 'select', options: [], required: true, section: 'Data Akademik Awal' },
 ]
 
 const studentFilterFields = [
@@ -98,6 +100,7 @@ function createDetailSections(student) {
 }
 
 function MasterStudentView({ onNotify }) {
+  const { selectedYearId } = useAcademicContext()
   const [students, setStudents] = useState([])
   const [summaryCards, setSummaryCards] = useState([])
   const [meta, setMeta] = useState({ current_page: 1, last_page: 1, per_page: 8, total: 0 })
@@ -114,6 +117,17 @@ function MasterStudentView({ onNotify }) {
 
   const [refreshTrigger, setRefreshTrigger] = useState(0)
   const [availableReligions, setAvailableReligions] = useState([])
+  const [availableClasses, setAvailableClasses] = useState([])
+
+  useEffect(() => {
+    if (!selectedYearId) return undefined
+    let isMounted = true
+    academicService.getClasses({ academic_year_id: selectedYearId, status: 'Aktif', per_page: 100 })
+      .then((result) => {
+        if (isMounted && result.success) setAvailableClasses(result.data.map((item) => item.name))
+      })
+    return () => { isMounted = false }
+  }, [selectedYearId, refreshTrigger])
 
   // Load active religions for student form dropdown
   useEffect(() => {
@@ -140,9 +154,19 @@ function MasterStudentView({ onNotify }) {
       if (field.key === 'religion' && availableReligions.length > 0) {
         return { ...field, options: availableReligions }
       }
+      if (field.key === 'className' || field.key === 'acceptedClass') {
+        const currentName = modal?.student?.[field.key]
+        const options = currentName && !availableClasses.includes(currentName)
+          ? [currentName, ...availableClasses]
+          : availableClasses
+        return { ...field, options }
+      }
       return field
     })
-  }, [availableReligions])
+  }, [availableReligions, availableClasses, modal])
+  const activeStudentFilterFields = useMemo(() => studentFilterFields.map((field) => field.key === 'className'
+    ? { ...field, options: ['Semua Kelas', ...availableClasses] }
+    : field), [availableClasses])
 
   // Load summary stats whenever refreshTrigger changes
   useEffect(() => {
@@ -300,7 +324,7 @@ function MasterStudentView({ onNotify }) {
       <section className="master-data-workspace">
         <div className="master-data-toolbar">
           <div className="master-filter-grid student-filters">
-            {studentFilterFields.map((field) => (
+            {activeStudentFilterFields.map((field) => (
               <label className="master-field" key={field.key}>
                 <span>{field.label}</span>
                 <select value={filters[field.key]} onChange={(event) => updateFilter(field.key, event.target.value)}>

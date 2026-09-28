@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { useLocation } from 'react-router-dom'
 import Icon from '../../components/common/Icon.jsx'
 import Breadcrumb from '../../components/layout/Breadcrumb.jsx'
-import LiveJournalView from '../../components/jurnal-mengajar/LiveJournalView.jsx'
+import JournalWorkspaceView from '../../components/jurnal-mengajar/JournalWorkspaceView.jsx'
 import JournalTabs from '../../components/jurnal-mengajar/JournalTabs.jsx'
 import { journalTabs } from '../../config/journalTabs.js'
 import './JurnalMengajar.css'
@@ -25,13 +25,7 @@ function JurnalMengajar() {
       </header>
 
       <JournalTabs activeKey={activeTab.key} />
-      {activeTab.key === 'jurnal' ? (
-        <LiveJournalView onNotify={setNotice} />
-      ) : (
-        <div className="journal-live-state" role="status">
-          Tampilan {activeTab.label} belum tersedia pada API jurnal mengajar.
-        </div>
-      )}
+      <JournalWorkspaceView key={activeTab.key} mode={activeTab.key} onNotify={setNotice} />
 
       {notice && (
         <div className="journal-toast" aria-live="polite" role="status">

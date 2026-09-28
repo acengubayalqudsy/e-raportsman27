@@ -604,9 +604,25 @@
 .master-form-grid label { display: flex; min-width: 0; flex-direction: column; gap: 6px; color: #334155; font-size: 9px; font-weight: 700; }
 .master-form-grid label.full-width { grid-column: 1 / -1; }
 .master-form-grid label span b { margin-left: 2px; color: #dc3545; }
+.master-form-multiselect { display: grid; gap: 8px; grid-column: 1 / -1; }
+.master-form-multiselect > span { color: #334155; font-size: 11px; font-weight: 700; }
+.master-form-multiselect > span b { color: #dc3545; margin-left: 2px; }
+.master-checkbox-options { display: flex; flex-wrap: wrap; gap: 8px; }
+.master-form-grid .master-checkbox-options label { align-items: center; background: #f7fafc; border: 1px solid #d7e1eb; border-radius: 7px; display: inline-flex; flex-direction: row; font-size: 11px; gap: 7px; padding: 8px 10px; }
+.master-form-grid .master-checkbox-options input[type="checkbox"] { height: 16px; min-height: 0; width: 16px; }
 .master-form-grid input,
 .master-form-grid select,
 .master-form-grid textarea { width: 100%; min-height: 36px; padding: 8px 10px; color: #0f172a; background: #ffffff; border: 1px solid #d7e1eb; border-radius: 7px; outline: 0; font: inherit; font-weight: 500; }
+.master-password-field { display: flex; min-width: 0; flex-direction: column; gap: 6px; }
+.master-password-field.full-width { grid-column: 1 / -1; }
+.master-form-grid .master-password-field > label { display: block; color: #334155; font-size: 9px; font-weight: 700; }
+.master-password-field > label b { margin-left: 2px; color: #dc3545; }
+.master-password-input { position: relative; }
+.master-form-grid .master-password-input input { padding-right: 46px; }
+.master-password-input button { position: absolute; top: 50%; right: 4px; display: grid; width: 36px; height: 32px; padding: 0; place-items: center; transform: translateY(-50%); color: #64748b; background: transparent; border: 0; border-radius: 6px; cursor: pointer; }
+.master-password-input button:hover { color: #047857; background: #ecfdf5; }
+.master-password-input button:focus-visible { outline: 2px solid #0aa66a; outline-offset: 1px; }
+.master-password-input button svg { width: 18px; height: 18px; }
 .master-form-grid textarea { min-height: 74px; resize: vertical; }
 .master-form-grid input:focus,
 .master-form-grid select:focus,

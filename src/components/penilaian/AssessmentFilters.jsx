@@ -1,25 +1,26 @@
 import Button from '../common/Button.jsx'
 import Icon from '../common/Icon.jsx'
 import SearchInput from '../common/SearchInput.jsx'
-import { assessmentOptions } from '../../data/penilaian.js'
 
 function AssessmentFilters({
   filters,
   onFilterChange,
   searchQuery,
   onSearchChange,
-  onDownload,
   onSaveAll,
   classOptions,
   subjectOptions,
+  semesterOptions = [],
+  assessmentTypes = [],
   isLocked = false,
   isSaving = false,
+  canSave = false,
 }) {
   const dynamicFilterFields = [
-    { key: 'className', label: 'Kelas', options: classOptions && classOptions.length > 0 ? classOptions : assessmentOptions.classes },
-    { key: 'subject', label: 'Mata Pelajaran', options: subjectOptions && subjectOptions.length > 0 ? subjectOptions : assessmentOptions.subjects },
-    { key: 'assessmentType', label: 'Penilaian', options: assessmentOptions.assessmentTypes },
-    { key: 'semester', label: 'Semester', options: assessmentOptions.semesters },
+    { key: 'className', label: 'Kelas', options: classOptions || [] },
+    { key: 'subject', label: 'Mata Pelajaran', options: subjectOptions || [] },
+    { key: 'assessmentType', label: 'Penilaian', options: assessmentTypes },
+    { key: 'semester', label: 'Semester', options: semesterOptions },
   ]
 
   return (
@@ -29,6 +30,7 @@ function AssessmentFilters({
           <label className="assessment-field" key={field.key}>
             <span>{field.label}</span>
             <select value={filters[field.key]} onChange={(event) => onFilterChange(field.key, event.target.value)}>
+              {!field.options.length && <option value="">Belum tersedia</option>}
               {field.options.map((option) => (
                 <option key={option} value={option}>{option}</option>
               ))}
@@ -49,13 +51,9 @@ function AssessmentFilters({
         </label>
 
         <div className="assessment-toolbar-actions">
-          <Button className="assessment-button secondary" onClick={onDownload}>
-            <Icon name="download" />
-            Unduh Template
-          </Button>
           <Button
             className="assessment-button primary"
-            disabled={isLocked || isSaving}
+            disabled={isLocked || isSaving || !canSave}
             onClick={onSaveAll}
           >
             <Icon name={isLocked ? "lock" : "save"} />

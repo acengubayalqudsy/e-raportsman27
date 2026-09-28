@@ -92,13 +92,14 @@ function NotesPagination({ currentPage, rowsPerPage, totalItems, onPageChange, o
 
 function NoteState({ row }) {
   const status = getRowStatus(row)
+  const isNewProject = row.projectId === null && !row.title?.trim() && !row.note.trim()
 
   return (
     <div className="activity-note-state">
       <span className={`activity-note-status ${status === 'Terisi' ? 'is-filled' : 'is-empty'}`}>{status}</span>
       <small className={row.isDirty ? 'is-dirty' : 'is-saved'}>
         <i aria-hidden="true" />
-        {row.isDirty ? 'Ada perubahan' : 'Tersimpan'}
+        {row.isDirty ? 'Ada perubahan' : isNewProject ? 'Belum disimpan' : 'Tersimpan'}
       </small>
     </div>
   )
@@ -115,7 +116,7 @@ function SelectField({ label, value, options, onChange }) {
   )
 }
 
-function NotesFilters({ filters, onFilterChange, onSearchChange, isHomeroom }) {
+function NotesFilters({ filters, onFilterChange, onSearchChange, isHomeroom, options }) {
   return (
     <div className="activity-notes-filters">
       {!isHomeroom && (
@@ -123,19 +124,19 @@ function NotesFilters({ filters, onFilterChange, onSearchChange, isHomeroom }) {
           <SelectField
             label="Kelas"
             onChange={(value) => onFilterChange('className', value)}
-            options={['Semua Kelas', ...(activityOptions.classes || [])]}
+            options={['Semua Kelas', ...options.classes]}
             value={filters.className}
           />
           <SelectField
             label="Tahun Ajaran"
             onChange={(value) => onFilterChange('academicYear', value)}
-            options={['Semua Tahun', ...(activityOptions.academicYears || [])]}
+            options={['Semua Tahun', ...options.academicYears]}
             value={filters.academicYear}
           />
           <SelectField
             label="Semester"
             onChange={(value) => onFilterChange('semester', value)}
-            options={['Semua Semester', ...(activityOptions.semesters || [])]}
+            options={['Semua Semester', ...options.semesters]}
             value={filters.semester}
           />
           <SelectField
@@ -163,7 +164,7 @@ function NotesFilters({ filters, onFilterChange, onSearchChange, isHomeroom }) {
 
 function HomeroomContextCard({ context, supplementary }) {
   const className = supplementary?.class?.name || context?.homeroom_class?.class_name || 'Kelas aktif'
-  const academicYear = supplementary?.semester?.academic_year?.name || context?.active_academic_year?.name || 'Tahun ajaran aktif'
+  const academicYear = supplementary?.semester?.academic_year || context?.active_academic_year?.name || 'Tahun ajaran aktif'
   const semester = supplementary?.semester?.name || context?.active_semester?.name || 'Semester aktif'
   const studentCount = Array.isArray(supplementary?.students) ? supplementary.students.length : 0
 
@@ -193,7 +194,7 @@ function HomeroomContextCard({ context, supplementary }) {
   )
 }
 
-function NotesTable({ rows, firstItem, noteLabel, onNoteChange, onSaveRow, showClass }) {
+function NotesTable({ rows, firstItem, noteLabel, onNoteChange, onTitleChange, onSaveRow, showClass, isSaving }) {
   return (
     <div className="activity-notes-table-wrap">
       <table className="activity-notes-table">
@@ -219,8 +220,20 @@ function NotesTable({ rows, firstItem, noteLabel, onNoteChange, onSaveRow, showC
               </td>
               {showClass && <td>{row.className || '-'}</td>}
               <td className="activity-notes-input-cell">
+                {showClass && (
+                  <input
+                    aria-label={`Judul projek untuk ${getStudentName(row)}`}
+                    className="activity-notes-title-input"
+                    disabled={isSaving}
+                    maxLength="150"
+                    onChange={(event) => onTitleChange(row.id, event.target.value)}
+                    placeholder="Judul projek kokurikuler"
+                    value={row.title}
+                  />
+                )}
                 <textarea
                   aria-label={`${noteLabel} untuk ${getStudentName(row)}`}
+                  disabled={isSaving}
                   onChange={(event) => onNoteChange(row.id, event.target.value)}
                   placeholder={`Tulis ${noteLabel.toLowerCase()}...`}
                   rows="2"
@@ -231,7 +244,7 @@ function NotesTable({ rows, firstItem, noteLabel, onNoteChange, onSaveRow, showC
               <td>
                 <Button
                   className="activity-row-save"
-                  disabled={!row.isDirty}
+                  disabled={!row.isDirty || isSaving}
                   onClick={() => onSaveRow(row.id)}
                   title={row.isDirty ? 'Simpan catatan' : 'Tidak ada perubahan untuk disimpan'}
                 >
@@ -267,22 +280,26 @@ function NotesErrorState({ message }) {
   )
 }
 
-function StudentNotesView({ type, onNotify }) {
+function StudentNotesView({ type, classId: requestedClassId, semesterId: requestedSemesterId, onNotify }) {
   const isHomeroom = type === 'homeroom'
   const noteLabel = isHomeroom ? 'Catatan Wali Kelas' : 'Catatan Kokurikuler'
-  const initialClass = isHomeroom ? 'Kelas aktif' : (activityOptions.classes?.[0] || 'Semua Kelas')
-  const initialAcademicYear = isHomeroom ? 'Tahun ajaran aktif' : (activityOptions.academicYears?.[0] || 'Semua Tahun')
-  const initialSemester = isHomeroom ? 'Semester aktif' : (activityOptions.semesters?.[0] || 'Semua Semester')
   const [notes, setNotes] = useState([])
   const [filters, setFilters] = useState({
-    className: initialClass,
-    academicYear: initialAcademicYear,
-    semester: initialSemester,
+    className: 'Semua Kelas',
+    academicYear: 'Semua Tahun',
+    semester: 'Semua Semester',
     status: 'Semua Status',
     searchQuery: '',
   })
   const [currentPage, setCurrentPage] = useState(1)
   const [rowsPerPage, setRowsPerPage] = useState(DEFAULT_ROWS_PER_PAGE)
+  const [newProjectStudentId, setNewProjectStudentId] = useState('')
+  const nextDraftId = useRef(0)
+  const filterOptions = useMemo(() => ({
+    classes: [...new Set(notes.map((row) => row.className).filter(Boolean))],
+    academicYears: [...new Set(notes.map((row) => row.academicYear).filter(Boolean))],
+    semesters: [...new Set(notes.map((row) => row.semester).filter(Boolean))],
+  }), [notes])
 
   const filteredNotes = useMemo(() => {
     const keyword = filters.searchQuery.trim().toLowerCase()
@@ -317,6 +334,12 @@ function StudentNotesView({ type, onNotify }) {
     )))
   }
 
+  const updateTitle = (id, title) => {
+    setNotes((current) => current.map((row) => (
+      row.id === id ? { ...row, title, isDirty: true } : row
+    )))
+  }
+
   const [context, setContext] = useState(null)
   const [isSaving, setIsSaving] = useState(false)
   const [loadError, setLoadError] = useState('')
@@ -324,8 +347,8 @@ function StudentNotesView({ type, onNotify }) {
   const [isLoading, setIsLoading] = useState(true)
   const isMountedRef = useRef(true)
 
-  const classId = context?.homeroom_class?.class_id || context?.homeroom_class?.id || context?.assigned_courses?.[0]?.class_id
-  const semesterId = context?.active_semester?.id
+  const classId = requestedClassId || context?.homeroom_class?.class_id || context?.assigned_courses?.[0]?.class_id
+  const semesterId = requestedSemesterId || context?.active_semester?.id
 
   const loadData = useCallback(async () => {
     if (!isMountedRef.current) return false
@@ -342,8 +365,8 @@ function StudentNotesView({ type, onNotify }) {
     }
 
     setContext(ctxRes.data)
-    const cId = ctxRes.data.homeroom_class?.id || ctxRes.data.assigned_courses?.[0]?.class_id
-    const sId = ctxRes.data.active_semester?.id
+    const cId = requestedClassId || ctxRes.data.homeroom_class?.class_id || ctxRes.data.assigned_courses?.[0]?.class_id
+    const sId = requestedSemesterId || ctxRes.data.active_semester?.id
     if (!cId || !sId) {
       setNotes([])
       setSupplementary(null)
@@ -382,14 +405,15 @@ function StudentNotesView({ type, onNotify }) {
         nis: st.nis,
         name: st.name,
         className: suppRes.data?.class?.name || 'Kelas aktif',
-        academicYear: suppRes.data?.semester?.academic_year?.name || 'Tahun ajaran aktif',
+        academicYear: suppRes.data?.semester?.academic_year || ctxRes.data.active_academic_year?.name || '',
         semester: suppRes.data?.semester?.name || 'Semester aktif',
       }
 
       const records = Array.isArray(st.cocurriculars) ? st.cocurriculars : []
-      return records.map((record, index) => ({
+      return (records.length ? records : [{ id: null, title: '', description: '' }]).map((record, index) => ({
         ...base,
         id: `${st.student_id}-${record.id || index}`,
+        projectId: record.id || null,
         note: record.description || '',
         title: record.title || '',
         status: record.description ? 'Terisi' : 'Belum Terisi',
@@ -399,7 +423,7 @@ function StudentNotesView({ type, onNotify }) {
     setNotes(mapped)
     setIsLoading(false)
     return true
-  }, [isHomeroom, noteLabel])
+  }, [isHomeroom, noteLabel, requestedClassId, requestedSemesterId])
 
   useEffect(() => {
     isMountedRef.current = true
@@ -415,11 +439,52 @@ function StudentNotesView({ type, onNotify }) {
     return () => { isMountedRef.current = false }
   }, [loadData, noteLabel])
 
+  const addProject = () => {
+    const student = supplementary?.students?.find((item) => String(item.student_id) === newProjectStudentId)
+    if (!student) {
+      onNotify?.('Pilih siswa untuk menambah projek kokurikuler.')
+      return
+    }
+    const existingBlank = notes.find((row) => row.studentId === student.student_id && !row.projectId && !row.title.trim() && !row.note.trim())
+    if (existingBlank) {
+      onNotify?.('Isi baris projek kosong untuk siswa ini terlebih dahulu.')
+      return
+    }
+    nextDraftId.current += 1
+    setNotes((current) => [{
+      id: `draft-${student.student_id}-${nextDraftId.current}`,
+      projectId: null,
+      studentId: student.student_id,
+      nis: student.nis,
+      name: student.name,
+      className: supplementary?.class?.name || 'Kelas aktif',
+      academicYear: supplementary?.semester?.academic_year || context?.active_academic_year?.name || '',
+      semester: supplementary?.semester?.name || context?.active_semester?.name || '',
+      title: '',
+      note: '',
+      isDirty: false,
+    }, ...current])
+    setFilters({ className: 'Semua Kelas', academicYear: 'Semua Tahun', semester: 'Semua Semester', status: 'Semua Status', searchQuery: '' })
+    setCurrentPage(1)
+  }
+
+  const projectsForStudent = (studentId) => notes
+    .filter((row) => row.studentId === studentId && row.title.trim() && row.note.trim())
+    .map((row) => ({ ...(row.projectId ? { id: row.projectId } : {}), title: row.title.trim(), description: row.note.trim() }))
+
   const saveRow = async (id) => {
     const target = notes.find((row) => row.id === id)
     if (!target?.isDirty || isSaving) return
-    if (!target.note.trim()) {
-      onNotify?.(`Isi ${noteLabel.toLowerCase()} ${getStudentName(target)} sebelum menyimpan.`)
+    if (!classId || !semesterId) {
+      onNotify?.('Kelas atau semester aktif tidak tersedia.')
+      return
+    }
+    if (!isHomeroom && (!target.title.trim() || !target.note.trim())) {
+      onNotify?.(`Isi judul projek dan catatan kokurikuler ${getStudentName(target)} sebelum menyimpan.`)
+      return
+    }
+    if (!isHomeroom && notes.some((row) => row.studentId === target.studentId && row.isDirty && (!row.title.trim() || !row.note.trim()))) {
+      onNotify?.(`Lengkapi semua projek yang diubah untuk ${getStudentName(target)} sebelum menyimpan.`)
       return
     }
 
@@ -428,16 +493,20 @@ function StudentNotesView({ type, onNotify }) {
     if (classId && semesterId) {
       if (isHomeroom) {
         res = await assessmentService.saveHomeroomNotes(classId, semesterId, [
-          { student_id: target.id, note: target.note },
+          { student_id: target.studentId, note: target.note },
         ])
       } else {
         res = await assessmentService.saveCocurriculars(classId, semesterId, [
-          { student_id: target.studentId, title: target.title, description: target.note },
+          { student_id: target.studentId, projects: projectsForStudent(target.studentId) },
         ])
       }
     }
     if (res?.success) {
-      const refreshed = await loadData()
+      const hasOtherChanges = notes.some((row) => row.isDirty && row.studentId !== target.studentId)
+      const refreshed = hasOtherChanges ? true : await loadData()
+      if (hasOtherChanges) {
+        setNotes((current) => current.map((row) => row.studentId === target.studentId ? { ...row, isDirty: false } : row))
+      }
       setIsSaving(false)
       if (!refreshed) {
         onNotify?.(`${noteLabel} tersimpan, tetapi verifikasi data terbaru gagal. Silakan muat ulang.`)
@@ -456,7 +525,11 @@ function StudentNotesView({ type, onNotify }) {
       return
     }
 
-    const emptyDirtyCount = notes.filter((row) => row.isDirty && !row.note.trim()).length
+    if (!classId || !semesterId) {
+      onNotify?.('Kelas atau semester aktif tidak tersedia.')
+      return
+    }
+    const emptyDirtyCount = notes.filter((row) => row.isDirty && !isHomeroom && (!row.note.trim() || !row.title.trim())).length
     if (emptyDirtyCount > 0) {
       onNotify?.(`${emptyDirtyCount} catatan masih kosong. Lengkapi sebelum menyimpan semua.`)
       return
@@ -467,15 +540,15 @@ function StudentNotesView({ type, onNotify }) {
     if (classId && semesterId) {
       if (isHomeroom) {
         const payload = notes.filter((r) => r.isDirty).map((r) => ({
-          student_id: r.id,
+          student_id: r.studentId,
           note: r.note,
         }))
         res = await assessmentService.saveHomeroomNotes(classId, semesterId, payload)
       } else {
-        const payload = notes.filter((r) => r.isDirty).map((r) => ({
-          student_id: r.studentId,
-          title: r.title,
-          description: r.note,
+        const changedStudents = [...new Set(notes.filter((row) => row.isDirty).map((row) => row.studentId))]
+        const payload = changedStudents.map((studentId) => ({
+          student_id: studentId,
+          projects: projectsForStudent(studentId),
         }))
         res = await assessmentService.saveCocurriculars(classId, semesterId, payload)
       }
@@ -502,12 +575,22 @@ function StudentNotesView({ type, onNotify }) {
         <NotesFilters
           filters={filters}
           isHomeroom={isHomeroom}
+          options={filterOptions}
           onFilterChange={updateFilter}
           onSearchChange={(value) => updateFilter('searchQuery', value)}
         />
         <div className="activity-notes-toolbar-actions">
+          {!isHomeroom && (
+            <div className="activity-add-project">
+              <select aria-label="Siswa untuk projek baru" onChange={(event) => setNewProjectStudentId(event.target.value)} value={newProjectStudentId}>
+                <option value="">Pilih siswa</option>
+                {(supplementary?.students || []).map((student) => <option key={student.student_id} value={student.student_id}>{student.nis} - {student.name}</option>)}
+              </select>
+              <Button className="activity-button activity-button-secondary" disabled={isLoading || !!loadError} onClick={addProject} type="button"><Icon name="plus" />Tambah Projek</Button>
+            </div>
+          )}
           {dirtyCount > 0 && <span className="activity-unsaved-indicator"><i aria-hidden="true" />{dirtyCount} perubahan belum disimpan</span>}
-          <Button className="activity-button primary" onClick={saveAll}>
+          <Button className="activity-button primary" disabled={isSaving || dirtyCount === 0} onClick={saveAll}>
             <Icon name="save" />
             Simpan Semua Catatan
           </Button>
@@ -520,7 +603,7 @@ function StudentNotesView({ type, onNotify }) {
             <h2>{noteLabel}</h2>
             <p>{isHomeroom ? 'Catatan perkembangan siswa dari wali kelas untuk semester aktif.' : 'Catat perkembangan siswa pada kegiatan penguatan pembelajaran.'}</p>
           </div>
-          <span className="activity-notes-total">{filteredNotes.length} siswa</span>
+          <span className="activity-notes-total">{filteredNotes.length} {isHomeroom ? 'siswa' : 'projek'}</span>
         </div>
 
         {loadError ? (
@@ -532,8 +615,10 @@ function StudentNotesView({ type, onNotify }) {
         ) : visibleRows.length > 0 ? (
           <NotesTable
             firstItem={firstItem}
+            isSaving={isSaving}
             noteLabel={noteLabel}
             onNoteChange={updateNote}
+            onTitleChange={updateTitle}
             onSaveRow={saveRow}
             rows={visibleRows}
             showClass={!isHomeroom}
@@ -557,10 +642,10 @@ function StudentNotesView({ type, onNotify }) {
   )
 }
 
-export function CocurricularNotesView({ onNotify }) {
-  return <StudentNotesView onNotify={onNotify} type="cocurricular" />
+export function CocurricularNotesView({ classId, semesterId, onNotify }) {
+  return <StudentNotesView classId={classId} semesterId={semesterId} onNotify={onNotify} type="cocurricular" />
 }
 
-export function HomeroomNotesView({ onNotify }) {
-  return <StudentNotesView onNotify={onNotify} type="homeroom" />
+export function HomeroomNotesView({ classId, semesterId, onNotify }) {
+  return <StudentNotesView classId={classId} semesterId={semesterId} onNotify={onNotify} type="homeroom" />
 }

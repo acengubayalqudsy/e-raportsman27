@@ -1,36 +1,174 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import Button from '../common/Button.jsx'
 import Icon from '../common/Icon.jsx'
 import sman27Logo from '../../assets/logo/sman-27-garut-logo.png'
-import { raporDocumentTypes, raporStudents, schoolIdentity } from '../../data/rapor.js'
+import tutWuriLogo from '../../assets/logo/tut-wuri-handayani-monochrome.jpg'
+import { raporDocumentTypes, raporStudents } from '../../data/rapor.js'
+import studentService from '../../services/studentService.js'
+import { getCurrentSchoolIdentity } from '../../services/schoolIdentitySession.js'
+import { useAcademicContext } from '../../context/AcademicContext.jsx'
 import RaporContextFilters from './RaporContextFilters.jsx'
 
-export function CoverRaporView({ onNotify }) {
-  const [studentId, setStudentId] = useState(String(raporStudents[0].id))
-  const student = raporStudents.find((item) => String(item.id) === studentId) ?? raporStudents[0]
+const showValue = (value) => String(value ?? '').trim() || '–'
+const showDate = (value) => value ? new Intl.DateTimeFormat('id-ID', { day: 'numeric', month: 'long', year: 'numeric', timeZone: 'UTC' }).format(new Date(`${value}T00:00:00Z`)) : '–'
+
+function IdentityRow({ number, label, value, strong = false, heading = false, sub = false }) {
+  return <div className={`report-identity-row${heading ? ' section-heading' : ''}${sub ? ' sub-row' : ''}`}><span>{number}</span><span>{label}</span><span>{heading ? '' : ':'}</span><span className={strong ? 'emphasis' : ''}>{heading ? '' : showValue(value)}</span></div>
+}
+
+export function CoverRaporView() {
+  const { selectedYear } = useAcademicContext()
+  const [students, setStudents] = useState([])
+  const [studentId, setStudentId] = useState('')
+  const [student, setStudent] = useState(null)
+  const [studentSearch, setStudentSearch] = useState('')
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState('')
+  const school = getCurrentSchoolIdentity()
+  const reportCity = String(school.city ?? 'Garut').replace(/^(Kabupaten|Kota)\s+/i, '').trim() || 'Garut'
+  const reportDate = new Intl.DateTimeFormat('id-ID', { day: 'numeric', month: 'long', year: 'numeric' }).format(new Date())
+
+  useEffect(() => {
+    let active = true
+    const timer = window.setTimeout(async () => {
+      const result = await studentService.getStudents({ search: studentSearch, per_page: 100, status: 'Aktif' })
+      if (!active) return
+      setStudents(result.success ? result.data : [])
+      setError(result.success ? '' : result.error)
+      setLoading(false)
+      if (result.success && result.data.length) setStudentId((current) => current || String(result.data[0].id))
+    }, 250)
+    return () => { active = false; window.clearTimeout(timer) }
+  }, [studentSearch])
+
+  useEffect(() => {
+    if (!studentId) return undefined
+    let active = true
+    studentService.getStudentById(studentId).then((result) => {
+      if (!active) return
+      setStudent(result.success ? result.data : null)
+      setError(result.success ? '' : result.error)
+    })
+    return () => { active = false }
+  }, [studentId])
+
+  const printable = Boolean(student && !error)
+  const schoolRows = [
+    ['Nama Sekolah', school.schoolName], ['NPSN', school.npsn], ['NSS', school.nss],
+    ['Alamat Sekolah', school.address], ['Kode Pos', school.postalCode], ['Telepon', school.phone],
+    ['Desa/Kelurahan', school.village], ['Kecamatan', school.district],
+    ['Kabupaten/Kota', school.city], ['Provinsi', school.province],
+    ['Website', school.website], ['E-mail', school.email],
+  ]
+
+  const handlePrint = () => {
+    const originalTitle = document.title
+    if (student?.name) {
+      document.title = `Cover_Rapor_${String(student.name).trim().replace(/\s+/g, '_')}`
+    }
+    window.print()
+    window.setTimeout(() => {
+      document.title = originalTitle
+    }, 1000)
+  }
 
   return (
     <section className="report-secondary-workspace">
-      <RaporContextFilters includeStudent values={{ studentId }} onChange={(key, value) => { if (key === 'studentId') setStudentId(value) }} />
+      <div className="report-context-filters fields-2">
+        <label className="report-field"><span>Cari Siswa</span><input onChange={(event) => setStudentSearch(event.target.value)} placeholder="Nama, NIS, atau NISN" value={studentSearch} /></label>
+        <label className="report-field"><span>Pilih Siswa</span><select onChange={(event) => setStudentId(event.target.value)} value={studentId}><option value="">Pilih siswa</option>{students.map((item) => <option key={item.id} value={item.id}>{item.name} — {item.nis}</option>)}{student && !students.some((item) => String(item.id) === studentId) && <option value={studentId}>{student.name} — {student.nis}</option>}</select></label>
+      </div>
+      {loading && <p role="status">Memuat data siswa dari server...</p>}
+      {error && <p role="alert">{error}</p>}
+      {!loading && !error && !students.length && !student && <p role="status">Belum ada siswa aktif yang dapat dipilih.</p>}
       <div className="report-cover-layout">
         <aside className="report-cover-info">
-          <span><Icon name="report" /></span><h3>Preview Cover Rapor</h3><p>Informasi sampul diambil dari Identitas Sekolah dan Master Data Siswa.</p>
-          <dl><div><dt>Nama Siswa</dt><dd>{student.name}</dd></div><div><dt>NISN</dt><dd>{student.nisn}</dd></div><div><dt>Kelas</dt><dd>{student.className}</dd></div><div><dt>Tahun Ajaran</dt><dd>{student.academicYear}</dd></div></dl>
-          <Button className="report-button secondary" onClick={() => onNotify('Preview cover siap dicetak.')}><Icon name="eye" />Preview Cetak</Button>
-          <Button className="report-button primary" onClick={() => onNotify('Export cover PDF akan tersedia pada tahap integrasi berikutnya.')}><Icon name="download" />Export Cover PDF</Button>
+          <div className="report-cover-info-header">
+            <span><Icon name="report" /></span>
+            <div>
+              <h3>Preview Rapor</h3>
+              <p>Tiga halaman awal mengikuti identitas sekolah dan biodata siswa dari Master Siswa.</p>
+            </div>
+          </div>
+          <dl>
+            <div><dt>Nama Siswa</dt><dd>{showValue(student?.name)}</dd></div>
+            <div><dt>NISN</dt><dd>{showValue(student?.nisn)}</dd></div>
+            <div><dt>Kelas</dt><dd>{showValue(student?.class_name)}</dd></div>
+            <div><dt>Tahun Ajaran</dt><dd>{showValue(selectedYear?.name)}</dd></div>
+          </dl>
+          <div className="report-cover-actions">
+            <Button className="report-button secondary" disabled={!printable} onClick={handlePrint}><Icon name="eye" />Preview Cetak</Button>
+            <Button className="report-button primary" disabled={!printable} onClick={handlePrint}><Icon name="download" />Simpan sebagai PDF</Button>
+          </div>
+          <small className="report-print-tip">Format A4 standar 3 halaman siap cetak/simpan PDF tanpa URL browser.</small>
         </aside>
 
+        <div className="report-cover-pages">
         <article className="report-cover-paper">
+          <div className="report-cover-ministry-crest">
+            <img src={tutWuriLogo} alt="Logo Tut Wuri Handayani" />
+          </div>
+          <div className="report-cover-heading">
+            <strong>RAPOR<br />SEKOLAH MENENGAH ATAS<br />( S M A )</strong>
+          </div>
           <div className="report-cover-crest">
             <img src={sman27Logo} alt="Logo SMAN 27 Garut" />
           </div>
-          <p className="report-cover-title">RAPOR PESERTA DIDIK</p>
-          <p className="report-cover-subtitle">SEKOLAH MENENGAH ATAS (SMA)</p>
-          <h3>{schoolIdentity.name}</h3>
-          <div className="report-cover-student"><span>Nama Peserta Didik</span><strong>{student.name}</strong><span>NISN</span><strong>{student.nisn}</strong></div>
-          <div className="report-cover-year"><span>Tahun Ajaran</span><strong>{student.academicYear}</strong></div>
-          <footer><strong>{schoolIdentity.ministry}</strong><span>{schoolIdentity.address}</span></footer>
+          <h3>{showValue(school.schoolName)}</h3>
+          <div className="report-cover-student">
+            <span>Nama Peserta Didik</span>
+            <strong className="report-cover-student-name">{showValue(student?.name)}</strong>
+            <strong className="report-cover-student-nisn"><span>NISN</span><span>:</span><span>{showValue(student?.nisn)}</span></strong>
+          </div>
+          <footer>KEMENTERIAN PENDIDIKAN DAN KEBUDAYAAN<br />REPUBLIK INDONESIA</footer>
         </article>
+        <article className="report-cover-paper report-identity-paper report-school-paper">
+          <header>RAPOR<small>SEKOLAH MENENGAH ATAS<br />( SMA )</small></header>
+          <div className="report-school-identity-table">
+            {schoolRows.map(([label, value]) => <IdentityRow key={label} label={label} strong={label === 'Nama Sekolah'} value={value} />)}
+          </div>
+        </article>
+        <article className="report-cover-paper report-identity-paper report-student-paper">
+          <header>IDENTITAS PESERTA DIDIK</header>
+          <div className="report-student-identity-table">
+            <IdentityRow number="1" label="Nama Lengkap Peserta Didik" strong value={student?.name} />
+            <IdentityRow number="2" label="NIS / NISN" value={student ? `${showValue(student.nis)} / ${showValue(student.nisn)}` : ''} />
+            <IdentityRow number="3" label="Tempat, Tanggal Lahir" value={student ? `${showValue(student.birth_place)}, ${showDate(student.birth_date)}` : ''} />
+            <IdentityRow number="4" label="Jenis Kelamin" value={student?.gender} />
+            <IdentityRow number="5" label="Agama" value={student?.religion} />
+            <IdentityRow number="6" label="Status dalam Keluarga" />
+            <IdentityRow number="7" label="Anak ke" />
+            <IdentityRow number="8" label="Alamat Peserta Didik" value={student?.address} />
+            <IdentityRow number="9" label="Nomor Telepon" value={student?.phone} />
+            <IdentityRow number="10" label="Sekolah Asal" value={student?.previous_school} />
+            <IdentityRow heading number="11" label="Diterima di Sekolah ini" />
+            <IdentityRow sub label="a.  Di kelas" value={student?.accepted_class} />
+            <IdentityRow sub label="b.  Pada Tanggal" value={showDate(student?.admission_date)} />
+            <IdentityRow heading number="12" label="Orang Tua" />
+            <IdentityRow sub label="a.  Nama Ayah" value={student?.father_name} />
+            <IdentityRow sub label="b.  Nama Ibu" value={student?.mother_name} />
+            <IdentityRow sub label="c.  Alamat" />
+            <IdentityRow sub label="d.  Nomor Telepon / HP" value={student?.parent_phone} />
+            <IdentityRow heading number="13" label="Pekerjaan Orang Tua" />
+            <IdentityRow sub label="a.  Ayah" value={student?.father_occupation} />
+            <IdentityRow sub label="b.  Ibu" value={student?.mother_occupation} />
+            <IdentityRow heading number="14" label="Wali Peserta Didik" />
+            <IdentityRow sub label="a.  Nama Wali" value={student?.guardian_name} />
+            <IdentityRow sub label="b.  Nomor Telepon / HP" value={student?.guardian_phone} />
+            <IdentityRow sub label="c.  Alamat" value={student?.guardian_address} />
+            <IdentityRow sub label="d.  Pekerjaan" />
+            <div className="report-student-identity-signature">
+              <div className="report-student-photo">Pas Foto<br />3 × 4</div>
+              <div className="report-student-signature-text">
+                <span>{reportCity}, {reportDate}</span>
+                <span>Kepala Sekolah,</span>
+                <strong>{showValue(school.principal)}</strong>
+                <span className="report-student-principal-nip">NIP. {school.principalNip || '198003042003122006'}</span>
+              </div>
+            </div>
+          </div>
+        </article>
+        </div>
       </div>
     </section>
   )

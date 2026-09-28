@@ -166,23 +166,25 @@ function ScheduleDetail({ item, onClose, onEdit }) {
 function ScheduleFormModal({ initialData = null, onClose, onSave, options = {} }) {
   const isEdit = Boolean(initialData?.id && typeof initialData.id === 'number')
 
-  const classList = options.classes || []
+  const activeYearId = options.selectedYear?.id || options.academic_years?.find((y) => y.status === 'Aktif')?.id || ''
+  const activeSemesterId = options.selectedSemester?.id || options.semesters?.find((s) => s.status === 'Aktif')?.id || ''
+  const caList = (options.course_assignments || []).filter((ca) =>
+    Number(ca.academic_year_id) === Number(activeYearId) && Number(ca.semester_id) === Number(activeSemesterId)
+  )
+  const firstAssignment = caList[0]
+  const classList = (options.classes || []).filter((c) => Number(c.academic_year_id) === Number(activeYearId))
   const subjectList = options.subjects || []
   const teacherList = options.teachers || []
   const roomList = options.rooms || []
-  const caList = options.course_assignments || []
-
-  const activeYearId = options.selectedYear?.id || options.academic_years?.find((y) => y.status === 'Aktif')?.id || 1
-  const activeSemesterId = options.selectedSemester?.id || options.semesters?.find((s) => s.status === 'Aktif')?.id || 1
 
   const [formData, setFormData] = useState({
     academic_year_id: initialData?.academic_year_id || activeYearId,
     semester_id: initialData?.semester_id || activeSemesterId,
-    class_id: initialData?.class_id || classList[0]?.id || '',
-    subject_id: initialData?.subject_id || subjectList[0]?.id || '',
-    teacher_id: initialData?.teacher_id || teacherList[0]?.id || '',
+    class_id: initialData?.class_id || firstAssignment?.class_id || '',
+    subject_id: initialData?.subject_id || firstAssignment?.subject_id || '',
+    teacher_id: initialData?.teacher_id || firstAssignment?.teacher_id || '',
     room_id: initialData?.room_id || roomList[0]?.id || '',
-    course_assignment_id: initialData?.course_assignment_id || '',
+    course_assignment_id: initialData?.course_assignment_id || firstAssignment?.id || '',
     day_of_week: initialData?.day || initialData?.day_of_week || 'Senin',
     start_time: initialData?.start_time ? initialData.start_time.substring(0, 5) : '07:30',
     end_time: initialData?.end_time ? initialData.end_time.substring(0, 5) : '09:00',
@@ -196,17 +198,12 @@ function ScheduleFormModal({ initialData = null, onClose, onSave, options = {} }
   const handleChange = (key, value) => {
     setFormData((prev) => {
       const next = { ...prev, [key]: value }
-
-      // Auto-resolve matching course assignment if teacher, subject, class are selected
-      if (key === 'class_id' || key === 'subject_id' || key === 'teacher_id') {
-        const cId = Number(key === 'class_id' ? value : next.class_id)
-        const sId = Number(key === 'subject_id' ? value : next.subject_id)
-        const tId = Number(key === 'teacher_id' ? value : next.teacher_id)
-        const matchingCa = caList.find(
-          (ca) => Number(ca.class_id) === cId && Number(ca.subject_id) === sId && Number(ca.teacher_id) === tId
-        )
-        if (matchingCa) {
-          next.course_assignment_id = matchingCa.id
+      if (key === 'course_assignment_id') {
+        const assignment = caList.find((ca) => String(ca.id) === String(value))
+        if (assignment) {
+          next.class_id = assignment.class_id
+          next.subject_id = assignment.subject_id
+          next.teacher_id = assignment.teacher_id
         }
       }
 
@@ -218,6 +215,11 @@ function ScheduleFormModal({ initialData = null, onClose, onSave, options = {} }
   const handleSubmit = async (e) => {
     e.preventDefault()
     setErrorMessage('')
+
+    if (!formData.course_assignment_id || !formData.room_id) {
+      setErrorMessage('Pilih penugasan mengajar dan ruangan terlebih dahulu.')
+      return
+    }
 
     if (formData.start_time >= formData.end_time) {
       setErrorMessage('Jam mulai harus lebih awal daripada jam selesai.')
@@ -240,9 +242,7 @@ function ScheduleFormModal({ initialData = null, onClose, onSave, options = {} }
         notes: formData.notes || '',
       }
 
-      if (formData.course_assignment_id) {
-        payload.course_assignment_id = Number(formData.course_assignment_id)
-      }
+      payload.course_assignment_id = Number(formData.course_assignment_id)
 
       const res = await onSave(payload)
       if (res && !res.success) {
@@ -280,11 +280,17 @@ function ScheduleFormModal({ initialData = null, onClose, onSave, options = {} }
         )}
 
         <div className="academic-form-grid">
+          <label className="full-width">
+            <span>Penugasan Mengajar <b>*</b></span>
+            <select onChange={(e) => handleChange('course_assignment_id', e.target.value)} required value={formData.course_assignment_id}>
+              {caList.map((ca) => <option key={ca.id} value={ca.id}>{ca.label}</option>)}
+            </select>
+          </label>
+          {!caList.length && <p className="full-width" role="alert">Belum ada penugasan mengajar aktif pada semester ini. Tambahkan penugasan guru terlebih dahulu.</p>}
           <label>
             <span>Kelas / Rombel <b>*</b></span>
             <select
-              onChange={(e) => handleChange('class_id', e.target.value)}
-              required
+              disabled
               value={formData.class_id}
             >
               {classList.map((c) => (
@@ -296,8 +302,7 @@ function ScheduleFormModal({ initialData = null, onClose, onSave, options = {} }
           <label>
             <span>Mata Pelajaran <b>*</b></span>
             <select
-              onChange={(e) => handleChange('subject_id', e.target.value)}
-              required
+              disabled
               value={formData.subject_id}
             >
               {subjectList.map((s) => (
@@ -309,8 +314,7 @@ function ScheduleFormModal({ initialData = null, onClose, onSave, options = {} }
           <label>
             <span>Guru Pengajar <b>*</b></span>
             <select
-              onChange={(e) => handleChange('teacher_id', e.target.value)}
-              required
+              disabled
               value={formData.teacher_id}
             >
               {teacherList.map((t) => (
@@ -392,7 +396,7 @@ function ScheduleFormModal({ initialData = null, onClose, onSave, options = {} }
           <Button className="academic-button secondary" disabled={isSubmitting} onClick={onClose} type="button">
             Batal
           </Button>
-          <Button className="academic-button primary" disabled={isSubmitting} type="submit">
+          <Button className="academic-button primary" disabled={isSubmitting || !caList.length || !roomList.length} type="submit">
             {isSubmitting ? 'Menyimpan...' : isEdit ? 'Perbarui Jadwal' : 'Simpan Jadwal'}
           </Button>
         </footer>

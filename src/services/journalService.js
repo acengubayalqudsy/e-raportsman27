@@ -15,6 +15,12 @@ function resultFrom(response, fallback) {
 }
 
 const journalService = {
+  async options(semesterId) {
+    return resultFrom(
+      await apiClient.get(`/api/v1/journals/options?semester_id=${semesterId}`),
+      'Gagal memuat penugasan mengajar.',
+    )
+  },
   async list(params = {}) {
     const query = new URLSearchParams()
     Object.entries(params).forEach(([key, value]) => {

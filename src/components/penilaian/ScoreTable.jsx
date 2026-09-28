@@ -1,12 +1,5 @@
 import Icon from '../common/Icon.jsx'
-import { calculateFinalScore, formatScore, getPredicate } from '../../data/penilaian.js'
-
-const scoreFields = [
-  { key: 'tugas', label: 'Tugas', weight: '20%' },
-  { key: 'uts', label: 'UTS', weight: '30%' },
-  { key: 'uas', label: 'UAS', weight: '40%' },
-  { key: 'praktik', label: 'Praktik', weight: '10%' },
-]
+import { formatScore, getPredicate } from '../../data/penilaian.js'
 
 function ScoreInput({ field, student, onChange, disabled }) {
   const val = student.scores ? student.scores[field.key] : ''
@@ -35,15 +28,14 @@ function ScoreTable({
   assessmentType,
   assessments = [],
   isLocked = false,
+  isSaving = false,
   onCalculateFinal,
 }) {
-  const activeFields = assessments && assessments.length > 0
-    ? assessments.map((a) => ({
+  const activeFields = assessments.map((a) => ({
       key: String(a.id),
       label: a.title,
       weight: a.type === 'Sumatif Lingkup Materi' ? 'Sumatif' : a.type === 'Sumatif Akhir Semester' ? 'SAS' : 'Formatif',
     }))
-    : scoreFields
 
   return (
     <div className="assessment-table-card">
@@ -60,7 +52,7 @@ function ScoreTable({
         {onCalculateFinal && (
           <button
             className="assessment-button secondary"
-            disabled={isLocked}
+            disabled={isLocked || isSaving || !assessments.length || !students.length}
             onClick={onCalculateFinal}
             type="button"
           >
@@ -78,24 +70,24 @@ function ScoreTable({
               <th rowSpan="2">NIS</th>
               <th rowSpan="2">Nama Siswa</th>
               <th rowSpan="2">KKTP</th>
-              <th colSpan={activeFields.length}>Nilai</th>
+              <th colSpan={Math.max(1, activeFields.length)}>Nilai</th>
               <th rowSpan="2">Nilai Akhir</th>
               <th rowSpan="2">Predikat</th>
               <th rowSpan="2">Aksi</th>
             </tr>
             <tr>
-              {activeFields.map((field) => (
+              {activeFields.length ? activeFields.map((field) => (
                 <th key={field.key}>
                   <span>{field.label}</span>
                   <small>{field.weight}</small>
                 </th>
-              ))}
+              )) : <th>Belum ada instrumen</th>}
             </tr>
           </thead>
           <tbody>
             {students.length === 0 ? (
               <tr>
-                <td className="assessment-empty-row" colSpan={activeFields.length + 7}>
+                <td className="assessment-empty-row" colSpan={Math.max(1, activeFields.length) + 7}>
                   <Icon name="search" />
                   <strong>Tidak ada siswa yang sesuai pencarian.</strong>
                   <span>Coba gunakan NIS atau nama siswa yang berbeda.</span>
@@ -103,7 +95,7 @@ function ScoreTable({
               </tr>
             ) : (
               students.map((student, index) => {
-                const rawFinalScore = student.final_grade?.score ?? calculateFinalScore(student.scores || {})
+                const rawFinalScore = student.final_grade?.score
                 const hasFinalScore = rawFinalScore !== null && rawFinalScore !== undefined && !Number.isNaN(Number(rawFinalScore))
                 const finalScore = hasFinalScore ? Number(rawFinalScore) : null
                 const predicate = hasFinalScore ? getPredicate(finalScore) : '-'
@@ -120,13 +112,14 @@ function ScoreTable({
                     {activeFields.map((field) => (
                       <td key={field.key}>
                         <ScoreInput
-                          disabled={isLocked}
+                          disabled={isLocked || isSaving}
                           field={field}
                           onChange={onScoreChange}
                           student={student}
                         />
                       </td>
                     ))}
+                    {!activeFields.length && <td>—</td>}
                     <td>
                       <strong className={`assessment-final-score ${hasFinalScore ? (belowKkm ? 'warning' : 'complete') : 'empty'}`}>
                         {hasFinalScore ? formatScore(finalScore) : '-'}
@@ -146,7 +139,7 @@ function ScoreTable({
                         <button
                           aria-label={`Simpan nilai ${student.name}`}
                           className={isSaved ? 'saved' : ''}
-                          disabled={isLocked}
+                          disabled={isLocked || isSaving || !assessments.length}
                           onClick={() => onSave(student)}
                           title={isSaved ? 'Tersimpan' : 'Simpan'}
                           type="button"
@@ -155,7 +148,7 @@ function ScoreTable({
                         </button>
                         <button
                           aria-label={`Reset nilai ${student.name}`}
-                          disabled={isLocked}
+                          disabled={isLocked || isSaving || !assessments.length}
                           onClick={() => onReset(student)}
                           title="Reset nilai"
                           type="button"

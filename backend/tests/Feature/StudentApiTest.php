@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Models\Student;
+use App\Models\Role;
 use App\Models\User;
 use Tests\TestCase;
 
@@ -60,6 +61,24 @@ class StudentApiTest extends TestCase
 
         // DELETE rejected (admin only)
         $this->deleteJson('/api/v1/master/students/1')->assertStatus(403);
+    }
+
+    public function test_principal_can_read_student_identity_for_report_cover(): void
+    {
+        $principal = User::factory()->create();
+        $principal->roles()->attach(Role::where('name', 'kepala_sekolah')->firstOrFail()->id, ['is_primary' => true]);
+        $student = Student::firstOrFail();
+
+        $this->actingAs($principal)
+            ->getJson('/api/v1/master/students?per_page=5')
+            ->assertOk()
+            ->assertJsonPath('success', true);
+
+        $this->getJson("/api/v1/master/students/{$student->id}")
+            ->assertOk()
+            ->assertJsonPath('data.id', $student->id);
+
+        $this->getJson('/api/v1/master/students/stats')->assertForbidden();
     }
 
     /**

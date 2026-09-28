@@ -28,6 +28,7 @@ export const ROUTES = {
   teachingJournalActivities: '/jurnal-mengajar/aktivitas-kelas',
   teachingJournalNotes: '/jurnal-mengajar/catatan',
   reportingHome: '/laporan',
+  reportingMine: '/laporan/saya',
   reportGrades: '/laporan/nilai',
   reportAttendance: '/laporan/absensi',
   reportExtracurricular: '/laporan/ekstrakurikuler',

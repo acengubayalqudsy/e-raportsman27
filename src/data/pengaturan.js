@@ -64,8 +64,8 @@ export const initialSchoolIdentity = {
   district: 'Tarogong Kidul',
   city: 'Kabupaten Garut',
   province: 'Jawa Barat',
-  principal: 'Drs. H. Ridwan Kamil, M.Pd.',
-  principalNip: '19680512 199303 1 006',
+  principal: 'Nuraeni, S.Pd., M.Pd.',
+  principalNip: '198003042003122006',
   logoUrl: schoolLogo,
   logoName: 'sman-27-garut-logo.png',
 }
@@ -193,7 +193,7 @@ export const activityLogs = [
 export const settingsOptions = {
   academicYears: ['2023/2024', '2024/2025', '2025/2026'],
   semesters: ['Ganjil', 'Genap'],
-  schoolPrincipals: ['Drs. H. Ridwan Kamil, M.Pd.', 'Dra. Sri Rahayu, M.Pd.'],
+  schoolPrincipals: ['Nuraeni, S.Pd., M.Pd.'],
   classNameFormats: ['Default', 'Tingkat - Rombel', 'Kurikulum Merdeka'],
   reportFormats: ['Standar Sekolah', 'Ringkas', 'Lengkap'],
   paperSizes: ['A4', 'F4'],

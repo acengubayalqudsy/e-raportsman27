@@ -3,6 +3,7 @@
 namespace App\Http\Requests;
 
 use App\Models\AcademicYear;
+use App\Models\Room;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 
@@ -17,6 +18,9 @@ class UpdateRoomRequest extends FormRequest
     {
         $roomId = $this->route('id') ?? $this->route('room');
         $ayId = $this->academic_year_id;
+        if (!$ayId) {
+            $ayId = Room::find($roomId)?->academic_year_id;
+        }
         if (!$ayId) {
             $activeAy = AcademicYear::where('status', 'Aktif')->first() ?? AcademicYear::latest('id')->first();
             $ayId = $activeAy?->id;

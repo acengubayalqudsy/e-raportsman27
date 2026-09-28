@@ -4,6 +4,7 @@ import Button from '../common/Button.jsx'
 import Icon from '../common/Icon.jsx'
 import SearchInput from '../common/SearchInput.jsx'
 import { assessmentService } from '../../services/assessmentService.js'
+import { useAcademicContext } from '../../context/AcademicContext.jsx'
 import RaporPagination from './RaporPagination.jsx'
 import RaporSummary from './RaporSummary.jsx'
 
@@ -21,7 +22,11 @@ const statusLegend = [
 ]
 
 function statusSlug(status) {
-  return status.toLowerCase().replaceAll(' ', '-').replaceAll(/[()]/g, '')
+  const lower = (status || '').toLowerCase()
+  if (lower.includes('final')) return 'rapor-final'
+  if (lower.includes('tervalidasi')) return 'tervalidasi'
+  if (lower.includes('draf')) return 'draf-pratinjau'
+  return lower.replaceAll(' ', '-').replaceAll(/[()]/g, '')
 }
 
 function formatSummary(summary, contextName) {
@@ -37,6 +42,7 @@ function formatSummary(summary, contextName) {
 }
 
 function DaftarRaporView({ onNotify }) {
+  const { selectedYear } = useAcademicContext()
   const [contextOptions, setContextOptions] = useState({ classes: [], semesters: [] })
   const [filters, setFilters] = useState({ classId: '', semesterId: '', status: '' })
   const [academicYear, setAcademicYear] = useState(null)
@@ -131,9 +137,9 @@ function DaftarRaporView({ onNotify }) {
         <div className="report-list-toolbar">
           <div className="report-filter-grid">
             <label className="report-field"><span>Kelas</span><select value={filters.classId} onChange={(event) => updateFilter('classId', event.target.value)} disabled={loadingContext}><option value="">Pilih kelas</option>{contextOptions.classes.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select></label>
-            <label className="report-field"><span>Tahun Ajaran</span><input readOnly value={academicYear?.name ?? '-'} aria-label="Tahun ajaran authoritative" /></label>
-            <label className="report-field"><span>Semester</span><select value={filters.semesterId} onChange={(event) => updateFilter('semesterId', event.target.value)} disabled={loadingContext}><option value="">Pilih semester</option>{contextOptions.semesters.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select></label>
             <label className="report-field"><span>Status Rapor</span><select value={filters.status} onChange={(event) => updateFilter('status', event.target.value)}>{statusOptions.map(([label, value]) => <option key={value || 'all'} value={value}>{label}</option>)}</select></label>
+            <label className="report-field"><span>Semester</span><select value={filters.semesterId} onChange={(event) => updateFilter('semesterId', event.target.value)} disabled={loadingContext}><option value="">Pilih semester</option>{contextOptions.semesters.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select></label>
+            <label className="report-field"><span>Tahun Ajaran</span><input readOnly value={academicYear?.name ?? selectedYear?.name ?? '-'} aria-label="Tahun ajaran authoritative" /></label>
           </div>
           <label className="report-search"><SearchInput aria-label="Cari siswa berdasarkan NIS, NISN, atau nama" onChange={(event) => { setSearchQuery(event.target.value); setPagination((current) => ({ ...current, current_page: 1 })) }} placeholder="Cari siswa (NIS/NISN/Nama)..." value={searchQuery} /><Icon name="search" /></label>
         </div>
@@ -158,8 +164,38 @@ function DaftarRaporView({ onNotify }) {
         <RaporPagination currentPage={pagination.current_page} onPageChange={(page) => setPagination((current) => ({ ...current, current_page: page }))} onRowsPerPageChange={(value) => setPagination((current) => ({ ...current, per_page: value, current_page: 1 }))} rowsPerPage={pagination.per_page} totalItems={pagination.total} totalPages={pagination.last_page} />
       </section>
       <div className="report-support-grid">
-        <section className="report-support-card"><h3>Keterangan Status Rapor</h3><div className="report-legend-grid">{statusLegend.map(([status, description]) => <div key={status}><span className={`report-status ${statusSlug(status)}`}>{status}</span><p>{description}</p></div>)}</div></section>
-        <section className="report-support-card"><h3>Aksi Cepat</h3><div className="report-quick-grid"><Link to="/rapor-leger/generate-rapor"><Icon name="settings" /><span><strong>Preview Rapor</strong><small>Lihat data rapor siswa</small></span></Link><Link to="/rapor-leger/rapor-per-siswa"><Icon name="eye" /><span><strong>Preview Acak</strong><small>Lihat contoh rapor siswa</small></span></Link><Link to="/rapor-leger/leger-nilai"><Icon name="table" /><span><strong>Leger Nilai Kelas</strong><small>Lihat rekap nilai kelas</small></span></Link><Link to="/rapor-leger/cetak-export"><Icon name="document" /><span><strong>Export Leger PDF</strong><small>Persiapkan dokumen</small></span></Link></div></section>
+        <section className="report-support-card">
+          <h3>Keterangan Status Rapor</h3>
+          <div className="report-legend-grid">
+            {statusLegend.map(([status, description]) => (
+              <div key={status} className="report-legend-item">
+                <span className={`report-status ${statusSlug(status)}`}>{status}</span>
+                <p>{description}</p>
+              </div>
+            ))}
+          </div>
+        </section>
+        <section className="report-support-card">
+          <h3>Aksi Cepat</h3>
+          <div className="report-quick-grid">
+            <Link to="/rapor-leger/generate-rapor" className="report-quick-card-item">
+              <div className="report-quick-icon tone-blue"><Icon name="settings" /></div>
+              <div className="report-quick-text"><strong>Preview Rapor</strong><small>Lihat data rapor siswa</small></div>
+            </Link>
+            <Link to="/rapor-leger/rapor-per-siswa" className="report-quick-card-item">
+              <div className="report-quick-icon tone-purple"><Icon name="eye" /></div>
+              <div className="report-quick-text"><strong>Preview Acak</strong><small>Lihat contoh rapor</small></div>
+            </Link>
+            <Link to="/rapor-leger/leger-nilai" className="report-quick-card-item">
+              <div className="report-quick-icon tone-green"><Icon name="table" /></div>
+              <div className="report-quick-text"><strong>Leger Nilai</strong><small>Rekap nilai kelas</small></div>
+            </Link>
+            <Link to="/rapor-leger/cetak-export" className="report-quick-card-item">
+              <div className="report-quick-icon tone-orange"><Icon name="document" /></div>
+              <div className="report-quick-text"><strong>Export PDF</strong><small>Persiapkan dokumen</small></div>
+            </Link>
+          </div>
+        </section>
       </div>
     </>
   )

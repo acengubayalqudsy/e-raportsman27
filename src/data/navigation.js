@@ -32,7 +32,7 @@ export const penilaianItems = assessmentTabs.map(({ label, route }) => ({ label,
 export const raporItems = raporTabs.map(({ label, route }) => ({ label, route }));
 export const reportingItems = [
   { label: "Daftar Laporan", route: "/laporan" },
-  { label: "Laporan Saya", route: "/laporan/per-siswa" },
+  { label: "Laporan Saya", route: "/laporan/saya" },
 ];
 export const settingsItems = settingsTabs.map(({ label, route }) => ({ label, route }));
 

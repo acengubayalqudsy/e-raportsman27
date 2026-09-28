@@ -169,10 +169,13 @@ class RoomController extends Controller
     {
         if ($deny = $this->checkAdmin($request)) return $deny;
 
-        $totalRooms = Room::count();
-        $activeRooms = Room::where('status', 'Aktif')->count();
-        $totalCapacity = Room::where('status', 'Aktif')->sum('capacity');
-        $roomTypes = Room::where('status', 'Aktif')
+        $data = $request->validate(['academic_year_id' => ['nullable', 'integer', 'exists:academic_years,id']]);
+        $rooms = Room::query()->when($data['academic_year_id'] ?? null,
+            fn ($query, $yearId) => $query->where('academic_year_id', $yearId));
+        $totalRooms = (clone $rooms)->count();
+        $activeRooms = (clone $rooms)->where('status', 'Aktif')->count();
+        $totalCapacity = (clone $rooms)->where('status', 'Aktif')->sum('capacity');
+        $roomTypes = (clone $rooms)->where('status', 'Aktif')
             ->selectRaw('room_type, count(*) as count')
             ->groupBy('room_type')
             ->pluck('count', 'room_type');

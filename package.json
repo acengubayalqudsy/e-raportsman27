@@ -4,7 +4,11 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
-    "dev": "vite",
+    "dev": "node scripts/start-dev.mjs",
+    "dev:lan": "node scripts/start-dev.mjs --lan",
+    "dev:frontend": "vite",
+    "dev:check": "node scripts/start-dev.mjs --check",
+    "test:startup": "node --test scripts/start-dev.test.mjs",
     "build": "vite build",
     "lint": "eslint .",
     "preview": "vite preview"

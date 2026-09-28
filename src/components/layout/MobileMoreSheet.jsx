@@ -2,6 +2,8 @@ import { useEffect } from 'react'
 import { Link, useLocation } from 'react-router-dom'
 import Icon from '../common/Icon.jsx'
 import { canAccessModule } from '../../constants/roles.js'
+import { useAcademicContext } from '../../context/AcademicContext.jsx'
+import { useAuth } from '../../auth/AuthContext.jsx'
 
 const moreMenuItems = [
   {
@@ -50,6 +52,11 @@ const moreMenuItems = [
 
 function MobileMoreSheet({ isOpen, onClose, roles = [] }) {
   const location = useLocation()
+  const { user, logout } = useAuth()
+  const { selectedYear, selectedSemester, activeAcademicYear, activeSemester } = useAcademicContext()
+
+  const yearDisplay = selectedYear?.name || activeAcademicYear?.name || '2026/2027'
+  const semDisplay = selectedSemester?.name || activeSemester?.name || 'Ganjil'
 
   useEffect(() => {
     if (!isOpen) return undefined
@@ -69,6 +76,13 @@ function MobileMoreSheet({ isOpen, onClose, roles = [] }) {
     return location.pathname.startsWith(`/${base}`)
   }
 
+  const handleLogout = () => {
+    onClose()
+    logout()
+  }
+
+  const accessibleItems = moreMenuItems.filter((item) => canAccessModule(roles, item.key))
+
   return (
     <div className="mobile-sheet-overlay" onClick={onClose}>
       <div
@@ -85,7 +99,9 @@ function MobileMoreSheet({ isOpen, onClose, roles = [] }) {
         <div className="mobile-sheet-header">
           <div>
             <h3 className="mobile-sheet-title">Menu Lainnya</h3>
-            <p className="mobile-sheet-subtitle">Tahun Ajaran 2024/2025 • Genap</p>
+            <p className="mobile-sheet-subtitle">
+              {yearDisplay} • {semDisplay.toLowerCase().startsWith('semester') ? semDisplay : `Semester ${semDisplay}`}
+            </p>
           </div>
           <button
             type="button"
@@ -97,26 +113,51 @@ function MobileMoreSheet({ isOpen, onClose, roles = [] }) {
           </button>
         </div>
 
-        <div className="mobile-sheet-grid">
-          {moreMenuItems.filter((item) => canAccessModule(roles, item.key)).map((item) => {
-            const active = isRouteActive(item.route)
-            return (
-              <Link
-                key={item.key}
-                to={item.route}
-                onClick={onClose}
-                className={`mobile-sheet-card ${active ? 'active' : ''}`}
-              >
-                <div className={`mobile-sheet-icon-box ${active ? 'active' : ''}`}>
-                  <Icon name={item.icon} />
-                </div>
-                <div className="mobile-sheet-card-info">
-                  <span className="mobile-sheet-card-label">{item.label}</span>
-                  <span className="mobile-sheet-card-desc">{item.desc}</span>
-                </div>
-              </Link>
-            )
-          })}
+        {accessibleItems.length > 0 && (
+          <div className="mobile-sheet-grid">
+            {accessibleItems.map((item) => {
+              const active = isRouteActive(item.route)
+              return (
+                <Link
+                  key={item.key}
+                  to={item.route}
+                  onClick={onClose}
+                  className={`mobile-sheet-card ${active ? 'active' : ''}`}
+                >
+                  <div className={`mobile-sheet-icon-box ${active ? 'active' : ''}`}>
+                    <Icon name={item.icon} />
+                  </div>
+                  <div className="mobile-sheet-card-info">
+                    <span className="mobile-sheet-card-label">{item.label}</span>
+                    <span className="mobile-sheet-card-desc">{item.desc}</span>
+                  </div>
+                </Link>
+              )
+            })}
+          </div>
+        )}
+
+        {/* User Account & App Version Info Section */}
+        <div className="mobile-sheet-account-section">
+          <div className="mobile-sheet-user-card">
+            <div className="mobile-sheet-user-meta">
+              <strong>{user?.name || 'Administrator'}</strong>
+              <small>{user?.role || 'Pengguna'} • {user?.email || 'SMAN 27 Garut'}</small>
+            </div>
+            <button
+              type="button"
+              className="mobile-sheet-logout-btn"
+              onClick={handleLogout}
+              aria-label="Keluar dari akun"
+            >
+              <Icon name="logout" />
+              <span>Keluar</span>
+            </button>
+          </div>
+
+          <div className="mobile-sheet-version-tag">
+            <span>Aplikasi Rapor SMAN 27 Garut • v1.0.0</span>
+          </div>
         </div>
       </div>
     </div>

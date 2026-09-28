@@ -7,6 +7,7 @@ use App\Http\Requests\StoreTeachingJournalRequest;
 use App\Http\Requests\UpdateTeachingJournalRequest;
 use App\Http\Resources\TeachingJournalResource;
 use App\Models\TeachingJournal;
+use App\Models\CourseAssignment;
 use App\Services\TeachingJournalService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -14,6 +15,33 @@ use Illuminate\Http\Request;
 class TeachingJournalController extends Controller
 {
     public function __construct(private TeachingJournalService $service) {}
+
+    public function options(Request $request): JsonResponse
+    {
+        $data = $request->validate(['semester_id' => ['required', 'integer', 'exists:semesters,id']]);
+        $assignments = CourseAssignment::with(['schoolClass', 'subject', 'teacher', 'semester'])
+            ->where('semester_id', $data['semester_id'])
+            ->where('status', 'Aktif')
+            ->when(!$request->user()->hasRole('admin'), fn ($query) => $query->where('teacher_id', $request->user()->teacher?->id))
+            ->orderBy('class_id')
+            ->orderBy('subject_id')
+            ->get()
+            ->map(fn ($assignment) => [
+                'id' => $assignment->id,
+                'academic_year_id' => $assignment->academic_year_id,
+                'semester_id' => $assignment->semester_id,
+                'class_id' => $assignment->class_id,
+                'class_name' => $assignment->schoolClass?->name,
+                'subject_id' => $assignment->subject_id,
+                'subject_name' => $assignment->subject?->name,
+                'teacher_id' => $assignment->teacher_id,
+                'teacher_name' => $assignment->teacher?->name,
+                'start_date' => $assignment->semester?->start_date?->format('Y-m-d'),
+                'end_date' => $assignment->semester?->end_date?->format('Y-m-d'),
+            ]);
+
+        return response()->json(['success' => true, 'data' => $assignments]);
+    }
 
     public function index(Request $request): JsonResponse
     {
@@ -25,6 +53,8 @@ class TeachingJournalController extends Controller
             'teacher_id' => ['nullable', 'integer', 'exists:teachers,id'],
             'status' => ['nullable', 'in:Lengkap,Belum Lengkap,Perlu Diperiksa'],
             'date_from' => ['nullable', 'date'], 'date_to' => ['nullable', 'date', 'after_or_equal:date_from'],
+            'search' => ['nullable', 'string', 'max:100'],
+            'page' => ['nullable', 'integer', 'min:1'],
             'per_page' => ['nullable', 'integer', 'min:1', 'max:100'],
         ]);
         $paginator = $this->service->query($request->user(), $request->all())

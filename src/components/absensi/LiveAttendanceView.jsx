@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useAcademicContext } from '../../context/AcademicContext.jsx'
 import assessmentService from '../../services/assessmentService.js'
 import Button from '../common/Button.jsx'
@@ -18,21 +18,6 @@ function normalizeRows(students) {
       is_recorded: Boolean(student.attendance?.is_recorded),
     },
   }))
-}
-
-function uniqueClasses(context) {
-  const candidates = [
-    context?.homeroom_class,
-    ...(Array.isArray(context?.assigned_courses) ? context.assigned_courses : []),
-  ]
-  const seen = new Set()
-
-  return candidates.reduce((classes, item) => {
-    if (!item?.class_id || seen.has(String(item.class_id))) return classes
-    seen.add(String(item.class_id))
-    classes.push({ id: item.class_id, name: item.class_name || `Kelas ${item.class_id}` })
-    return classes
-  }, [])
 }
 
 function getErrorMessage(result, fallback) {
@@ -55,35 +40,32 @@ function LiveAttendanceView({ onNotify = () => {} }) {
     setSelectedSemesterId,
     setSelectedYearId,
   } = useAcademicContext()
-  const [context, setContext] = useState(null)
+  const [classes, setClasses] = useState([])
   const [classId, setClassId] = useState('')
   const [rows, setRows] = useState(initialRows)
   const [isContextLoading, setIsContextLoading] = useState(true)
   const [isLoading, setIsLoading] = useState(false)
   const [isSaving, setIsSaving] = useState(false)
+  const [canEdit, setCanEdit] = useState(false)
   const [error, setError] = useState('')
 
-  const classes = useMemo(() => uniqueClasses(context), [context])
-
-  const loadContext = useCallback(async () => {
-    setIsContextLoading(true)
-    const result = await assessmentService.getContext()
-    if (!result.success) {
-      setError(getErrorMessage(result, 'Gagal memuat konteks akademik.'))
-      setContext(null)
-    } else {
-      setContext(result.data)
-      const authorizedClasses = uniqueClasses(result.data)
-      if (authorizedClasses[0]) setClassId(String(authorizedClasses[0].id))
-      setError('')
-    }
-    setIsContextLoading(false)
-  }, [])
-
   useEffect(() => {
-    const timer = window.setTimeout(() => void loadContext(), 0)
-    return () => window.clearTimeout(timer)
-  }, [loadContext])
+    if (!selectedSemesterId) return undefined
+    let cancelled = false
+    assessmentService.getAttendanceClasses(selectedSemesterId).then((result) => {
+      if (cancelled) return
+      if (!result.success) {
+        setClasses([])
+        setError(getErrorMessage(result, 'Gagal memuat daftar kelas.'))
+      } else {
+        setClasses(result.data)
+        setClassId((current) => result.data.some((item) => String(item.id) === current) ? current : String(result.data[0]?.id || ''))
+        setError('')
+      }
+      setIsContextLoading(false)
+    })
+    return () => { cancelled = true }
+  }, [selectedSemesterId])
 
   useEffect(() => {
     if (!classId || !selectedSemesterId) return undefined
@@ -92,13 +74,15 @@ function LiveAttendanceView({ onNotify = () => {} }) {
     const timer = window.setTimeout(() => {
       setIsLoading(true)
       setError('')
-      assessmentService.getSupplementaryData(classId, selectedSemesterId).then((result) => {
+      assessmentService.getAttendanceEntries({ class_id: classId, semester_id: selectedSemesterId, scope: 'class', date: new Date().toISOString().slice(0, 10) }).then((result) => {
         if (cancelled) return
         if (!result.success) {
           setRows([])
+          setCanEdit(false)
           setError(getErrorMessage(result, 'Gagal memuat data absensi.'))
         } else {
           setRows(normalizeRows(result.data?.students))
+          setCanEdit(Boolean(result.data?.can_edit))
         }
         setIsLoading(false)
       })
@@ -121,6 +105,7 @@ function LiveAttendanceView({ onNotify = () => {} }) {
   }
 
   const save = async () => {
+    if (!canEdit || isSaving || rows.length === 0) return
     setIsSaving(true)
     setError('')
     const result = await assessmentService.saveAttendance(
@@ -138,7 +123,7 @@ function LiveAttendanceView({ onNotify = () => {} }) {
     if (!result.success) {
       setError(getErrorMessage(result, 'Gagal menyimpan data absensi.'))
     } else {
-      const refreshed = await assessmentService.getSupplementaryData(classId, selectedSemesterId)
+      const refreshed = await assessmentService.getAttendanceEntries({ class_id: classId, semester_id: selectedSemesterId, scope: 'class', date: new Date().toISOString().slice(0, 10) })
       if (refreshed.success) {
         setRows(normalizeRows(refreshed.data?.students))
         onNotify(result.message)
@@ -149,8 +134,26 @@ function LiveAttendanceView({ onNotify = () => {} }) {
     setIsSaving(false)
   }
 
+  if (!selectedSemesterId) {
+    return <div className="attendance-live-state" role="status">Pilih tahun ajaran dan semester untuk melihat absensi.</div>
+  }
+
   if (isContextLoading) {
-    return <div className="attendance-live-state" role="status">Memuat konteks absensi...</div>
+    return (
+      <div className="attendance-skeleton-container" role="status" aria-label="Memuat konteks absensi">
+        <div className="attendance-skeleton-card">
+          <div className="attendance-skeleton-header">
+            <div className="attendance-skeleton-spinner" />
+            <span className="attendance-skeleton-text">Memuat konteks absensi...</span>
+          </div>
+          <div className="attendance-skeleton-grid">
+            <div className="attendance-skeleton-box skeleton-pulse" />
+            <div className="attendance-skeleton-box skeleton-pulse" />
+            <div className="attendance-skeleton-box skeleton-pulse" />
+          </div>
+        </div>
+      </div>
+    )
   }
 
   return (
@@ -197,9 +200,9 @@ function LiveAttendanceView({ onNotify = () => {} }) {
       {!isLoading && visibleRows.length > 0 && (
         <>
           <div className="attendance-live-context">
-            <strong>{context?.homeroom_class?.class_name || visibleRows.length + ' siswa'}</strong>
+            <strong>{classes.find((item) => String(item.id) === classId)?.name || visibleRows.length + ' siswa'}</strong>
             <span>{selectedYear?.name || '-'} · {selectedSemester?.name || '-'}</span>
-            <small>Backend menyimpan rekap semester; data harian dan persentase belum tersedia pada schema saat ini.</small>
+            <small>Rekap semester ini digunakan pada rapor. Input kehadiran harian kelas akan memperbarui jumlah sakit, izin, dan alpa.</small>
           </div>
           <div className="attendance-live-table-wrap">
             <table className="attendance-live-table">
@@ -223,6 +226,7 @@ function LiveAttendanceView({ onNotify = () => {} }) {
                       <td key={field}>
                         <input
                           aria-label={`${field} ${row.name}`}
+                          disabled={!canEdit || isSaving}
                           min="0"
                           onChange={(event) => updateRow(row.student_id, field, event.target.value)}
                           type="number"
@@ -233,6 +237,7 @@ function LiveAttendanceView({ onNotify = () => {} }) {
                     <td>
                       <input
                         aria-label={`Catatan ${row.name}`}
+                        disabled={!canEdit || isSaving}
                         maxLength="255"
                         onChange={(event) => updateRow(row.student_id, 'notes', event.target.value)}
                         type="text"
@@ -245,9 +250,7 @@ function LiveAttendanceView({ onNotify = () => {} }) {
             </table>
           </div>
           <div className="attendance-live-actions">
-            <Button className="attendance-button attendance-button-primary" disabled={isSaving} onClick={save}>
-              {isSaving ? 'Menyimpan...' : 'Simpan Absensi'}
-            </Button>
+            {canEdit ? <Button className="attendance-button attendance-button-primary" disabled={isSaving} onClick={save}>{isSaving ? 'Menyimpan...' : 'Simpan Rekap'}</Button> : <span>Rekap hanya dapat diubah oleh wali kelas atau admin.</span>}
           </div>
         </>
       )}

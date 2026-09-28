@@ -63,11 +63,12 @@ export const userService = {
   async createUser(formData) {
     const payload = {
       name: formData.name,
-      username: formData.username || formData.email?.split('@')[0],
+      username: formData.username,
       email: formData.email,
-      password: formData.password || 'password123',
+      password: formData.password,
       phone: formData.phone || null,
-      roles: formData.roles || (formData.role ? [formData.role] : ['guru']),
+      teacher_id: formData.teacher_id || null,
+      roles: formData.roles,
       status: formData.status || 'Aktif',
     }
     const response = await apiClient.post('/api/v1/master-data/users', payload)
@@ -87,10 +88,11 @@ export const userService = {
   async updateUser(id, formData) {
     const payload = {
       name: formData.name,
-      username: formData.username || formData.email?.split('@')[0],
+      username: formData.username,
       email: formData.email,
       phone: formData.phone,
-      roles: formData.roles || (formData.role ? [formData.role] : undefined),
+      teacher_id: formData.teacher_id || null,
+      roles: formData.roles,
       status: formData.status,
     }
     if (formData.password) {

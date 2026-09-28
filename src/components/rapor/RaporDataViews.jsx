@@ -8,8 +8,14 @@ import RaporPagination from './RaporPagination.jsx'
 function DataSectionHeading({ icon, title, description, meta }) {
   return (
     <div className="report-section-heading">
-      <div><span><Icon name={icon} /></span><div><h3>{title}</h3><p>{description}</p></div></div>
-      {meta && <small>{meta}</small>}
+      <div className="report-heading-main">
+        <span className="report-heading-icon"><Icon name={icon} /></span>
+        <div>
+          <h3>{title}</h3>
+          <p>{description}</p>
+        </div>
+      </div>
+      {meta && <small className="report-heading-meta">{meta}</small>}
     </div>
   )
 }
@@ -39,7 +45,7 @@ export function LegerNilaiView() {
         }
         return
       }
-      const classId = ctx.data.homeroom_class?.id || ctx.data.assigned_courses?.[0]?.class_id
+      const classId = ctx.data.homeroom_class?.class_id || ctx.data.assigned_courses?.[0]?.class_id
       const semesterId = ctx.data.active_semester?.id
       if (!classId || !semesterId) {
         if (isMounted) {
@@ -177,24 +183,106 @@ export function PeringkatKelasView() {
   const totalPages = Math.ceil(rankedStudents.length / rowsPerPage)
   const visibleStudents = rankedStudents.slice((currentPage - 1) * rowsPerPage, currentPage * rowsPerPage)
   const classAverage = rankedStudents.reduce((sum, student) => sum + student.averageScore, 0) / rankedStudents.length
+
   const rankingSummary = [
-    ['Kelas', 'X Merdeka 3'], ['Jumlah Siswa', '36'], ['Rata-rata Kelas', formatRaporScore(classAverage)],
-    ['Nilai Tertinggi', formatRaporScore(rankedStudents[0].averageScore)], ['Nilai Terendah', formatRaporScore(rankedStudents.at(-1).averageScore)],
+    { label: 'Kelas', value: 'X Merdeka 3', icon: 'academic', tone: 'tone-0' },
+    { label: 'Jumlah Siswa', value: '36', icon: 'users', tone: 'tone-1' },
+    { label: 'Rata-rata Kelas', value: formatRaporScore(classAverage), icon: 'trend', tone: 'tone-2' },
+    { label: 'Nilai Tertinggi', value: formatRaporScore(rankedStudents[0].averageScore), icon: 'award', tone: 'tone-3' },
+    { label: 'Nilai Terendah', value: formatRaporScore(rankedStudents.at(-1).averageScore), icon: 'trend', tone: 'tone-4' },
   ]
 
   return (
     <section className="report-secondary-workspace">
       <RaporContextFilters />
-      <div className="report-ranking-summary">{rankingSummary.map(([label, value], index) => <article key={label}><span className={`tone-${index}`}><Icon name={index === 0 ? 'academic' : index === 1 ? 'users' : 'trend'} /></span><div><small>{label}</small><strong>{value}</strong></div></article>)}</div>
-      <section className="report-panel">
-        <DataSectionHeading description="Peringkat kelas merupakan indikator akademik internal dan tidak dicantumkan dalam buku rapor resmi Kurikulum Merdeka." icon="award" title="Peringkat Kelas" />
-        <div className="report-table-scroll">
+      <div className="report-ranking-summary">
+        {rankingSummary.map((item, index) => (
+          <article className={`ranking-summary-card item-${index}`} key={item.label}>
+            <span className={item.tone}><Icon name={item.icon} /></span>
+            <div>
+              <small>{item.label}</small>
+              <strong>{item.value}</strong>
+            </div>
+          </article>
+        ))}
+      </div>
+      <section className="report-panel report-ranking-panel">
+        <DataSectionHeading
+          description="Peringkat kelas merupakan indikator akademik internal dan tidak dicantumkan dalam buku rapor resmi Kurikulum Merdeka."
+          icon="award"
+          title="Peringkat Kelas"
+        />
+
+        {/* Desktop View Table */}
+        <div className="report-table-scroll report-ranking-desktop-table">
           <table className="report-ranking-table">
-            <thead><tr><th>Peringkat</th><th>NIS</th><th>Nama Siswa</th><th>Jumlah Nilai</th><th>Rata-rata</th><th>Status</th></tr></thead>
-            <tbody>{visibleStudents.map((student) => <tr key={student.id}><td><span className={`report-ranking-number rank-${student.rank}`}>{student.rank}</span></td><td>{student.nis}</td><td className="report-student-name">{student.name}</td><td>{student.totalScore}</td><td><strong className="report-score-emphasis">{formatRaporScore(student.averageScore)}</strong></td><td><span className="report-ranking-status">{student.rankingStatus}</span></td></tr>)}</tbody>
+            <thead>
+              <tr>
+                <th>Peringkat</th>
+                <th>NIS</th>
+                <th>Nama Siswa</th>
+                <th>Jumlah Nilai</th>
+                <th>Rata-rata</th>
+                <th>Status</th>
+              </tr>
+            </thead>
+            <tbody>
+              {visibleStudents.map((student) => (
+                <tr key={student.id}>
+                  <td>
+                    <span className={`report-ranking-number rank-${student.rank}`}>{student.rank}</span>
+                  </td>
+                  <td>{student.nis}</td>
+                  <td className="report-student-name">{student.name}</td>
+                  <td>{student.totalScore}</td>
+                  <td>
+                    <strong className="report-score-emphasis">{formatRaporScore(student.averageScore)}</strong>
+                  </td>
+                  <td>
+                    <span className="report-ranking-status">{student.rankingStatus}</span>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
           </table>
         </div>
-        <RaporPagination currentPage={currentPage} onPageChange={setCurrentPage} onRowsPerPageChange={(value) => { setRowsPerPage(value); setCurrentPage(1) }} rowsPerPage={rowsPerPage} totalItems={rankedStudents.length} totalPages={totalPages} />
+
+        {/* Mobile View Card List */}
+        <div className="report-ranking-mobile-list">
+          {visibleStudents.map((student) => {
+            const isTop3 = student.rank <= 3
+            return (
+              <div className={`report-ranking-mobile-card ${isTop3 ? `rank-top-${student.rank}` : ''}`} key={student.id}>
+                <div className="ranking-mobile-left">
+                  <span className={`report-ranking-number rank-${student.rank}`}>
+                    {student.rank}
+                  </span>
+                  <div className="ranking-mobile-info">
+                    <strong className="ranking-student-name">{student.name}</strong>
+                    <div className="ranking-student-meta">
+                      <span>NIS: {student.nis}</span>
+                      <span className="ranking-dot">&bull;</span>
+                      <span className="report-ranking-status">{student.rankingStatus}</span>
+                    </div>
+                  </div>
+                </div>
+                <div className="ranking-mobile-right">
+                  <strong className="ranking-average">{formatRaporScore(student.averageScore)}</strong>
+                  <small className="ranking-total">Total {student.totalScore}</small>
+                </div>
+              </div>
+            )
+          })}
+        </div>
+
+        <RaporPagination
+          currentPage={currentPage}
+          onPageChange={setCurrentPage}
+          onRowsPerPageChange={(value) => { setRowsPerPage(value); setCurrentPage(1) }}
+          rowsPerPage={rowsPerPage}
+          totalItems={rankedStudents.length}
+          totalPages={totalPages}
+        />
       </section>
     </section>
   )

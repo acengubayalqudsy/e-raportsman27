@@ -229,14 +229,21 @@ function CapaianKompetensiView({ onNotify }) {
       return
     }
 
-    const payload = students.map((s) => ({
+    const payload = students.filter((s) => s.final_grade).map((s) => ({
       student_id: s.id,
       highest_achievement: descriptions[s.id] || '',
     }))
 
+    if (!payload.length) {
+      onNotify('Hitung nilai akhir sebelum menyimpan deskripsi capaian kompetensi.')
+      return
+    }
+
     const res = await assessmentService.updateCompetencyAchievements(selectedCourseId, payload)
-    if (res.success) {
-      onNotify('Deskripsi capaian kompetensi berhasil disimpan ke database.')
+    if (res.success && res.data?.updated_count > 0) {
+      onNotify(`Deskripsi capaian kompetensi berhasil disimpan untuk ${res.data.updated_count} siswa.`)
+    } else if (res.success) {
+      onNotify('Belum ada nilai akhir yang dapat disimpan deskripsinya.')
     } else {
       onNotify(res.error || 'Gagal menyimpan deskripsi.')
     }
@@ -254,7 +261,7 @@ function CapaianKompetensiView({ onNotify }) {
           action={
             <Button
               className="assessment-button primary"
-              disabled={isLocked || students.length === 0}
+              disabled={isLocked || !students.some((student) => student.final_grade)}
               onClick={handleSaveDescriptions}
             >
               <Icon name="save" />
@@ -293,7 +300,7 @@ function CapaianKompetensiView({ onNotify }) {
                     <label>
                       <span>Capaian Kompetensi</span>
                       <textarea
-                        disabled={isLocked}
+                        disabled={isLocked || !student.final_grade}
                         onChange={(e) => setDescriptions((prev) => ({ ...prev, [student.id]: e.target.value }))}
                         placeholder="Deskripsi penguasaan capaian kompetensi..."
                         value={descriptions[student.id] || ''}
@@ -313,6 +320,7 @@ function CapaianKompetensiView({ onNotify }) {
 function RekapNilaiView() {
   const [classes, setClasses] = useState([])
   const [selectedClassId, setSelectedClassId] = useState(null)
+  const [semesterId, setSemesterId] = useState(null)
   const [recapData, setRecapData] = useState(null)
   const [loading, setLoading] = useState(false)
 
@@ -320,6 +328,7 @@ function RekapNilaiView() {
     async function loadClasses() {
       const res = await assessmentService.getContext()
       if (res.success && res.data) {
+        setSemesterId(res.data.active_semester?.id || res.data.assigned_courses?.[0]?.semester_id || null)
         const list = []
         if (res.data.homeroom_class) {
           list.push(res.data.homeroom_class)
@@ -341,17 +350,17 @@ function RekapNilaiView() {
   }, [])
 
   useEffect(() => {
-    if (!selectedClassId) return
+    if (!selectedClassId || !semesterId) return
     async function loadRecap() {
       setLoading(true)
-      const res = await assessmentService.getClassRecap(selectedClassId, 1)
+      const res = await assessmentService.getClassRecap(selectedClassId, semesterId)
       if (res.success && res.data) {
         setRecapData(res.data)
       }
       setLoading(false)
     }
     loadRecap()
-  }, [selectedClassId])
+  }, [selectedClassId, semesterId])
 
   const subjects = recapData?.subjects || []
   const students = recapData?.students || []
@@ -438,6 +447,7 @@ function RekapNilaiView() {
 function ValidasiNilaiView({ onNotify }) {
   const [classes, setClasses] = useState([])
   const [selectedClassId, setSelectedClassId] = useState(null)
+  const [semesterId, setSemesterId] = useState(null)
   const [validationList, setValidationList] = useState([])
   const [loading, setLoading] = useState(false)
 
@@ -445,6 +455,7 @@ function ValidasiNilaiView({ onNotify }) {
     async function load() {
       const res = await assessmentService.getContext()
       if (res.success && res.data) {
+        setSemesterId(res.data.active_semester?.id || res.data.assigned_courses?.[0]?.semester_id || null)
         const list = []
         if (res.data.homeroom_class) {
           list.push(res.data.homeroom_class)
@@ -466,12 +477,12 @@ function ValidasiNilaiView({ onNotify }) {
   }, [])
 
   useEffect(() => {
-    if (!selectedClassId) return
+    if (!selectedClassId || !semesterId) return
     let isMounted = true
 
     async function fetchStatus() {
       setLoading(true)
-      const res = await assessmentService.getValidationStatus(selectedClassId, 1)
+      const res = await assessmentService.getValidationStatus(selectedClassId, semesterId)
       if (isMounted && res.success && Array.isArray(res.data)) {
         setValidationList(res.data)
       }
@@ -480,13 +491,13 @@ function ValidasiNilaiView({ onNotify }) {
 
     fetchStatus()
     return () => { isMounted = false }
-  }, [selectedClassId])
+  }, [selectedClassId, semesterId])
 
   const handleValidate = async (item) => {
     const res = await assessmentService.validateCourse(item.course_assignment_id, 'Divalidasi oleh Wali Kelas')
     if (res.success) {
       onNotify(`Nilai ${item.subject_name} berhasil divalidasi dan dikunci!`)
-      const updated = await assessmentService.getValidationStatus(selectedClassId, 1)
+      const updated = await assessmentService.getValidationStatus(selectedClassId, semesterId)
       if (updated.success && Array.isArray(updated.data)) {
         setValidationList(updated.data)
       }

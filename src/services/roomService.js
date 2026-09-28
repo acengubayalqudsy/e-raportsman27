@@ -16,6 +16,7 @@ export const roomService = {
     if (params.per_page || params.rowsPerPage) query.set('per_page', params.per_page || params.rowsPerPage)
     if (params.search && params.search.trim()) query.set('search', params.search.trim())
     if (params.room_type && params.room_type !== 'Semua') query.set('room_type', params.room_type)
+    if (params.academic_year_id) query.set('academic_year_id', params.academic_year_id)
     if (params.status && params.status !== 'Semua') query.set('status', params.status)
     if (params.building && params.building !== 'Semua') query.set('building', params.building)
     if (params.sort_by) query.set('sort_by', params.sort_by)
@@ -113,8 +114,9 @@ export const roomService = {
   /**
    * Mengambil statistik ruangan.
    */
-  async getStats() {
-    const response = await apiClient.get('/api/v1/rooms/stats')
+  async getStats(academicYearId = null) {
+    const query = academicYearId ? `?academic_year_id=${academicYearId}` : ''
+    const response = await apiClient.get(`/api/v1/rooms/stats${query}`)
     if (response.success) {
       return { success: true, data: response.data }
     }

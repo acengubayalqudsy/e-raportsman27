@@ -181,7 +181,10 @@ class AssessmentApiTest extends TestCase
         $res = $this->actingAs($this->guruUser1)->getJson('/api/v1/assessment/context');
         $res->assertStatus(200)
             ->assertJsonPath('success', true)
-            ->assertJsonPath('data.assigned_courses.0.course_assignment_id', $this->assignment1->id);
+            ->assertJsonPath('data.assigned_courses.0.course_assignment_id', $this->assignment1->id)
+            ->assertJsonPath('data.assigned_courses.0.academic_year_id', $this->academicYear->id)
+            ->assertJsonPath('data.assigned_courses.0.semester_id', $this->semester->id)
+            ->assertJsonPath('data.assigned_courses.0.grade', 'X');
     }
 
     public function test_guru_can_create_learning_objective_and_assessment(): void
@@ -355,6 +358,34 @@ class AssessmentApiTest extends TestCase
             'assessment_id' => $assessment->id,
             'student_id' => $this->studentA1->id,
             'final_score' => 85.5,
+        ]);
+    }
+
+    public function test_guru_can_clear_a_saved_score(): void
+    {
+        $assessment = Assessment::create([
+            'course_assignment_id' => $this->assignment1->id,
+            'type' => 'Formatif',
+            'title' => 'Latihan',
+            'status' => 'Aktif',
+        ]);
+        $payload = [
+            'course_assignment_id' => $this->assignment1->id,
+            'scores' => [[
+                'assessment_id' => $assessment->id,
+                'student_id' => $this->studentA1->id,
+                'score' => 80,
+            ]],
+        ];
+
+        $this->actingAs($this->guruUser1)->postJson('/api/v1/assessment/scores/batch', $payload)->assertOk();
+        $payload['scores'][0]['score'] = null;
+        $this->actingAs($this->guruUser1)->postJson('/api/v1/assessment/scores/batch', $payload)->assertOk();
+
+        $this->assertDatabaseHas('student_scores', [
+            'assessment_id' => $assessment->id,
+            'student_id' => $this->studentA1->id,
+            'final_score' => null,
         ]);
     }
 

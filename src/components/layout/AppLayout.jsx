@@ -75,7 +75,7 @@ function AppLayout() {
         aria-label="Tutup sidebar"
       />
       <div className="app-main">
-        <Topbar compact={usesDrawer} onToggle={toggleSidebar} />
+        <Topbar compact={usesDrawer || breakpoint.width < 960} onToggle={toggleSidebar} />
         <div className="app-content-wrapper">
           <main className="dashboard-content">
             <Outlet />

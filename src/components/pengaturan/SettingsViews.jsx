@@ -3,9 +3,9 @@ import Button from '../common/Button.jsx'
 import EmptyState from '../common/EmptyState.jsx'
 import Icon from '../common/Icon.jsx'
 import MasterPagination from '../master-data/MasterPagination.jsx'
+import { settingsService } from '../../services/settingsService.js'
+import { useAcademicContext } from '../../context/AcademicContext.jsx'
 import {
-  activityLogs,
-  backupHistory,
   initialAcademicSettings,
   initialReportSettings,
   initialSystemSettings,
@@ -23,10 +23,6 @@ const COMPONENT_LABELS = {
   signatures: 'Tanda Tangan',
 }
 
-let academicSessionSettings = { ...initialAcademicSettings }
-let reportSessionSettings = { ...initialReportSettings, components: { ...initialReportSettings.components } }
-let systemSessionSettings = { ...initialSystemSettings }
-let backupSessionHistory = [...backupHistory]
 
 function isSameValue(left, right) {
   return JSON.stringify(left) === JSON.stringify(right)
@@ -142,35 +138,41 @@ function FormActions({ dirty, isSaving, onReset, onSave }) {
   )
 }
 
-function useDelayedAction() {
-  const timerRef = useRef(null)
-
-  useEffect(() => () => window.clearTimeout(timerRef.current), [])
-
-  const delay = (callback, duration = 450) => {
-    window.clearTimeout(timerRef.current)
-    timerRef.current = window.setTimeout(callback, duration)
-  }
-
-  return delay
-}
-
 export function AcademicSettingsView({ onDirtyChange, onNotify }) {
-  const [form, setForm] = useState(() => ({ ...academicSessionSettings }))
-  const [saved, setSaved] = useState(() => ({ ...academicSessionSettings }))
+  const { activeAcademicYear, activeSemester, availableYears, allSemesters, loadAcademicContext } = useAcademicContext()
+  const [form, setForm] = useState(() => ({ ...initialAcademicSettings }))
+  const [saved, setSaved] = useState(() => ({ ...initialAcademicSettings }))
   const [dirty, setDirty] = useState(false)
   const [isSaving, setIsSaving] = useState(false)
   const [error, setError] = useState('')
+  const [hasStoredSettings, setHasStoredSettings] = useState(null)
   const [pendingContext, setPendingContext] = useState(null)
   const [confirmReset, setConfirmReset] = useState(false)
-  const delay = useDelayedAction()
   useDirtyReporter(dirty, onDirtyChange)
+
+  useEffect(() => {
+    let active = true
+    settingsService.get('academic').then((value) => {
+      if (!active) return
+      setHasStoredSettings(Boolean(value))
+      if (value) { setForm(value); setSaved(value); setDirty(false) }
+    }).catch((failure) => { if (active) setError(failure.message) })
+    return () => { active = false }
+  }, [])
+
+  const fallbackForm = useMemo(() => {
+    if (hasStoredSettings !== false || !activeAcademicYear || !activeSemester || dirty) return null
+    return { ...initialAcademicSettings, academicYear: activeAcademicYear.name, semester: activeSemester.name }
+  }, [hasStoredSettings, activeAcademicYear, activeSemester, dirty])
+  const currentForm = fallbackForm || form
+  const currentSaved = fallbackForm || saved
 
   const update = (key, value) => {
     if (isSaving) return
+    if (fallbackForm) setSaved(fallbackForm)
     setForm((current) => {
-      const next = { ...current, [key]: value }
-      setDirty(!isSameValue(next, saved))
+      const next = { ...(fallbackForm || current), [key]: value }
+      setDirty(!isSameValue(next, currentSaved))
       return next
     })
     setError('')
@@ -178,8 +180,8 @@ export function AcademicSettingsView({ onDirtyChange, onNotify }) {
 
   const requestContextChange = (key, value) => {
     if (isSaving) return
-    if (value === form[key]) return
-    setPendingContext({ key, from: form[key], to: value })
+    if (value === currentForm[key]) return
+    setPendingContext({ key, from: currentForm[key], to: value })
   }
 
   const applyContextChange = () => {
@@ -187,32 +189,32 @@ export function AcademicSettingsView({ onDirtyChange, onNotify }) {
     setPendingContext(null)
   }
 
-  const save = () => {
-    if (!form.academicYear || !form.semester || !form.semesterStartDate || !form.semesterEndDate) {
+  const save = async () => {
+    if (!currentForm.academicYear || !currentForm.semester || !currentForm.semesterStartDate || !currentForm.semesterEndDate) {
       setError('Lengkapi tahun ajaran, semester, dan rentang tanggal semester.')
       return
     }
-    if (form.semesterStartDate > form.semesterEndDate) {
+    if (currentForm.semesterStartDate > currentForm.semesterEndDate) {
       setError('Tanggal akhir semester harus setelah tanggal mulai semester.')
       return
     }
-    if (Number(form.schoolDays) < 1) {
+    if (Number(currentForm.schoolDays) < 1) {
       setError('Jumlah hari sekolah minimal 1 hari.')
       return
     }
     setIsSaving(true)
-    delay(() => {
-      const next = { ...form }
-      academicSessionSettings = next
+    try {
+      const next = await settingsService.save('academic', currentForm)
       setSaved(next)
       setDirty(false)
-      setIsSaving(false)
+      await loadAcademicContext()
       onNotify?.('Pengaturan akademik berhasil diperbarui.')
-    })
+    } catch (failure) { setError(failure.message) }
+    finally { setIsSaving(false) }
   }
 
   const reset = () => {
-    setForm({ ...saved })
+    setForm({ ...currentSaved })
     setDirty(false)
     setError('')
     setConfirmReset(false)
@@ -232,21 +234,21 @@ export function AcademicSettingsView({ onDirtyChange, onNotify }) {
         <FormSection description="Perubahan tahun ajaran atau semester memerlukan konfirmasi." icon="calendar" title="Konteks Akademik Aktif">
           <div className="settings-form-grid">
             <Field label="Tahun Ajaran Aktif">
-              <select value={form.academicYear} onChange={(event) => requestContextChange('academicYear', event.target.value)}>
-                {settingsOptions.academicYears.map((option) => <option key={option}>{option}</option>)}
+              <select value={currentForm.academicYear} onChange={(event) => requestContextChange('academicYear', event.target.value)}>
+                {(availableYears.length ? availableYears.map((year) => year.name) : [currentForm.academicYear]).map((option) => <option key={option}>{option}</option>)}
               </select>
             </Field>
             <Field label="Semester Aktif">
-              <select value={form.semester} onChange={(event) => requestContextChange('semester', event.target.value)}>
-                {settingsOptions.semesters.map((option) => <option key={option}>{option}</option>)}
+              <select value={currentForm.semester} onChange={(event) => requestContextChange('semester', event.target.value)}>
+                {(allSemesters.length ? [...new Set(allSemesters.filter((semester) => availableYears.find((year) => year.name === currentForm.academicYear && year.id === semester.academic_year_id)).map((semester) => semester.name))] : [currentForm.semester]).map((option) => <option key={option}>{option}</option>)}
               </select>
             </Field>
-            <Field label="Tanggal Mulai Semester"><input type="date" value={form.semesterStartDate} onChange={(event) => update('semesterStartDate', event.target.value)} /></Field>
-            <Field label="Tanggal Akhir Semester"><input type="date" value={form.semesterEndDate} onChange={(event) => update('semesterEndDate', event.target.value)} /></Field>
-            <Field label="Tanggal Pembagian Rapor"><input type="date" value={form.reportDistributionDate} onChange={(event) => update('reportDistributionDate', event.target.value)} /></Field>
-            <Field label="Jumlah Hari Sekolah"><input min="1" type="number" value={form.schoolDays} onChange={(event) => update('schoolDays', Number(event.target.value))} /></Field>
+            <Field label="Tanggal Mulai Semester"><input type="date" value={currentForm.semesterStartDate} onChange={(event) => update('semesterStartDate', event.target.value)} /></Field>
+            <Field label="Tanggal Akhir Semester"><input type="date" value={currentForm.semesterEndDate} onChange={(event) => update('semesterEndDate', event.target.value)} /></Field>
+            <Field label="Tanggal Pembagian Rapor"><input type="date" value={currentForm.reportDistributionDate} onChange={(event) => update('reportDistributionDate', event.target.value)} /></Field>
+            <Field label="Jumlah Hari Sekolah"><input min="1" type="number" value={currentForm.schoolDays} onChange={(event) => update('schoolDays', Number(event.target.value))} /></Field>
             <Field label="Format Nama Kelas">
-              <select value={form.classNameFormat} onChange={(event) => update('classNameFormat', event.target.value)}>
+              <select value={currentForm.classNameFormat} onChange={(event) => update('classNameFormat', event.target.value)}>
                 {settingsOptions.classNameFormats.map((option) => <option key={option}>{option}</option>)}
               </select>
             </Field>
@@ -255,10 +257,10 @@ export function AcademicSettingsView({ onDirtyChange, onNotify }) {
 
         <FormSection description="Toggle berikut hanya mengubah konfigurasi mock pada frontend." icon="sliders" title="Akses Modul Akademik">
           <div className="settings-toggle-list">
-            <Toggle checked={form.semesterEnabled} description="Mengaktifkan konteks semester terpilih." label="Aktifkan Semester" onChange={(value) => update('semesterEnabled', value)} />
-            <Toggle checked={form.scoreInputEnabled} description="Izinkan pengisian nilai pada periode aktif." label="Aktifkan Input Nilai" onChange={(value) => update('scoreInputEnabled', value)} />
-            <Toggle checked={form.attendanceInputEnabled} description="Izinkan pencatatan absensi pada periode aktif." label="Aktifkan Pengisian Absensi" onChange={(value) => update('attendanceInputEnabled', value)} />
-            <Toggle checked={form.reportGenerationEnabled} description="Izinkan simulasi generate rapor." label="Aktifkan Generate Rapor" onChange={(value) => update('reportGenerationEnabled', value)} />
+            <Toggle checked={currentForm.semesterEnabled} description="Mengaktifkan konteks semester terpilih." label="Aktifkan Semester" onChange={(value) => update('semesterEnabled', value)} />
+            <Toggle checked={currentForm.scoreInputEnabled} description="Izinkan pengisian nilai pada periode aktif." label="Aktifkan Input Nilai" onChange={(value) => update('scoreInputEnabled', value)} />
+            <Toggle checked={currentForm.attendanceInputEnabled} description="Izinkan pencatatan absensi pada periode aktif." label="Aktifkan Pengisian Absensi" onChange={(value) => update('attendanceInputEnabled', value)} />
+            <Toggle checked={currentForm.reportGenerationEnabled} description="Izinkan simulasi generate rapor." label="Aktifkan Generate Rapor" onChange={(value) => update('reportGenerationEnabled', value)} />
           </div>
         </FormSection>
 
@@ -292,14 +294,22 @@ export function AcademicSettingsView({ onDirtyChange, onNotify }) {
 }
 
 export function ReportSettingsView({ onDirtyChange, onNotify }) {
-  const [form, setForm] = useState(() => ({ ...reportSessionSettings, components: { ...reportSessionSettings.components } }))
-  const [saved, setSaved] = useState(() => ({ ...reportSessionSettings, components: { ...reportSessionSettings.components } }))
+  const [form, setForm] = useState(() => ({ ...initialReportSettings, components: { ...initialReportSettings.components } }))
+  const [saved, setSaved] = useState(() => ({ ...initialReportSettings, components: { ...initialReportSettings.components } }))
   const [dirty, setDirty] = useState(false)
   const [isSaving, setIsSaving] = useState(false)
   const [previewOpen, setPreviewOpen] = useState(false)
   const [confirmReset, setConfirmReset] = useState(false)
-  const delay = useDelayedAction()
+  const [error, setError] = useState('')
   useDirtyReporter(dirty, onDirtyChange)
+
+  useEffect(() => {
+    let active = true
+    settingsService.get('report').then((value) => {
+      if (active && value) { setForm({ ...initialReportSettings, ...value }); setSaved({ ...initialReportSettings, ...value }); setDirty(false) }
+    }).catch((failure) => { if (active) setError(failure.message) })
+    return () => { active = false }
+  }, [])
 
   const update = (key, value) => {
     if (isSaving) return
@@ -317,16 +327,15 @@ export function ReportSettingsView({ onDirtyChange, onNotify }) {
       return next
     })
   }
-  const save = () => {
+  const save = async () => {
     setIsSaving(true)
-    delay(() => {
-      const next = { ...form, components: { ...form.components } }
-      reportSessionSettings = next
+    try {
+      const next = await settingsService.save('report', form)
       setSaved(next)
       setDirty(false)
-      setIsSaving(false)
       onNotify?.('Pengaturan rapor berhasil diperbarui.')
-    })
+    } catch (failure) { setError(failure.message) }
+    finally { setIsSaving(false) }
   }
   const reset = () => {
     setForm({ ...saved, components: { ...saved.components } })
@@ -338,6 +347,7 @@ export function ReportSettingsView({ onDirtyChange, onNotify }) {
   return (
     <div className="settings-view settings-form-view">
       <div className="settings-panel settings-form-panel">
+        {error && <div className="settings-inline-alert error" role="alert">{error}</div>}
         <div className="settings-panel-heading">
           <div><h2>Pengaturan Rapor</h2><p>Atur format visual dan komponen dokumen rapor.</p></div>
           <Button className="settings-outline-button" onClick={() => setPreviewOpen(true)}><Icon name="eye" />Preview Rapor</Button>
@@ -413,13 +423,21 @@ export function ReportSettingsView({ onDirtyChange, onNotify }) {
 }
 
 export function SystemSettingsView({ onDirtyChange, onNotify }) {
-  const [form, setForm] = useState(() => ({ ...systemSessionSettings }))
-  const [saved, setSaved] = useState(() => ({ ...systemSessionSettings }))
+  const [form, setForm] = useState(() => ({ ...initialSystemSettings }))
+  const [saved, setSaved] = useState(() => ({ ...initialSystemSettings }))
   const [dirty, setDirty] = useState(false)
   const [isSaving, setIsSaving] = useState(false)
   const [confirmReset, setConfirmReset] = useState(false)
-  const delay = useDelayedAction()
+  const [error, setError] = useState('')
   useDirtyReporter(dirty, onDirtyChange)
+
+  useEffect(() => {
+    let active = true
+    settingsService.get('system').then((value) => {
+      if (active && value) { setForm(value); setSaved(value); setDirty(false) }
+    }).catch((failure) => { if (active) setError(failure.message) })
+    return () => { active = false }
+  }, [])
 
   const update = (key, value) => {
     if (isSaving) return
@@ -429,16 +447,16 @@ export function SystemSettingsView({ onDirtyChange, onNotify }) {
       return next
     })
   }
-  const save = () => {
+  const save = async () => {
+    if (!form.applicationName.trim()) { setError('Nama aplikasi wajib diisi.'); return }
     setIsSaving(true)
-    delay(() => {
-      const next = { ...form }
-      systemSessionSettings = next
+    try {
+      const next = await settingsService.save('system', form)
       setSaved(next)
       setDirty(false)
-      setIsSaving(false)
       onNotify?.('Pengaturan sistem berhasil diperbarui.')
-    })
+    } catch (failure) { setError(failure.message) }
+    finally { setIsSaving(false) }
   }
   const reset = () => {
     setForm({ ...saved })
@@ -450,6 +468,7 @@ export function SystemSettingsView({ onDirtyChange, onNotify }) {
   return (
     <div className="settings-view settings-form-view">
       <div className="settings-panel settings-form-panel">
+        {error && <div className="settings-inline-alert error" role="alert">{error}</div>}
         <div className="settings-panel-heading"><div><h2>Pengaturan Sistem</h2><p>Kelola preferensi aplikasi, antarmuka, dan notifikasi frontend.</p></div></div>
 
         <FormSection description="Informasi dan format dasar yang digunakan pada antarmuka." icon="settings" title="Preferensi Aplikasi">
@@ -500,60 +519,59 @@ export function SystemSettingsView({ onDirtyChange, onNotify }) {
 }
 
 export function BackupRestoreView({ onNotify }) {
-  const [history, setHistory] = useState(() => [...backupSessionHistory])
+  const [history, setHistory] = useState([])
   const [currentPage, setCurrentPage] = useState(1)
   const [rowsPerPage, setRowsPerPage] = useState(8)
   const [modal, setModal] = useState('')
-  const [selectedBackupId, setSelectedBackupId] = useState(backupSessionHistory[0]?.id ?? '')
+  const [selectedBackupId, setSelectedBackupId] = useState('')
   const [loading, setLoading] = useState('')
-  const delay = useDelayedAction()
+  const [error, setError] = useState('')
+
+  useEffect(() => {
+    let active = true
+    settingsService.backups().then((items) => {
+      if (active) { setHistory(items); setSelectedBackupId(String(items[0]?.id ?? '')) }
+    }).catch((failure) => { if (active) setError(failure.message) })
+    return () => { active = false }
+  }, [])
 
   const totalPages = Math.ceil(history.length / rowsPerPage)
   const visibleRows = history.slice((currentPage - 1) * rowsPerPage, currentPage * rowsPerPage)
   const latest = history[0]
 
-  const startBackup = () => {
+  const startBackup = async () => {
     setModal('')
     setLoading('backup')
-    delay(() => {
-      const now = new Date()
-      const newBackup = {
-        id: `BKP-SIM-${now.getTime()}`,
-        createdAt: `${new Intl.DateTimeFormat('id-ID', { dateStyle: 'long', timeStyle: 'short' }).format(now)} WIB`,
-        createdAtIso: now.toISOString(),
-        createdBy: 'Administrator',
-        size: '24,8 MB',
-        status: 'Berhasil',
-        type: 'Simulasi Manual',
-        isMock: true,
-      }
-      setHistory((current) => {
-        const next = [newBackup, ...current]
-        backupSessionHistory = next
-        return next
-      })
-      setSelectedBackupId(newBackup.id)
+    try {
+      const created = await settingsService.createBackup()
+      setHistory((current) => [created, ...current])
+      setSelectedBackupId(String(created.id))
       setCurrentPage(1)
-      setLoading('')
-      onNotify?.('Backup simulasi berhasil dibuat. Tidak ada file atau database yang dicadangkan.')
-    }, 650)
+      setError('')
+      onNotify?.('Backup database berhasil dibuat.')
+    } catch (failure) { setError(failure.message) }
+    finally { setLoading('') }
   }
 
-  const startRestore = () => {
+  const startRestore = async () => {
     setModal('')
     setLoading('restore')
-    delay(() => {
-      setLoading('')
-      onNotify?.('Simulasi restore selesai. Tidak ada data aplikasi yang diubah.')
-    }, 650)
+    try {
+      await settingsService.restoreBackup(selectedBackupId)
+      setHistory(await settingsService.backups())
+      setError('')
+      onNotify?.('Database berhasil dipulihkan. Muat ulang aplikasi untuk melihat hasilnya.')
+    } catch (failure) { setError(failure.message) }
+    finally { setLoading('') }
   }
 
-  const selectedBackup = history.find((item) => item.id === selectedBackupId) ?? latest
+  const selectedBackup = history.find((item) => String(item.id) === selectedBackupId) ?? latest
 
   return (
     <div className="settings-view settings-data-view">
       <section className="settings-backup-summary settings-panel">
-        <div className="settings-panel-heading"><div><h2>Backup & Restore</h2><p>Simulasikan pencadangan dan pemulihan data melalui antarmuka frontend.</p></div><span className="settings-mock-badge">Simulasi Frontend</span></div>
+        <div className="settings-panel-heading"><div><h2>Backup & Restore</h2><p>Cadangkan dan pulihkan database MySQL/MariaDB aplikasi.</p></div></div>
+        {error && <div className="settings-inline-alert error" role="alert">{error}</div>}
         <div className="settings-summary-grid">
           <article className="settings-summary-card"><span><Icon name="clock" /></span><div><small>Backup Terakhir</small><strong>{latest?.createdAt ?? '-'}</strong></div></article>
           <article className="settings-summary-card"><span><Icon name="document" /></span><div><small>Ukuran</small><strong>{latest?.size ?? '-'}</strong></div></article>
@@ -570,34 +588,34 @@ export function BackupRestoreView({ onNotify }) {
       </section>
 
       <section className="settings-panel settings-table-panel">
-        <div className="settings-panel-heading"><div><h2>Riwayat Backup</h2><p>Daftar berikut merupakan data mock dan tidak merepresentasikan file backup sebenarnya.</p></div><span className="settings-count-badge">{history.length} riwayat</span></div>
+        <div className="settings-panel-heading"><div><h2>Riwayat Backup</h2><p>File cadangan yang tersimpan di server.</p></div><span className="settings-count-badge">{history.length} riwayat</span></div>
         {visibleRows.length ? (
           <>
             <div className="settings-table-scroll">
               <table className="settings-data-table">
                 <thead><tr><th>No</th><th>Tanggal</th><th>Dibuat Oleh</th><th>Jenis</th><th>Ukuran</th><th>Status</th><th>Aksi</th></tr></thead>
-                <tbody>{visibleRows.map((item, index) => <tr key={item.id}><td>{(currentPage - 1) * rowsPerPage + index + 1}</td><td><strong>{item.createdAt}</strong><small>{item.id}</small></td><td>{item.createdBy}</td><td>{item.type}</td><td>{item.size}</td><td><span className="settings-status-badge success">{item.status}</span></td><td><Button aria-label={`Restore dari ${item.createdAt}`} className="settings-icon-button" onClick={() => { setSelectedBackupId(item.id); setModal('restore') }}><Icon name="reset" /></Button></td></tr>)}</tbody>
+                <tbody>{visibleRows.map((item, index) => <tr key={item.id}><td>{(currentPage - 1) * rowsPerPage + index + 1}</td><td><strong>{item.createdAt}</strong><small>#{item.id}</small></td><td>{item.createdBy}</td><td>{item.type}</td><td>{item.size}</td><td><span className="settings-status-badge success">{item.status}</span></td><td><Button aria-label={`Restore dari ${item.createdAt}`} className="settings-icon-button" onClick={() => { setSelectedBackupId(String(item.id)); setModal('restore') }}><Icon name="reset" /></Button></td></tr>)}</tbody>
               </table>
             </div>
             <MasterPagination currentPage={currentPage} itemLabel="riwayat" onPageChange={setCurrentPage} onRowsPerPageChange={(value) => { setRowsPerPage(value); setCurrentPage(1) }} rowsPerPage={rowsPerPage} totalItems={history.length} totalPages={totalPages} />
           </>
         ) : (
-          <EmptyState className="settings-empty"><Icon name="cloudUpload" /><h3>Belum ada riwayat backup</h3><p>Backup sebenarnya akan tersedia setelah integrasi backend.</p></EmptyState>
+          <EmptyState className="settings-empty"><Icon name="cloudUpload" /><h3>Belum ada riwayat backup</h3><p>Buat backup pertama untuk mencadangkan database.</p></EmptyState>
         )}
       </section>
 
-      <section className="settings-inline-alert info"><Icon name="info" /><div><strong>Fitur masih berupa simulasi frontend</strong><p>Proses pencadangan dan pemulihan data sebenarnya membutuhkan integrasi backend serta database.</p></div></section>
+      <section className="settings-inline-alert info"><Icon name="info" /><div><strong>Pemulihan database</strong><p>Server membuat backup kondisi saat ini sebelum menjalankan restore. Semua data aplikasi dapat berubah.</p></div></section>
 
-      {modal === 'backup' && <ConfirmModal confirmLabel="Buat Backup Simulasi" description="Tindakan ini hanya menambahkan riwayat mock pada halaman dan tidak membuat file backup." detail="Pastikan Anda memahami bahwa belum ada backend atau database yang dicadangkan." onCancel={() => setModal('')} onConfirm={startBackup} title="Backup Sekarang?" />}
+      {modal === 'backup' && <ConfirmModal confirmLabel="Buat Backup" description="Server akan membuat file cadangan database." onCancel={() => setModal('')} onConfirm={startBackup} title="Backup Sekarang?" />}
       {modal === 'restore' && (
-        <SettingsModal description="Pilih data backup mock yang akan digunakan pada simulasi." onClose={() => setModal('')} title="Restore Data">
+        <SettingsModal description="Pilih file backup yang akan digunakan untuk memulihkan database." onClose={() => setModal('')} title="Restore Data">
           <div className="settings-modal-body">
             <Field label="Pilih Backup">
               <select value={selectedBackupId} onChange={(event) => setSelectedBackupId(event.target.value)}>{history.map((item) => <option key={item.id} value={item.id}>{item.createdAt} · {item.size}</option>)}</select>
             </Field>
-            <div className="settings-confirm-detail danger"><strong>Perhatian</strong><p>Restore biasanya menggantikan kondisi data dengan backup terpilih. Pada fase ini proses hanya simulasi dan tidak mengubah data apa pun.</p>{selectedBackup && <small>Dipilih: {selectedBackup.id}</small>}</div>
+            <div className="settings-confirm-detail danger"><strong>Perhatian</strong><p>Restore akan mengganti kondisi database saat ini dengan backup terpilih. Server membuat backup otomatis sebelum pemulihan.</p>{selectedBackup && <small>Dipilih: #{selectedBackup.id}</small>}</div>
           </div>
-          <footer className="settings-modal-actions"><Button className="settings-secondary-button" onClick={() => setModal('')}>Batal</Button><Button className="settings-danger-button" onClick={startRestore}>Simulasikan Restore</Button></footer>
+          <footer className="settings-modal-actions"><Button className="settings-secondary-button" onClick={() => setModal('')}>Batal</Button><Button className="settings-danger-button" onClick={startRestore}>Pulihkan Database</Button></footer>
         </SettingsModal>
       )}
     </div>
@@ -634,18 +652,33 @@ function matchesDateRange(logDate, range, latestDate) {
 }
 
 export function ActivityLogView({ onNotify }) {
+  const [logs, setLogs] = useState([])
+  const [error, setError] = useState('')
   const [query, setQuery] = useState('')
   const [filters, setFilters] = useState({ dateRange: 'Semua Tanggal', user: 'Semua Pengguna', role: 'Semua Role', module: 'Semua Modul', activity: 'Semua Aktivitas', status: 'Semua Status' })
   const [currentPage, setCurrentPage] = useState(1)
   const [rowsPerPage, setRowsPerPage] = useState(8)
   const [selectedLog, setSelectedLog] = useState(null)
-  const [isRefreshing, setIsRefreshing] = useState(false)
-  const delay = useDelayedAction()
-  const latestDate = useMemo(() => [...activityLogs].sort((a, b) => b.date.localeCompare(a.date))[0]?.date ?? '', [])
+  const [isRefreshing, setIsRefreshing] = useState(true)
+  const latestDate = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Jakarta' })
+
+  const loadLogs = async () => {
+    setIsRefreshing(true)
+    try { setLogs(await settingsService.logs()); setError('') }
+    catch (failure) { setError(failure.message) }
+    finally { setIsRefreshing(false) }
+  }
+  useEffect(() => {
+    let active = true
+    settingsService.logs().then((items) => { if (active) setLogs(items) })
+      .catch((failure) => { if (active) setError(failure.message) })
+      .finally(() => { if (active) setIsRefreshing(false) })
+    return () => { active = false }
+  }, [])
 
   const filteredLogs = useMemo(() => {
     const normalizedQuery = query.trim().toLowerCase()
-    return activityLogs.filter((log) => {
+    return logs.filter((log) => {
       const haystack = `${log.timestamp} ${log.user} ${log.role} ${log.module} ${log.activity} ${log.target} ${log.status} ${log.detail}`.toLowerCase()
       return (!normalizedQuery || haystack.includes(normalizedQuery))
         && (filters.user === 'Semua Pengguna' || log.user === filters.user)
@@ -655,7 +688,7 @@ export function ActivityLogView({ onNotify }) {
         && matchesActivityType(log, filters.activity)
         && matchesDateRange(log.date, filters.dateRange, latestDate)
     })
-  }, [filters, latestDate, query])
+  }, [filters, latestDate, query, logs])
 
   const totalPages = Math.ceil(filteredLogs.length / rowsPerPage)
   const visibleRows = filteredLogs.slice((currentPage - 1) * rowsPerPage, currentPage * rowsPerPage)
@@ -668,24 +701,19 @@ export function ActivityLogView({ onNotify }) {
     setFilters({ dateRange: 'Semua Tanggal', user: 'Semua Pengguna', role: 'Semua Role', module: 'Semua Modul', activity: 'Semua Aktivitas', status: 'Semua Status' })
     setCurrentPage(1)
   }
-  const refresh = () => {
-    setIsRefreshing(true)
-    delay(() => {
-      setIsRefreshing(false)
-      onNotify?.('Log aktivitas mock berhasil dimuat ulang.')
-    })
-  }
+  const refresh = async () => { await loadLogs(); onNotify?.('Log aktivitas berhasil dimuat ulang.') }
 
   return (
     <div className="settings-view settings-data-view">
       <section className="settings-panel settings-filter-panel">
-        <div className="settings-panel-heading"><div><h2>Log Aktivitas</h2><p>Telusuri riwayat aktivitas pengguna dari data mock frontend.</p></div><Button className="settings-outline-button" disabled={isRefreshing} onClick={refresh}>{isRefreshing ? <span className="settings-spinner" /> : <Icon name="reset" />}{isRefreshing ? 'Memuat...' : 'Refresh Log'}</Button></div>
+        <div className="settings-panel-heading"><div><h2>Log Aktivitas</h2><p>Telusuri riwayat aktivitas pengguna dari server.</p></div><Button className="settings-outline-button" disabled={isRefreshing} onClick={refresh}>{isRefreshing ? <span className="settings-spinner" /> : <Icon name="reset" />}{isRefreshing ? 'Memuat...' : 'Refresh Log'}</Button></div>
+        {error && <div className="settings-inline-alert error" role="alert">{error}</div>}
         <div className="settings-filter-bar">
           <label className="settings-search"><span>Cari Aktivitas</span><div><input placeholder="Cari pengguna, modul, target..." value={query} onChange={(event) => { setQuery(event.target.value); setCurrentPage(1) }} /><Icon name="search" /></div></label>
           <Field label="Tanggal"><select value={filters.dateRange} onChange={(event) => updateFilter('dateRange', event.target.value)}>{settingsOptions.dateRanges.map((option) => <option key={option}>{option}</option>)}</select></Field>
-          <Field label="Pengguna"><select value={filters.user} onChange={(event) => updateFilter('user', event.target.value)}>{settingsOptions.users.map((option) => <option key={option}>{option}</option>)}</select></Field>
-          <Field label="Role"><select value={filters.role} onChange={(event) => updateFilter('role', event.target.value)}>{settingsOptions.roles.map((option) => <option key={option}>{option}</option>)}</select></Field>
-          <Field label="Modul"><select value={filters.module} onChange={(event) => updateFilter('module', event.target.value)}>{settingsOptions.modules.map((option) => <option key={option}>{option}</option>)}</select></Field>
+          <Field label="Pengguna"><select value={filters.user} onChange={(event) => updateFilter('user', event.target.value)}>{['Semua Pengguna', ...new Set(logs.map((log) => log.user))].map((option) => <option key={option}>{option}</option>)}</select></Field>
+          <Field label="Role"><select value={filters.role} onChange={(event) => updateFilter('role', event.target.value)}>{['Semua Role', ...new Set(logs.map((log) => log.role))].map((option) => <option key={option}>{option}</option>)}</select></Field>
+          <Field label="Modul"><select value={filters.module} onChange={(event) => updateFilter('module', event.target.value)}>{['Semua Modul', ...new Set(logs.map((log) => log.module))].map((option) => <option key={option}>{option}</option>)}</select></Field>
           <Field label="Jenis Aktivitas"><select value={filters.activity} onChange={(event) => updateFilter('activity', event.target.value)}>{settingsOptions.activityTypes.map((option) => <option key={option}>{option}</option>)}</select></Field>
           <Field label="Status"><select value={filters.status} onChange={(event) => updateFilter('status', event.target.value)}>{settingsOptions.activityStatuses.map((option) => <option key={option}>{option}</option>)}</select></Field>
         </div>
@@ -708,7 +736,7 @@ export function ActivityLogView({ onNotify }) {
         )}
       </section>
 
-      <section className="settings-inline-alert info"><Icon name="info" /><div><strong>Data log masih berupa mock</strong><p>Audit log server-side baru akan tersedia setelah integrasi backend.</p></div></section>
+      <section className="settings-inline-alert info"><Icon name="info" /><div><strong>Riwayat dari server</strong><p>Menampilkan hingga 1.000 aktivitas terbaru.</p></div></section>
 
       {selectedLog && (
         <SettingsModal description={`ID Aktivitas: ${selectedLog.id}`} onClose={() => setSelectedLog(null)} title="Detail Aktivitas">

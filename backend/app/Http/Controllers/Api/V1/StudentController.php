@@ -59,7 +59,7 @@ class StudentController extends Controller
     public function index(Request $request, \App\Services\AcademicAuthorizationService $authService): JsonResponse
     {
         $user = $request->user();
-        if (!$user || !$user->hasAnyRole(['admin', 'guru', 'walikelas'])) {
+        if (!$user || !$user->hasAnyRole(['admin', 'guru', 'walikelas', 'kepala_sekolah'])) {
             return response()->json([
                 'success' => false,
                 'message' => 'Akses ditolak. Anda tidak memiliki izin untuk melihat data siswa.',
@@ -69,7 +69,7 @@ class StudentController extends Controller
         $query = Student::query()->filter($request->all());
 
         // Row-level authorization for teachers and homeroom teachers
-        if (!$user->hasRole('admin')) {
+        if (!$user->hasAnyRole(['admin', 'kepala_sekolah'])) {
             $allowedClassIds = $authService->getAllowedClassIds($user);
             if (empty($allowedClassIds)) {
                 return response()->json([
@@ -142,7 +142,7 @@ class StudentController extends Controller
     public function show(Request $request, int $id, \App\Services\AcademicAuthorizationService $authService): JsonResponse
     {
         $user = $request->user();
-        if (!$user || !$user->hasAnyRole(['admin', 'guru', 'walikelas'])) {
+        if (!$user || !$user->hasAnyRole(['admin', 'guru', 'walikelas', 'kepala_sekolah'])) {
             return response()->json([
                 'success' => false,
                 'message' => 'Akses ditolak. Anda tidak memiliki izin untuk melihat detail biodata siswa.',

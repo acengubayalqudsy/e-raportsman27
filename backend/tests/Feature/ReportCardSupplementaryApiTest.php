@@ -15,6 +15,7 @@ use App\Models\SchoolClass;
 use App\Models\Semester;
 use App\Models\Student;
 use App\Models\StudentAttendance;
+use App\Models\StudentCocurricular;
 use App\Models\StudentExtracurricular;
 use App\Models\Subject;
 use App\Models\Teacher;
@@ -277,6 +278,16 @@ class ReportCardSupplementaryApiTest extends TestCase
         )->assertOk();
     }
 
+    public function test_homeroom_context_exposes_class_identifiers_used_by_report_forms(): void
+    {
+        $this->actingAs($this->guruWalikelasUser)
+            ->getJson('/api/v1/assessment/context')
+            ->assertOk()
+            ->assertJsonPath('data.homeroom_class.class_id', $this->class->id)
+            ->assertJsonPath('data.homeroom_class.class_name', $this->class->name)
+            ->assertJsonPath('data.active_semester.id', $this->semester->id);
+    }
+
     public function test_walikelas_can_access_and_save_supplementary_attendance(): void
     {
         // 1. Fetch supplementary (initially empty)
@@ -374,6 +385,65 @@ class ReportCardSupplementaryApiTest extends TestCase
             'student_id' => $this->student->id,
             'semester_id' => $this->semester->id,
         ]);
+    }
+
+    public function test_walikelas_can_add_edit_and_remove_cocurricular_projects(): void
+    {
+        $endpoint = '/api/v1/assessment/cocurriculars/batch';
+        $base = ['class_id' => $this->class->id, 'semester_id' => $this->semester->id];
+
+        $this->actingAs($this->guruWalikelasUser)->postJson($endpoint, $base + [
+            'items' => [['student_id' => $this->student->id, 'projects' => [
+                ['title' => 'Projek Lingkungan', 'description' => 'Menanam pohon'],
+            ]]],
+        ])->assertOk()->assertJsonPath('data.saved_count', 1);
+
+        $project = StudentCocurricular::where('student_id', $this->student->id)->firstOrFail();
+        $this->actingAs($this->guruWalikelasUser)->postJson($endpoint, $base + [
+            'items' => [['student_id' => $this->student->id, 'projects' => [
+                ['id' => $project->id, 'title' => 'Projek Kebun', 'description' => 'Menanam sayur'],
+            ]]],
+        ])->assertOk();
+
+        $this->assertDatabaseHas('student_cocurriculars', [
+            'id' => $project->id,
+            'title' => 'Projek Kebun',
+            'description' => 'Menanam sayur',
+            'deleted_at' => null,
+        ]);
+
+        $this->actingAs($this->guruWalikelasUser)->postJson($endpoint, $base + [
+            'items' => [['student_id' => $this->student->id, 'projects' => []]],
+        ])->assertOk();
+        $this->assertSame(0, StudentCocurricular::where('student_id', $this->student->id)->count());
+    }
+
+    public function test_cocurricular_update_rejects_another_students_project(): void
+    {
+        $otherStudent = Student::factory()->create(['status' => 'Aktif']);
+        ClassMember::create([
+            'academic_year_id' => $this->year->id,
+            'semester_id' => $this->semester->id,
+            'class_id' => $this->class->id,
+            'student_id' => $otherStudent->id,
+            'status' => 'Aktif',
+        ]);
+        $project = StudentCocurricular::create([
+            'student_id' => $otherStudent->id,
+            'semester_id' => $this->semester->id,
+            'class_id' => $this->class->id,
+            'title' => 'Projek Siswa Lain',
+            'description' => 'Deskripsi asli',
+        ]);
+
+        $this->actingAs($this->guruWalikelasUser)->postJson('/api/v1/assessment/cocurriculars/batch', [
+            'class_id' => $this->class->id,
+            'semester_id' => $this->semester->id,
+            'items' => [['student_id' => $this->student->id, 'projects' => [
+                ['id' => $project->id, 'title' => 'Diubah', 'description' => 'Tidak boleh'],
+            ]]],
+        ])->assertStatus(422);
+        $this->assertDatabaseHas('student_cocurriculars', ['id' => $project->id, 'title' => 'Projek Siswa Lain']);
     }
 
     public function test_walikelas_cannot_write_student_from_another_class(): void
@@ -533,5 +603,174 @@ class ReportCardSupplementaryApiTest extends TestCase
             ->assertJsonPath('data.extracurriculars.0.name', 'Paskibra')
             ->assertJsonPath('data.homeroom_note', 'Prestasi belajar sangat memuaskan.')
             ->assertJsonPath('data.is_data_complete', true);
+    }
+
+    public function test_class_daily_attendance_can_be_added_updated_and_removed_with_report_recap(): void
+    {
+        $payload = [
+            'class_id' => $this->class->id,
+            'semester_id' => $this->semester->id,
+            'scope' => 'class',
+            'date' => '2025-08-12',
+            'items' => [['student_id' => $this->student->id, 'status' => 'Sakit', 'notes' => 'Demam']],
+        ];
+
+        $this->actingAs($this->guruWalikelasUser)
+            ->postJson('/api/v1/assessment/attendance/entries/batch', $payload)
+            ->assertOk();
+        $this->assertDatabaseHas('student_attendance_entries', [
+            'student_id' => $this->student->id,
+            'course_assignment_id' => 0,
+            'status' => 'Sakit',
+        ]);
+        $this->assertDatabaseHas('student_attendances', ['student_id' => $this->student->id, 'sick' => 1]);
+
+        $this->actingAs($this->guruWalikelasUser)
+            ->getJson("/api/v1/assessment/attendance/entries?class_id={$this->class->id}&semester_id={$this->semester->id}&scope=class&student_id={$this->student->id}")
+            ->assertOk()
+            ->assertJsonPath('data.entries.0.attendance_date', '2025-08-12')
+            ->assertJsonPath('data.entries.0.status', 'Sakit')
+            ->assertJsonPath('data.students.0.attendance.sick', 1);
+
+        $this->actingAs($this->guruWalikelasUser)
+            ->getJson("/api/v1/assessment/attendance/classes?semester_id={$this->semester->id}")
+            ->assertOk()
+            ->assertJsonPath('data.0.id', $this->class->id);
+
+        $payload['items'][0]['status'] = 'Hadir';
+        $this->actingAs($this->guruWalikelasUser)
+            ->postJson('/api/v1/assessment/attendance/entries/batch', $payload)
+            ->assertOk();
+        $this->assertDatabaseHas('student_attendances', ['student_id' => $this->student->id, 'sick' => 0]);
+
+        $payload['items'][0]['status'] = null;
+        $this->actingAs($this->guruWalikelasUser)
+            ->postJson('/api/v1/assessment/attendance/entries/batch', $payload)
+            ->assertOk();
+        $this->assertDatabaseMissing('student_attendance_entries', ['student_id' => $this->student->id]);
+    }
+
+    public function test_subject_attendance_requires_assigned_course_and_does_not_change_report_recap(): void
+    {
+        $payload = [
+            'class_id' => $this->class->id,
+            'semester_id' => $this->semester->id,
+            'scope' => 'subject',
+            'course_assignment_id' => $this->assignment->id,
+            'date' => '2025-08-12',
+            'items' => [['student_id' => $this->student->id, 'status' => 'Alpa']],
+        ];
+
+        $this->actingAs($this->otherGuruUser)
+            ->postJson('/api/v1/assessment/attendance/entries/batch', $payload)
+            ->assertStatus(403);
+        $this->actingAs($this->guruWalikelasUser)
+            ->postJson('/api/v1/assessment/attendance/entries/batch', $payload)
+            ->assertOk();
+        $this->assertDatabaseHas('student_attendance_entries', [
+            'student_id' => $this->student->id,
+            'course_assignment_id' => $this->assignment->id,
+            'status' => 'Alpa',
+        ]);
+        $this->assertDatabaseMissing('student_attendances', ['student_id' => $this->student->id]);
+    }
+
+    public function test_subject_teacher_can_fill_own_mapel_but_only_view_class_recap(): void
+    {
+        $subjectCourse = CourseAssignment::create([
+            'academic_year_id' => $this->year->id,
+            'semester_id' => $this->semester->id,
+            'class_id' => $this->class->id,
+            'subject_id' => $this->assignment->subject_id,
+            'teacher_id' => $this->otherGuruUser->teacher->id,
+            'role' => 'Pendamping',
+            'status' => 'Aktif',
+        ]);
+
+        $baseUrl = "/api/v1/assessment/attendance/entries?class_id={$this->class->id}&semester_id={$this->semester->id}";
+        $this->actingAs($this->otherGuruUser)
+            ->getJson("{$baseUrl}&scope=class")
+            ->assertOk()
+            ->assertJsonPath('data.can_edit', false);
+        $this->actingAs($this->otherGuruUser)
+            ->getJson("{$baseUrl}&scope=subject&course_assignment_id={$subjectCourse->id}")
+            ->assertOk()
+            ->assertJsonPath('data.can_edit', true);
+
+        $payload = [
+            'class_id' => $this->class->id,
+            'semester_id' => $this->semester->id,
+            'scope' => 'subject',
+            'course_assignment_id' => $subjectCourse->id,
+            'date' => '2025-08-12',
+            'items' => [['student_id' => $this->student->id, 'status' => 'Izin']],
+        ];
+        $this->actingAs($this->otherGuruUser)
+            ->postJson('/api/v1/assessment/attendance/entries/batch', $payload)
+            ->assertOk();
+        $payload['scope'] = 'class';
+        unset($payload['course_assignment_id']);
+        $this->actingAs($this->otherGuruUser)
+            ->postJson('/api/v1/assessment/attendance/entries/batch', $payload)
+            ->assertStatus(403);
+    }
+
+    public function test_daily_attendance_rejects_date_outside_semester_and_nonmember(): void
+    {
+        $payload = [
+            'class_id' => $this->class->id,
+            'semester_id' => $this->semester->id,
+            'scope' => 'class',
+            'date' => '2026-02-12',
+            'items' => [['student_id' => $this->student->id, 'status' => 'Hadir']],
+        ];
+        $this->actingAs($this->adminUser)
+            ->postJson('/api/v1/assessment/attendance/entries/batch', $payload)
+            ->assertStatus(422);
+
+        $payload['date'] = '2025-08-12';
+        $payload['items'][0]['student_id'] = Student::factory()->create()->id;
+        $this->actingAs($this->adminUser)
+            ->postJson('/api/v1/assessment/attendance/entries/batch', $payload)
+            ->assertStatus(422);
+        $this->assertDatabaseCount('student_attendance_entries', 0);
+    }
+
+    public function test_daily_changes_preserve_existing_manual_semester_recap(): void
+    {
+        $this->actingAs($this->guruWalikelasUser)->postJson('/api/v1/assessment/attendance/batch', [
+            'class_id' => $this->class->id,
+            'semester_id' => $this->semester->id,
+            'items' => [['student_id' => $this->student->id, 'sick' => 3, 'permitted' => 2, 'absent' => 1, 'notes' => 'Rekap sebelumnya']],
+        ])->assertOk();
+
+        $payload = [
+            'class_id' => $this->class->id,
+            'semester_id' => $this->semester->id,
+            'scope' => 'class',
+            'date' => '2025-08-12',
+            'items' => [['student_id' => $this->student->id, 'status' => 'Sakit']],
+        ];
+        $this->actingAs($this->guruWalikelasUser)
+            ->postJson('/api/v1/assessment/attendance/entries/batch', $payload)
+            ->assertOk();
+        $this->assertDatabaseHas('student_attendances', [
+            'student_id' => $this->student->id,
+            'sick' => 4,
+            'permitted' => 2,
+            'absent' => 1,
+            'notes' => 'Rekap sebelumnya',
+        ]);
+
+        $payload['items'][0]['status'] = 'Izin';
+        $this->actingAs($this->guruWalikelasUser)
+            ->postJson('/api/v1/assessment/attendance/entries/batch', $payload)
+            ->assertOk();
+        $this->assertDatabaseHas('student_attendances', [
+            'student_id' => $this->student->id,
+            'sick' => 3,
+            'permitted' => 3,
+            'absent' => 1,
+        ]);
     }
 }

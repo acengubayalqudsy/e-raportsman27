@@ -37,6 +37,12 @@ export const assessmentService = {
     return { success: false, error: res.message || 'Gagal memuat Tujuan Pembelajaran.', data: [] }
   },
 
+  async createLearningObjective(data) {
+    const res = await apiClient.post('/api/v1/assessment/learning-objectives', data)
+    if (res.success) return { success: true, data: res.data, message: res.message }
+    return { success: false, error: res.message || 'Gagal menambahkan tujuan pembelajaran.', errors: res.errors || {} }
+  },
+
   /**
    * Membuat instrumen asesmen baru untuk suatu penugasan mengajar.
    */
@@ -164,7 +170,7 @@ export const assessmentService = {
       notes,
     })
     if (res.success) {
-      return { success: true, message: res.message }
+      return { success: true, message: res.message, data: res.data }
     }
     return { success: false, error: res.message || 'Gagal memvalidasi nilai.' }
   },
@@ -230,6 +236,25 @@ export const assessmentService = {
       status: res.status,
       errors: res.errors || null,
     }
+  },
+
+  async getAttendanceEntries(params) {
+    const query = new URLSearchParams(params)
+    const res = await apiClient.get(`/api/v1/assessment/attendance/entries?${query.toString()}`)
+    if (res.success) return { success: true, data: res.data }
+    return { success: false, error: res.message || 'Gagal memuat absensi harian.', status: res.status }
+  },
+
+  async getAttendanceClasses(semesterId) {
+    const res = await apiClient.get(`/api/v1/assessment/attendance/classes?semester_id=${semesterId}`)
+    if (res.success) return { success: true, data: Array.isArray(res.data) ? res.data : [] }
+    return { success: false, error: res.message || 'Gagal memuat kelas absensi.', status: res.status, data: [] }
+  },
+
+  async saveAttendanceEntries(payload) {
+    const res = await apiClient.post('/api/v1/assessment/attendance/entries/batch', payload)
+    if (res.success) return { success: true, data: res.data, message: res.message }
+    return { success: false, error: res.message || 'Gagal menyimpan absensi harian.', status: res.status, errors: res.errors }
   },
 
   /**

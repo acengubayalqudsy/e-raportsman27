@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Models\Role;
+use App\Models\Teacher;
 use App\Models\User;
 use Illuminate\Support\Facades\Hash;
 use Tests\TestCase;
@@ -114,6 +115,53 @@ class UserManagementApiTest extends TestCase
         $this->assertNotNull($createdUser);
         $this->assertTrue(Hash::check('PasswordAman123!', $createdUser->password));
         $this->assertTrue($createdUser->roles()->where('role_id', $this->guruRole->id)->exists());
+    }
+
+    public function test_create_rejects_unknown_role_without_leaving_an_account(): void
+    {
+        $this->actingAs($this->admin1)->postJson('/api/v1/master-data/users', [
+            'name' => 'Akun Tanpa Role',
+            'username' => 'tanpa_role',
+            'email' => 'tanpa_role@test.local',
+            'password' => 'PasswordAman123!',
+            'roles' => ['role_tidak_ada'],
+        ])->assertUnprocessable()->assertJsonValidationErrors('roles');
+
+        $this->assertDatabaseMissing('users', ['username' => 'tanpa_role']);
+    }
+
+    public function test_teacher_profile_can_be_linked_once_and_unlinked(): void
+    {
+        $teacher = Teacher::create(['name' => 'Guru Bertaut', 'gender' => 'P', 'status' => 'Aktif']);
+        $created = $this->actingAs($this->admin1)->postJson('/api/v1/master-data/users', [
+            'name' => 'Guru Bertaut',
+            'username' => 'guru_bertaut',
+            'email' => 'guru_bertaut@test.local',
+            'password' => 'PasswordAman123!',
+            'roles' => ['guru'],
+            'teacher_id' => $teacher->id,
+        ])->assertCreated()->assertJsonPath('data.teacher_id', $teacher->id);
+        $userId = $created->json('data.id');
+        $this->assertDatabaseHas('teachers', ['id' => $teacher->id, 'user_id' => $userId]);
+
+        $this->postJson('/api/v1/master-data/users', [
+            'name' => 'Guru Kedua',
+            'username' => 'guru_kedua_link',
+            'email' => 'guru_kedua_link@test.local',
+            'password' => 'PasswordAman123!',
+            'roles' => ['guru'],
+            'teacher_id' => $teacher->id,
+        ])->assertUnprocessable()->assertJsonValidationErrors('teacher_id');
+        $this->assertDatabaseMissing('users', ['username' => 'guru_kedua_link']);
+
+        $this->putJson("/api/v1/master-data/users/{$userId}", [
+            'name' => 'Guru Bertaut',
+            'username' => 'guru_bertaut',
+            'email' => 'guru_bertaut@test.local',
+            'roles' => ['guru'],
+            'teacher_id' => null,
+        ])->assertOk()->assertJsonPath('data.teacher_id', null);
+        $this->assertDatabaseHas('teachers', ['id' => $teacher->id, 'user_id' => null]);
     }
 
     public function test_duplicate_username_is_rejected(): void

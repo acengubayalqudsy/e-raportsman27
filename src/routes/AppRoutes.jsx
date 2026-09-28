@@ -99,6 +99,7 @@ function AppRoutes() {
         <Route path="/jurnal-mengajar/aktivitas-kelas" element={<JurnalMengajar />} />
         <Route path="/jurnal-mengajar/catatan" element={<JurnalMengajar />} />
         <Route path="/laporan" element={<Laporan />} />
+        <Route path="/laporan/saya" element={<Laporan />} />
         <Route path="/laporan/nilai" element={<Laporan />} />
         <Route path="/laporan/absensi" element={<Laporan />} />
         <Route path="/laporan/ekstrakurikuler" element={<Laporan />} />

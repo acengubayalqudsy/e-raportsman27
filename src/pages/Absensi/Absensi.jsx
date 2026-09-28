@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useLocation } from 'react-router-dom'
 import AttendanceTabs from '../../components/absensi/AttendanceTabs.jsx'
+import AttendanceDetailView from '../../components/absensi/AttendanceDetailView.jsx'
 import LiveAttendanceView from '../../components/absensi/LiveAttendanceView.jsx'
 import Icon from '../../components/common/Icon.jsx'
 import Breadcrumb from '../../components/layout/Breadcrumb.jsx'
@@ -28,9 +29,7 @@ function Absensi() {
       {activeTab.key === 'rekap' ? (
         <LiveAttendanceView onNotify={setNotice} />
       ) : (
-        <div className="attendance-live-state" role="status">
-          Tampilan {activeTab.label} belum tersedia pada API absensi semester. Rekap absensi yang tersimpan dapat dikelola melalui tab Rekap.
-        </div>
+        <AttendanceDetailView key={activeTab.key} mode={activeTab.key} onNotify={setNotice} />
       )}
 
       {notice && (

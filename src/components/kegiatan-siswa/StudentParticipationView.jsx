@@ -52,7 +52,7 @@ function ParticipationFormModal({
   availableExtracurriculars = [],
   availableStudents = [],
   defaultSemester = 'Ganjil',
-  defaultYear = '2024/2025',
+  defaultYear = '',
   initialData,
   isSaving = false,
   mode,
@@ -65,8 +65,6 @@ function ParticipationFormModal({
     extracurricularId: initialData?.extracurricularId ? String(initialData.extracurricularId) : (availableExtracurriculars[0]?.id ? String(availableExtracurriculars[0].id) : ''),
     academicYear: initialData?.academicYear ?? defaultYear,
     semester: initialData?.semester ?? defaultSemester,
-    yearJoined: initialData?.yearJoined ?? '2024',
-    status: initialData?.status ?? 'Aktif',
     predicate: initialData?.predicate ?? 'Baik',
     description: initialData?.description ?? '',
   }))
@@ -81,11 +79,6 @@ function ParticipationFormModal({
     event.preventDefault()
     if (!formData.studentId || !formData.extracurricularId) {
       setError('Pilih siswa dan ekstrakurikuler terlebih dahulu.')
-      return
-    }
-
-    if (!/^\d{4}$/.test(formData.yearJoined)) {
-      setError('Tahun gabung harus terdiri dari 4 digit angka.')
       return
     }
 
@@ -180,17 +173,6 @@ function ParticipationFormModal({
           </label>
 
           <label className="activity-field">
-            <span>Tahun Gabung</span>
-            <input
-              inputMode="numeric"
-              maxLength="4"
-              onChange={(event) => updateField('yearJoined', event.target.value.replace(/\D/g, ''))}
-              placeholder="Contoh: 2024"
-              value={formData.yearJoined}
-            />
-          </label>
-
-          <label className="activity-field">
             <span>Predikat / Capaian</span>
             <select
               onChange={(event) => updateField('predicate', event.target.value)}
@@ -206,6 +188,7 @@ function ParticipationFormModal({
           <label className="activity-field activity-field-full">
             <span>Catatan / Keterangan Pembina</span>
             <textarea
+              maxLength="255"
               onChange={(event) => updateField('description', event.target.value)}
               placeholder="Catatan perkembangan atau keikutsertaan siswa dalam kegiatan ekskul..."
               rows="2"
@@ -287,7 +270,7 @@ function ParticipationDetailModal({ onClose, onEdit, participation, studentParti
   )
 }
 
-function StudentParticipationView({ onNotify = () => {} }) {
+function StudentParticipationView({ classId: requestedClassId, semesterId: requestedSemesterId, onNotify = () => {} }) {
   const [participations, setParticipations] = useState([])
   const [availableStudents, setAvailableStudents] = useState([])
   const [availableExtracurriculars, setAvailableExtracurriculars] = useState([])
@@ -296,6 +279,7 @@ function StudentParticipationView({ onNotify = () => {} }) {
   const [isSaving, setIsSaving] = useState(false)
   const [fetchError, setFetchError] = useState(null)
   const [refreshTrigger, setRefreshTrigger] = useState(0)
+  const [loadedPeriod, setLoadedPeriod] = useState(null)
 
   // Filters & UI state
   const [filters, setFilters] = useState({
@@ -311,10 +295,10 @@ function StudentParticipationView({ onNotify = () => {} }) {
   const [openMenuId, setOpenMenuId] = useState(null)
   const [modal, setModal] = useState(null)
 
-  const classId = context?.homeroom_class?.id || context?.assigned_courses?.[0]?.class_id
-  const semesterId = context?.active_semester?.id
-  const activeYearName = context?.active_semester?.academic_year || '2024/2025'
-  const activeSemesterName = context?.active_semester?.name || 'Ganjil'
+  const classId = requestedClassId || context?.homeroom_class?.class_id || context?.assigned_courses?.[0]?.class_id
+  const semesterId = requestedSemesterId || context?.active_semester?.id
+  const activeYearName = loadedPeriod?.year || context?.active_academic_year?.name || ''
+  const activeSemesterName = loadedPeriod?.semester || context?.active_semester?.name || ''
 
   // 1. Fetch active extracurricular master list from MariaDB
   useEffect(() => {
@@ -349,8 +333,8 @@ function StudentParticipationView({ onNotify = () => {} }) {
         }
 
         setContext(ctxRes.data)
-        const currentClassId = ctxRes.data.homeroom_class?.id || ctxRes.data.assigned_courses?.[0]?.class_id
-        const currentSemesterId = ctxRes.data.active_semester?.id
+        const currentClassId = requestedClassId || ctxRes.data.homeroom_class?.class_id || ctxRes.data.assigned_courses?.[0]?.class_id
+        const currentSemesterId = requestedSemesterId || ctxRes.data.active_semester?.id
 
         if (!currentClassId || !currentSemesterId) {
           setFetchError('Belum ada penugasan kelas atau semester aktif yang terhubung.')
@@ -366,7 +350,8 @@ function StudentParticipationView({ onNotify = () => {} }) {
           const studentList = suppRes.data.students || []
           const className = suppRes.data.class?.name || 'Kelas'
           const semesterName = suppRes.data.semester?.name || ctxRes.data.active_semester?.name || 'Ganjil'
-          const academicYear = suppRes.data.semester?.academic_year || ctxRes.data.active_semester?.academic_year || '2024/2025'
+          const academicYear = suppRes.data.semester?.academic_year || ctxRes.data.active_academic_year?.name || ''
+          setLoadedPeriod({ year: academicYear, semester: semesterName })
 
           // Map students for form dropdowns
           const mappedStudents = studentList.map((st) => ({
@@ -394,7 +379,6 @@ function StudentParticipationView({ onNotify = () => {} }) {
                   supervisor: ekskul.supervisor || '-',
                   academicYear,
                   semester: semesterName,
-                  yearJoined: '2024',
                   status: 'Aktif',
                   predicate: ekskul.predicate || 'Baik',
                   description: ekskul.description || '',
@@ -425,7 +409,7 @@ function StudentParticipationView({ onNotify = () => {} }) {
     return () => {
       isMounted = false
     }
-  }, [refreshTrigger])
+  }, [refreshTrigger, requestedClassId, requestedSemesterId])
 
   // Lookup map to get supervisor by extracurricular name or ID
   const supervisorMap = useMemo(() => {
@@ -580,7 +564,7 @@ function StudentParticipationView({ onNotify = () => {} }) {
     if (res.success) {
       setOpenMenuId(null)
       setRefreshTrigger((prev) => prev + 1)
-      onNotify(`Keikutsertaan ${participation.name} pada ${participation.extracurricular} berhasil dinonaktifkan dari database.`)
+      onNotify(`Keikutsertaan ${participation.name} pada ${participation.extracurricular} berhasil dihapus dari daftar aktif.`)
     } else {
       onNotify(`Gagal mengubah status: ${res.error}`)
     }
@@ -764,7 +748,7 @@ function StudentParticipationView({ onNotify = () => {} }) {
                                 <button onClick={() => showDetail(participation)} type="button">Lihat Detail</button>
                                 <button onClick={() => setModal({ type: 'edit', participation })} type="button">Edit Data</button>
                                 <button onClick={() => handleDeleteParticipation(participation)} type="button">
-                                  Hapus / Nonaktifkan
+                                  Hapus Keikutsertaan
                                 </button>
                               </span>
                             )}

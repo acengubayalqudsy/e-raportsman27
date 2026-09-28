@@ -96,6 +96,66 @@ class TeachingJournalApiTest extends TestCase
             ->assertJsonPath('data.material', 'Bilangan');
     }
 
+    public function test_options_return_valid_assignment_ids_for_teacher_and_admin(): void
+    {
+        $this->actingAs($this->teacherUser)
+            ->getJson('/api/v1/journals/options?semester_id='.$this->assignment->semester_id)
+            ->assertOk()
+            ->assertJsonPath('data.0.id', $this->assignment->id)
+            ->assertJsonPath('data.0.teacher_id', $this->teacher->id)
+            ->assertJsonPath('data.0.start_date', '2024-07-15');
+
+        $this->actingAs($this->admin)
+            ->getJson('/api/v1/journals/options?semester_id='.$this->assignment->semester_id)
+            ->assertOk()
+            ->assertJsonPath('data.0.id', $this->assignment->id);
+    }
+
+    public function test_duplicate_meeting_is_rejected_and_existing_journal_can_be_searched(): void
+    {
+        $journal = $this->createJournal(['notes' => 'Refleksi eksperimen kelas']);
+        $this->actingAs($this->teacherUser)
+            ->postJson('/api/v1/journals', $this->payload())
+            ->assertStatus(422)
+            ->assertJsonValidationErrors('meeting');
+
+        $this->actingAs($this->teacherUser)
+            ->getJson('/api/v1/journals?semester_id='.$this->assignment->semester_id.'&search=eksperimen')
+            ->assertOk()
+            ->assertJsonPath('meta.total', 1)
+            ->assertJsonPath('data.0.id', $journal->id);
+    }
+
+    public function test_material_activity_and_notes_can_be_added_separately_to_one_meeting(): void
+    {
+        $minimal = $this->payload([
+            'material' => 'Pengenalan fungsi',
+            'activities' => '',
+            'attendance_present' => 0,
+            'attendance_total' => 0,
+        ]);
+        $journalId = $this->actingAs($this->teacherUser)
+            ->postJson('/api/v1/journals', $minimal)
+            ->assertCreated()
+            ->json('data.id');
+
+        $this->actingAs($this->teacherUser)
+            ->putJson('/api/v1/journals/'.$journalId, ['activities' => 'Diskusi kelompok', 'attendance_present' => 28, 'attendance_total' => 30])
+            ->assertOk()
+            ->assertJsonPath('data.material', 'Pengenalan fungsi')
+            ->assertJsonPath('data.activities', 'Diskusi kelompok');
+        $this->actingAs($this->teacherUser)
+            ->putJson('/api/v1/journals/'.$journalId, ['notes' => 'Perlu pengayaan latihan'])
+            ->assertOk()
+            ->assertJsonPath('data.notes', 'Perlu pengayaan latihan');
+        $this->assertDatabaseHas('teaching_journals', [
+            'id' => $journalId,
+            'material' => 'Pengenalan fungsi',
+            'activities' => 'Diskusi kelompok',
+            'notes' => 'Perlu pengayaan latihan',
+        ]);
+    }
+
     public function test_teacher_can_update_own_journal(): void
     {
         $journal = $this->createJournal();

@@ -32,6 +32,16 @@ class TeachingJournalService
         }
         if (!empty($filters['date_from'])) $query->whereDate('date', '>=', $filters['date_from']);
         if (!empty($filters['date_to'])) $query->whereDate('date', '<=', $filters['date_to']);
+        if (!empty($filters['search'])) {
+            $search = trim($filters['search']);
+            $query->where(function (Builder $q) use ($search) {
+                $q->where('material', 'like', "%{$search}%")
+                    ->orWhere('activities', 'like', "%{$search}%")
+                    ->orWhere('notes', 'like', "%{$search}%")
+                    ->orWhereHas('schoolClass', fn (Builder $classQuery) => $classQuery->where('name', 'like', "%{$search}%"))
+                    ->orWhereHas('subject', fn (Builder $subjectQuery) => $subjectQuery->where('name', 'like', "%{$search}%"));
+            });
+        }
 
         return $query;
     }
@@ -96,6 +106,7 @@ class TeachingJournalService
     public function create(User $user, array $data): TeachingJournal
     {
         $this->assertCanManage($user, $data);
+        $this->assertUniqueMeeting($data);
         return TeachingJournal::create($data)->load(['academicYear', 'semester', 'schoolClass', 'subject', 'teacher']);
     }
 
@@ -107,7 +118,25 @@ class TeachingJournalService
             'attendance_present', 'attendance_total', 'status',
         ]), $data);
         $this->assertCanManage($user, $merged);
+        $this->assertUniqueMeeting($merged, $journal->id);
         $journal->update($data);
         return $journal->refresh()->load(['academicYear', 'semester', 'schoolClass', 'subject', 'teacher']);
+    }
+
+    private function assertUniqueMeeting(array $data, ?int $exceptId = null): void
+    {
+        $exists = TeachingJournal::where('semester_id', $data['semester_id'])
+            ->where('class_id', $data['class_id'])
+            ->where('subject_id', $data['subject_id'])
+            ->where('teacher_id', $data['teacher_id'])
+            ->whereDate('date', $data['date'])
+            ->where('meeting', $data['meeting'])
+            ->when($exceptId, fn (Builder $query) => $query->where('id', '!=', $exceptId))
+            ->exists();
+        if ($exists) {
+            throw ValidationException::withMessages([
+                'meeting' => ['Jurnal untuk pertemuan ini sudah ada. Buka jurnal tersebut untuk menambah materi, aktivitas, atau catatan.'],
+            ]);
+        }
     }
 }

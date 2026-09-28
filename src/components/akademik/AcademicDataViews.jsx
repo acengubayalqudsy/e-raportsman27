@@ -1666,8 +1666,7 @@ export function AcademicRoomAllocationView({ onNotify }) {
   const [allocations, setAllocations] = useState([])
   const [rooms, setRooms] = useState([])
   const [classes, setClasses] = useState([])
-  const [subjects, setSubjects] = useState([])
-  const [teachers, setTeachers] = useState([])
+  const [roomCourseAssignments, setRoomCourseAssignments] = useState([])
   const [loading, setLoading] = useState(true)
 
   const [filters, setFilters] = useState({
@@ -1683,17 +1682,16 @@ export function AcademicRoomAllocationView({ onNotify }) {
   const [currentPage, setCurrentPage] = useState(1)
   const [rowsPerPage, setRowsPerPage] = useState(8)
 
-  const dayOptions = ['Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu']
+  const dayOptions = ['Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat']
 
   const loadData = useCallback(async () => {
     setLoading(true)
     try {
-      const [schRes, rmRes, clsRes, sbjRes, tchRes] = await Promise.all([
+      const [schRes, rmRes, clsRes, optRes] = await Promise.all([
         scheduleService.getSchedules({ per_page: 100, academic_year_id: selectedAcademicYearId, semester_id: selectedSemesterId }),
         roomService.getRooms({ per_page: 100, status: 'Aktif' }),
         academicService.getClasses({ per_page: 100, academic_year_id: selectedAcademicYearId }),
-        academicService.getSubjects({ per_page: 200 }),
-        teacherService.getTeachers({ per_page: 200, status: 'Aktif' }),
+        scheduleService.getOptions({ academic_year_id: selectedAcademicYearId, semester_id: selectedSemesterId }),
       ])
 
       if (schRes.success && Array.isArray(schRes.data)) {
@@ -1705,12 +1703,9 @@ export function AcademicRoomAllocationView({ onNotify }) {
       if (clsRes.success && Array.isArray(clsRes.data)) {
         setClasses(clsRes.data)
       }
-      if (sbjRes.success && Array.isArray(sbjRes.data)) {
-        setSubjects(sbjRes.data)
-      }
-      if (tchRes.success && Array.isArray(tchRes.data)) {
-        setTeachers(tchRes.data)
-      }
+      setRoomCourseAssignments(optRes.success ? (optRes.data.course_assignments || []).filter((ca) =>
+        Number(ca.academic_year_id) === Number(selectedAcademicYearId) && Number(ca.semester_id) === Number(selectedSemesterId)
+      ) : [])
     } catch (err) {
       console.error('Failed to load room allocation data', err)
     } finally {
@@ -1787,6 +1782,7 @@ export function AcademicRoomAllocationView({ onNotify }) {
         status: formData.status || 'Aktif',
         notes: formData.notes || '',
       }
+      if (formData.course_assignment_id) payload.course_assignment_id = Number(formData.course_assignment_id)
 
       let res
       if (isEdit) {
@@ -1943,12 +1939,18 @@ export function AcademicRoomAllocationView({ onNotify }) {
               e.preventDefault()
               const fd = new FormData(e.target)
               const [start_time, end_time] = (fd.get('time') || '07:30 - 09:00').split(' - ')
+              const assignment = roomCourseAssignments.find((ca) => String(ca.id) === String(fd.get('course_assignment_id')))
+              if (!assignment) {
+                setConflict('Pilih penugasan mengajar aktif untuk semester ini.')
+                return
+              }
               saveAllocation({
                 academic_year_id: modal.item?.academic_year_id || selectedAcademicYearId || currentYearObj?.id || 1,
                 semester_id: modal.item?.semester_id || selectedSemesterId || currentSemesterObj?.id || 1,
-                class_id: fd.get('class_id'),
-                subject_id: fd.get('subject_id'),
-                teacher_id: fd.get('teacher_id'),
+                class_id: assignment.class_id,
+                subject_id: assignment.subject_id,
+                teacher_id: assignment.teacher_id,
+                course_assignment_id: assignment.id,
                 room_id: fd.get('room_id'),
                 day_of_week: fd.get('day_of_week'),
                 start_time: (start_time || '07:30').trim(),
@@ -1964,6 +1966,13 @@ export function AcademicRoomAllocationView({ onNotify }) {
             </div>
 
             <div className="academic-form-grid">
+              <label className="full-width">
+                <span>Penugasan Mengajar<b>*</b></span>
+                <select defaultValue={modal.item?.course_assignment_id || roomCourseAssignments.find((ca) => Number(ca.class_id) === Number(modal.item?.class_id) && Number(ca.subject_id) === Number(modal.item?.subject_id) && Number(ca.teacher_id) === Number(modal.item?.teacher_id))?.id || roomCourseAssignments[0]?.id || ''} name="course_assignment_id" required>
+                  {roomCourseAssignments.map((ca) => <option key={ca.id} value={ca.id}>{ca.label}</option>)}
+                </select>
+              </label>
+              {!roomCourseAssignments.length && <p className="full-width" role="alert">Belum ada penugasan mengajar aktif pada semester ini. Tambahkan penugasan guru terlebih dahulu.</p>}
               <label>
                 <span>Hari<b>*</b></span>
                 <select defaultValue={modal.item?.day || modal.item?.day_of_week || dayOptions[0]} name="day_of_week" required>
@@ -1993,33 +2002,6 @@ export function AcademicRoomAllocationView({ onNotify }) {
                   <option value="10:45 - 11:30">10:45 - 11:30</option>
                   <option value="12:30 - 14:00">12:30 - 14:00</option>
                   <option value="13:15 - 14:00">13:15 - 14:00</option>
-                </select>
-              </label>
-
-              <label>
-                <span>Kelas / Rombel<b>*</b></span>
-                <select defaultValue={modal.item?.class_id || classes[0]?.id} name="class_id" required>
-                  {classes.map((c) => (
-                    <option key={c.id} value={c.id}>{c.name}</option>
-                  ))}
-                </select>
-              </label>
-
-              <label>
-                <span>Mata Pelajaran<b>*</b></span>
-                <select defaultValue={modal.item?.subject_id || subjects[0]?.id} name="subject_id" required>
-                  {subjects.map((s) => (
-                    <option key={s.id} value={s.id}>{s.name} ({s.code})</option>
-                  ))}
-                </select>
-              </label>
-
-              <label>
-                <span>Guru Pengajar<b>*</b></span>
-                <select defaultValue={modal.item?.teacher_id || teachers[0]?.id} name="teacher_id" required>
-                  {teachers.map((t) => (
-                    <option key={t.id} value={t.id}>{t.name}</option>
-                  ))}
                 </select>
               </label>
 
@@ -2067,7 +2049,7 @@ export function AcademicRoomAllocationView({ onNotify }) {
               >
                 Batal
               </Button>
-              <Button className="academic-button primary" disabled={submitting} type="submit">
+              <Button className="academic-button primary" disabled={submitting || !roomCourseAssignments.length || !rooms.length} type="submit">
                 <Icon name="save" /> {submitting ? 'Menyimpan...' : 'Simpan Alokasi'}
               </Button>
             </footer>

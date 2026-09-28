@@ -9,6 +9,7 @@ import { extracurricularService } from '../../services/extracurricularService.js
 import { activityOptions } from '../../data/kegiatanSiswa.js'
 
 const DEFAULT_ROWS_PER_PAGE = 8
+const scorePredicates = ['Sangat Baik', 'Baik', 'Cukup', 'Kurang', 'A', 'B', 'C', 'D']
 
 function getScoreStatus(row) {
   return row.predicate && row.description.trim() ? 'Sudah Dinilai' : 'Belum Dinilai'
@@ -25,12 +26,13 @@ function SelectFilter({ label, options, value, onChange }) {
   )
 }
 
-function StudentScoreView({ onNotify }) {
+function StudentScoreView({ classId: requestedClassId, semesterId: requestedSemesterId, onNotify }) {
   const [scoreRows, setScoreRows] = useState([])
   const [context, setContext] = useState(null)
   const [availableExtracurriculars, setAvailableExtracurriculars] = useState([])
   const [isSaving, setIsSaving] = useState(false)
-  const [refreshTrigger, setRefreshTrigger] = useState(0)
+  const [isLoading, setIsLoading] = useState(true)
+  const [loadError, setLoadError] = useState('')
   const [filters, setFilters] = useState({
     className: 'Semua Kelas',
     academicYear: 'Semua Tahun',
@@ -42,8 +44,8 @@ function StudentScoreView({ onNotify }) {
   const [currentPage, setCurrentPage] = useState(1)
   const [rowsPerPage, setRowsPerPage] = useState(DEFAULT_ROWS_PER_PAGE)
 
-  const classId = context?.homeroom_class?.id || context?.assigned_courses?.[0]?.class_id
-  const semesterId = context?.active_semester?.id
+  const classId = requestedClassId || context?.homeroom_class?.class_id || context?.assigned_courses?.[0]?.class_id
+  const semesterId = requestedSemesterId || context?.active_semester?.id
 
   // Load active extracurriculars from MariaDB
   useEffect(() => {
@@ -68,43 +70,62 @@ function StudentScoreView({ onNotify }) {
   useEffect(() => {
     let isMounted = true
     async function loadData() {
+      setIsLoading(true)
+      setLoadError('')
       const ctxRes = await assessmentService.getContext()
-      if (isMounted && ctxRes.success && ctxRes.data) {
-        setContext(ctxRes.data)
-        const cId = ctxRes.data.homeroom_class?.id || ctxRes.data.assigned_courses?.[0]?.class_id
-        const sId = ctxRes.data.active_semester?.id
-        if (cId && sId) {
-          const suppRes = await assessmentService.getSupplementaryData(cId, sId)
-          if (isMounted && suppRes.success && suppRes.data?.students?.length) {
-            const mapped = []
-            suppRes.data.students.forEach((st) => {
-              if (st.extracurriculars && st.extracurriculars.length > 0) {
-                st.extracurriculars.forEach((ekskul, idx) => {
-                  mapped.push({
-                    id: `${st.student_id}-${idx}-${ekskul.name}`,
-                    studentId: st.student_id,
-                    nis: st.nis,
-                    name: st.name,
-                    className: suppRes.data.class?.name || 'Kelas X',
-                    academicYear: ctxRes.data.active_semester?.academic_year || '2025/2026',
-                    semester: ctxRes.data.active_semester?.name || 'Semester Ganjil',
-                    extracurricular: ekskul.name,
-                    predicate: ekskul.predicate || '',
-                    description: ekskul.description || '',
-                    status: ekskul.predicate && ekskul.description ? 'Sudah Dinilai' : 'Belum Dinilai',
-                    isDirty: false,
-                  })
-                })
-              }
-            })
-            setScoreRows(mapped)
-          }
-        }
+      if (!isMounted) return
+      if (!ctxRes.success || !ctxRes.data) {
+        setLoadError(ctxRes.error || 'Gagal memuat konteks akademik.')
+        setScoreRows([])
+        setIsLoading(false)
+        return
       }
+      setContext(ctxRes.data)
+      const cId = requestedClassId || ctxRes.data.homeroom_class?.class_id || ctxRes.data.assigned_courses?.[0]?.class_id
+      const sId = requestedSemesterId || ctxRes.data.active_semester?.id
+      if (!cId || !sId) {
+        setLoadError('Kelas atau semester aktif tidak tersedia.')
+        setScoreRows([])
+        setIsLoading(false)
+        return
+      }
+      const suppRes = await assessmentService.getSupplementaryData(cId, sId)
+      if (!isMounted) return
+      if (!suppRes.success) {
+        setLoadError(suppRes.error || 'Gagal memuat nilai ekstrakurikuler.')
+        setScoreRows([])
+        setIsLoading(false)
+        return
+      }
+      const mapped = (suppRes.data?.students || []).flatMap((st) => (
+        (st.extracurriculars || []).map((ekskul, idx) => ({
+          id: `${st.student_id}-${ekskul.id || idx}`,
+          studentId: st.student_id,
+          extracurricularId: ekskul.extracurricular_id,
+          nis: st.nis,
+          name: st.name,
+          className: suppRes.data.class?.name || ctxRes.data.homeroom_class?.class_name || 'Kelas aktif',
+          academicYear: suppRes.data.semester?.academic_year || ctxRes.data.active_academic_year?.name || '',
+          semester: suppRes.data.semester?.name || ctxRes.data.active_semester?.name || '',
+          extracurricular: ekskul.name || ekskul.activity_name,
+          predicate: ekskul.predicate || '',
+          description: ekskul.description || '',
+          isDirty: false,
+        }))
+      ))
+      setScoreRows(mapped)
+      setIsLoading(false)
     }
     loadData()
     return () => { isMounted = false }
-  }, [refreshTrigger])
+  }, [requestedClassId, requestedSemesterId])
+
+  const filterOptions = useMemo(() => ({
+    classes: [...new Set(scoreRows.map((row) => row.className).filter(Boolean))],
+    academicYears: [...new Set(scoreRows.map((row) => row.academicYear).filter(Boolean))],
+    semesters: [...new Set(scoreRows.map((row) => row.semester).filter(Boolean))],
+    extracurriculars: [...new Set([...availableExtracurriculars, ...scoreRows.map((row) => row.extracurricular)].filter(Boolean))],
+  }), [availableExtracurriculars, scoreRows])
 
   const filteredScores = useMemo(() => {
     const keyword = filters.searchQuery.trim().toLowerCase()
@@ -148,23 +169,32 @@ function StudentScoreView({ onNotify }) {
       onNotify?.(`Lengkapi predikat dan deskripsi ${target.name} sebelum menyimpan.`)
       return
     }
-
-    setIsSaving(true)
-    let res
-    if (classId && semesterId && target.studentId) {
-      const studentRows = scoreRows.filter((r) => r.studentId === target.studentId)
-      const payload = studentRows.map((r) => ({
-        student_id: r.studentId,
-        name: r.extracurricular,
-        predicate: r.id === id ? target.predicate : r.predicate,
-        description: r.id === id ? target.description : r.description,
-      }))
-      res = await assessmentService.saveExtracurriculars(classId, semesterId, payload)
+    if (scoreRows.some((row) => row.studentId === target.studentId && row.isDirty && (!row.predicate || !row.description.trim()))) {
+      onNotify?.(`Lengkapi semua nilai ekstrakurikuler yang diubah untuk ${target.name} sebelum menyimpan.`)
+      return
     }
+
+    if (!classId || !semesterId) {
+      onNotify?.('Kelas atau semester aktif tidak tersedia.')
+      return
+    }
+    const studentRows = scoreRows.filter((row) => row.studentId === target.studentId)
+    const activities = studentRows.map((row) => ({
+      extracurricular_id: row.extracurricularId || null,
+      activity_name: row.extracurricular,
+      predicate: row.predicate || 'Baik',
+      description: row.description,
+    }))
+    setIsSaving(true)
+    const res = await assessmentService.saveExtracurriculars(classId, semesterId, [
+      { student_id: target.studentId, activities },
+    ])
     setIsSaving(false)
 
-    if (!res || res.success) {
-      setRefreshTrigger((current) => current + 1)
+    if (res.success) {
+      setScoreRows((current) => current.map((row) => (
+        row.studentId === target.studentId ? { ...row, predicate: row.predicate || 'Baik', isDirty: false } : row
+      )))
       onNotify?.(`Nilai ekstrakurikuler ${target.name} berhasil disimpan ke database.`)
     } else {
       onNotify?.(res.error || 'Gagal menyimpan nilai ekstrakurikuler.')
@@ -183,25 +213,26 @@ function StudentScoreView({ onNotify }) {
       return
     }
 
-    setIsSaving(true)
-    let res
-    if (classId && semesterId) {
-      const payload = scoreRows
-        .filter((row) => row.studentId && row.extracurricular && row.predicate)
-        .map((row) => ({
-          student_id: row.studentId,
-          name: row.extracurricular,
-          predicate: row.predicate,
-          description: row.description,
-        }))
-      if (payload.length > 0) {
-        res = await assessmentService.saveExtracurriculars(classId, semesterId, payload)
-      }
+    if (!classId || !semesterId) {
+      onNotify?.('Kelas atau semester aktif tidak tersedia.')
+      return
     }
+    const changedStudents = new Set(scoreRows.filter((row) => row.isDirty).map((row) => row.studentId))
+    const payload = [...changedStudents].map((studentId) => ({
+      student_id: studentId,
+      activities: scoreRows.filter((row) => row.studentId === studentId).map((row) => ({
+        extracurricular_id: row.extracurricularId || null,
+        activity_name: row.extracurricular,
+        predicate: row.predicate || 'Baik',
+        description: row.description,
+      })),
+    }))
+    setIsSaving(true)
+    const res = await assessmentService.saveExtracurriculars(classId, semesterId, payload)
     setIsSaving(false)
 
-    if (!res || res.success) {
-      setRefreshTrigger((current) => current + 1)
+    if (res.success) {
+      setScoreRows((current) => current.map((row) => ({ ...row, predicate: row.predicate || 'Baik', isDirty: false })))
       onNotify?.(`${dirtyCount} perubahan nilai ekstrakurikuler berhasil disimpan ke database.`)
     } else {
       onNotify?.(res.error || 'Gagal menyimpan nilai ekstrakurikuler.')
@@ -215,25 +246,25 @@ function StudentScoreView({ onNotify }) {
           <SelectFilter
             label="Kelas"
             onChange={(value) => updateFilter('className', value)}
-            options={['Semua Kelas', ...(activityOptions.classes || [])]}
+            options={['Semua Kelas', ...filterOptions.classes]}
             value={filters.className}
           />
           <SelectFilter
             label="Tahun Ajaran"
             onChange={(value) => updateFilter('academicYear', value)}
-            options={['Semua Tahun', ...(activityOptions.academicYears || [])]}
+            options={['Semua Tahun', ...filterOptions.academicYears]}
             value={filters.academicYear}
           />
           <SelectFilter
             label="Semester"
             onChange={(value) => updateFilter('semester', value)}
-            options={['Semua Semester', ...(activityOptions.semesters || [])]}
+            options={['Semua Semester', ...filterOptions.semesters]}
             value={filters.semester}
           />
           <SelectFilter
             label="Ekstrakurikuler"
             onChange={(value) => updateFilter('extracurricular', value)}
-            options={['Semua Ekskul', ...availableExtracurriculars]}
+            options={['Semua Ekskul', ...filterOptions.extracurriculars]}
             value={filters.extracurricular}
           />
           <SelectFilter
@@ -262,7 +293,7 @@ function StudentScoreView({ onNotify }) {
                 {dirtyCount} perubahan belum disimpan
               </span>
             )}
-            <Button className="activity-button primary" onClick={saveAll}>
+            <Button className="activity-button primary" disabled={isSaving || dirtyCount === 0} onClick={saveAll}>
               <Icon name="save" />
               Simpan Semua Nilai
             </Button>
@@ -279,7 +310,11 @@ function StudentScoreView({ onNotify }) {
           <span className="activity-score-total">{filteredScores.length.toLocaleString('id-ID')} data</span>
         </header>
 
-        {visibleScores.length > 0 ? (
+        {loadError ? (
+          <EmptyState className="activity-empty-state"><Icon name="alertCircle" /><strong>{loadError}</strong></EmptyState>
+        ) : isLoading ? (
+          <EmptyState className="activity-empty-state"><strong>Memuat nilai ekstrakurikuler...</strong></EmptyState>
+        ) : visibleScores.length > 0 ? (
           <div className="activity-table-scroll">
             <table className="activity-table activity-score-table">
               <thead>
@@ -310,11 +345,12 @@ function StudentScoreView({ onNotify }) {
                         <select
                           aria-label={`Predikat ${row.name}`}
                           className="activity-score-select"
+                          disabled={isSaving}
                           onChange={(event) => updateScore(row.id, 'predicate', event.target.value)}
                           value={row.predicate}
                         >
                           <option value="">-</option>
-                          {(activityOptions.predicates || ['A', 'B', 'C', 'D']).map((predicate) => (
+                          {scorePredicates.map((predicate) => (
                             <option key={predicate} value={predicate}>{predicate}</option>
                           ))}
                         </select>
@@ -323,6 +359,8 @@ function StudentScoreView({ onNotify }) {
                         <textarea
                           aria-label={`Deskripsi nilai ekstrakurikuler ${row.name}`}
                           className="activity-score-description"
+                          disabled={isSaving}
+                          maxLength="255"
                           onChange={(event) => updateScore(row.id, 'description', event.target.value)}
                           placeholder="Tulis deskripsi perkembangan siswa..."
                           rows="2"
@@ -343,7 +381,7 @@ function StudentScoreView({ onNotify }) {
                       <td>
                         <Button
                           className="activity-row-save"
-                          disabled={!row.isDirty}
+                          disabled={!row.isDirty || isSaving}
                           onClick={() => saveRow(row.id)}
                           title={row.isDirty ? 'Simpan nilai' : 'Tidak ada perubahan'}
                         >

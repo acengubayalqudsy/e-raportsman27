@@ -17,9 +17,12 @@ function MasterModalFrame({ children, description, onClose, size = 'regular', ti
 }
 
 export function MasterEntityModal({ entityLabel, fields, initialData = {}, mode = 'add', onClose, onSave }) {
-  const [formData, setFormData] = useState(() => Object.fromEntries(fields.map((field) => [field.key, initialData[field.key] ?? field.defaultValue ?? ''])))
+  const [formData, setFormData] = useState(() => Object.fromEntries(fields.map((field) => [
+    field.key, initialData[field.key] ?? field.defaultValue ?? (field.type === 'multiselect' ? [] : ''),
+  ])))
   const [errorMessage, setErrorMessage] = useState('')
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [visiblePasswords, setVisiblePasswords] = useState({})
   const sections = [...new Set(fields.map((field) => field.section ?? 'Informasi Utama'))]
 
   const handleChange = (key, value) => {
@@ -30,6 +33,11 @@ export function MasterEntityModal({ entityLabel, fields, initialData = {}, mode 
   const submit = async (event) => {
     event.preventDefault()
     setErrorMessage('')
+    const missingGroup = fields.find((field) => field.required && field.type === 'multiselect' && !formData[field.key]?.length)
+    if (missingGroup) {
+      setErrorMessage(`Pilih minimal satu ${missingGroup.label.toLowerCase()}.`)
+      return
+    }
     setIsSubmitting(true)
     try {
       const result = await onSave(formData)
@@ -45,7 +53,7 @@ export function MasterEntityModal({ entityLabel, fields, initialData = {}, mode 
 
   return (
     <MasterModalFrame
-      description={mode === 'edit' ? 'Perbarui informasi siswa pada database sekolah.' : 'Lengkapi formulir untuk menambahkan data siswa ke sistem.'}
+      description={mode === 'edit' ? `Perbarui informasi ${entityLabel.toLowerCase()} pada database sekolah.` : `Lengkapi formulir untuk menambahkan ${entityLabel.toLowerCase()} ke sistem.`}
       onClose={onClose}
       size={fields.length > 7 ? 'large' : 'regular'}
       title={`${mode === 'edit' ? 'Edit' : 'Tambah'} ${entityLabel}`}
@@ -62,7 +70,42 @@ export function MasterEntityModal({ entityLabel, fields, initialData = {}, mode 
             <fieldset key={section}>
               <legend>{section}</legend>
               <div className="master-form-grid">
-                {fields.filter((field) => (field.section ?? 'Informasi Utama') === section).map((field) => (
+                {fields.filter((field) => (field.section ?? 'Informasi Utama') === section).map((field) => field.type === 'multiselect' ? (
+                  <div className="master-form-multiselect full-width" key={field.key}>
+                    <span>{field.label}{field.required && <b>*</b>}</span>
+                    <div className="master-checkbox-options">
+                      {(field.options ?? []).map((option) => {
+                        const value = typeof option === 'string' ? option : option.value
+                        const label = typeof option === 'string' ? option : option.label
+                        return <label key={value}><input checked={(formData[field.key] || []).includes(value)} onChange={(event) => handleChange(field.key, event.target.checked ? [...(formData[field.key] || []), value] : (formData[field.key] || []).filter((item) => item !== value))} type="checkbox" /><span>{label}</span></label>
+                      })}
+                    </div>
+                  </div>
+                ) : field.type === 'password' ? (
+                  <div className={`master-password-field${field.fullWidth ? ' full-width' : ''}`} key={field.key}>
+                    <label htmlFor={`master-field-${field.key}`}>
+                      {field.label}{field.required && <b>*</b>}
+                    </label>
+                    <div className="master-password-input">
+                      <input
+                        id={`master-field-${field.key}`}
+                        onChange={(event) => handleChange(field.key, event.target.value)}
+                        required={field.required}
+                        type={visiblePasswords[field.key] ? 'text' : 'password'}
+                        value={formData[field.key]}
+                      />
+                      <button
+                        aria-label={visiblePasswords[field.key] ? 'Sembunyikan password' : 'Tampilkan password'}
+                        aria-pressed={Boolean(visiblePasswords[field.key])}
+                        onClick={() => setVisiblePasswords((current) => ({ ...current, [field.key]: !current[field.key] }))}
+                        title={visiblePasswords[field.key] ? 'Sembunyikan password' : 'Tampilkan password'}
+                        type="button"
+                      >
+                        <Icon name={visiblePasswords[field.key] ? 'eyeOff' : 'eye'} />
+                      </button>
+                    </div>
+                  </div>
+                ) : (
                   <label className={field.fullWidth ? 'full-width' : ''} key={field.key}>
                     <span>{field.label}{field.required && <b>*</b>}</span>
                     {field.type === 'select' ? (

@@ -28,7 +28,7 @@ function StudentRaporPreview({ onNotify }) {
       setLoading(true)
       setErrorMessage('')
       setReportData(null)
-      const res = await assessmentService.getReportCard(studentId)
+      const res = await assessmentService.getReportCard(studentId, filterState.context?.active_semester?.id || filterState.context?.assigned_courses?.[0]?.semester_id)
       if (isMounted && res.success && res.data) {
         setReportData(res.data)
       } else if (isMounted) {
@@ -39,11 +39,11 @@ function StudentRaporPreview({ onNotify }) {
     }
     loadReport()
     return () => { isMounted = false }
-  }, [studentId])
+  }, [studentId, filterState.context?.active_semester?.id, filterState.context?.assigned_courses])
 
   useEffect(() => {
-    const classId = filterState.context?.homeroom_class?.id || filterState.context?.assigned_courses?.[0]?.class_id
-    const semesterId = filterState.context?.active_semester?.id
+    const classId = filterState.classId
+    const semesterId = filterState.context?.active_semester?.id || filterState.context?.assigned_courses?.[0]?.semester_id
     if (!studentId || !classId || !semesterId) return undefined
 
     let isMounted = true
@@ -62,7 +62,7 @@ function StudentRaporPreview({ onNotify }) {
     }
     loadSupplementary()
     return () => { isMounted = false }
-  }, [filterState.context, studentId])
+  }, [filterState.classId, filterState.context, studentId])
 
   const studentInfo = reportData?.student
   const results = reportData?.academic_results?.map((r) => ({
@@ -85,13 +85,25 @@ function StudentRaporPreview({ onNotify }) {
     <section className="report-secondary-workspace">
       <RaporContextFilters
         authoritative
+        allowClassSelection
         includeStudent
-        onChange={(key, value) => { if (key === 'studentId') setStudentId(value) }}
+        onChange={(key, value) => {
+          if (key === 'studentId') setStudentId(value)
+          if (key === 'className') {
+            setStudentId('')
+            setReportData(null)
+            setSupplementaryStudent(null)
+          }
+        }}
         onOptionsReady={handleOptionsReady}
         values={{ studentId }}
       />
-      {filterState.loading && <p role="status" style={{ textAlign: 'center', padding: '1rem' }}>Memuat pilihan siswa...</p>}
-      {filterState.error && <p role="alert" style={{ textAlign: 'center', padding: '1rem', color: '#b91c1c' }}>{filterState.error}</p>}
+      {filterState.loading && !filterState.error && (
+        <div style={{ textAlign: 'center', padding: '1.25rem', color: '#64748b', fontSize: '12px' }}>
+          <span className="spinner-border spinner-border-sm" style={{ marginRight: '8px' }} />
+          Memuat data siswa...
+        </div>
+      )}
       {studentInfo && <div className="report-preview-toolbar">
         <div>
           <span><Icon name="user" /></span>

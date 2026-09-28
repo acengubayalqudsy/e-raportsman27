@@ -69,7 +69,7 @@ class ScheduleController extends Controller
         } else {
             // Sort by day order and start time
             $query->orderByRaw("FIELD(day_of_week, 'Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu')")
-                  ->orderBy('start_time', 'asc');
+                ->orderBy('start_time', 'asc');
         }
 
         $perPage = min(max((int)$request->input('per_page', 10), 1), 100);
@@ -232,11 +232,13 @@ class ScheduleController extends Controller
     public function options(Request $request): JsonResponse
     {
         $semesterId = $request->input('semester_id');
+        $academicYearId = $request->input('academic_year_id');
 
         // Course assignments for fast pre-filled selection
         $courseAssignments = CourseAssignment::with(['teacher', 'subject', 'schoolClass'])
             ->where('status', 'Aktif')
             ->when($semesterId, fn($q) => $q->where('semester_id', $semesterId))
+            ->when($academicYearId, fn($q) => $q->where('academic_year_id', $academicYearId))
             ->get()
             ->map(function ($ca) {
                 return [
@@ -253,7 +255,9 @@ class ScheduleController extends Controller
                 ];
             });
 
-        $classes = SchoolClass::where('status', 'Aktif')->orderBy('name')->get(['id', 'academic_year_id', 'code', 'name', 'grade']);
+        $classes = SchoolClass::where('status', 'Aktif')
+            ->when($academicYearId, fn($q) => $q->where('academic_year_id', $academicYearId))
+            ->orderBy('name')->get(['id', 'academic_year_id', 'code', 'name', 'grade']);
         $teachers = Teacher::where('status', 'Aktif')->orderBy('name')->get(['id', 'nip', 'name']);
         $subjects = Subject::where('status', 'Aktif')->orderBy('name')->get(['id', 'code', 'name']);
         $rooms = Room::where('status', 'Aktif')->orderBy('name')->get(['id', 'code', 'name', 'room_type', 'capacity']);

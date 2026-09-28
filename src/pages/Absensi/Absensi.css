@@ -314,6 +314,29 @@
 .attendance-live-actions { display: flex; justify-content: flex-end; }
 .attendance-empty { padding: 28px 15px; }
 
+.attendance-detail-view .attendance-live-toolbar { grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); }
+.attendance-detail-view .attendance-live-table td:first-child { min-width: 110px; }
+.attendance-detail-view .attendance-live-table select {
+  width: 100%;
+  min-width: 130px;
+  min-height: 32px;
+  padding: 0 8px;
+  color: #0f172a;
+  background: #ffffff;
+  border: 1px solid #d7e1eb;
+  border-radius: 6px;
+  font: inherit;
+}
+.attendance-detail-view .attendance-live-table select:focus { border-color: #0aa66a; outline: 0; box-shadow: 0 0 0 3px rgba(10, 166, 106, 0.1); }
+.attendance-detail-view .attendance-live-actions { align-items: center; gap: 10px; }
+.attendance-detail-view .attendance-live-actions span { color: #64748b; font-size: 11px; }
+.attendance-detail-summary { display: flex; flex-wrap: wrap; gap: 10px; }
+.attendance-detail-summary span { padding: 10px 14px; color: #475569; background: #fff; border: 1px solid #dfe7ef; border-radius: 8px; font-size: 12px; }
+.attendance-detail-summary strong { color: #0f172a; }
+.attendance-detail-history { display: flex; flex-direction: column; gap: 10px; }
+.attendance-detail-history h3 { margin: 0; color: #17243a; font-size: 15px; }
+.attendance-detail-history p { margin: 0; padding: 16px; color: #64748b; background: #fff; border: 1px solid #dfe7ef; border-radius: 8px; }
+
 @media (max-width: 760px) {
   .attendance-live-toolbar { grid-template-columns: 1fr; }
 }
@@ -1070,4 +1093,175 @@
   .attendance-modal-footer { flex-direction: column; }
   .attendance-modal-footer .attendance-button { width: 100%; }
   .attendance-page .master-pagination-controls label { width: 100%; justify-content: space-between; }
+}
+
+
+/* ==========================================================================
+   EDLINK-STYLE MOBILE REDESIGN FOR ABSENSI
+   ========================================================================== */
+
+/* Skeleton Loader State */
+.attendance-skeleton-container {
+  width: 100%;
+  margin-top: 6px;
+}
+
+.attendance-skeleton-card {
+  background: #ffffff;
+  border-radius: 16px;
+  padding: 18px 16px;
+  border: 1px solid #e5e7eb;
+  box-shadow: 0 2px 8px rgba(15, 23, 42, 0.03);
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.attendance-skeleton-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.attendance-skeleton-spinner {
+  width: 18px;
+  height: 18px;
+  border: 2.5px solid #E7F7EC;
+  border-top-color: #009B27;
+  border-radius: 50%;
+  animation: attendance-spin 0.75s linear infinite;
+  flex-shrink: 0;
+}
+
+.attendance-skeleton-text {
+  font-size: 13px;
+  color: #64748b;
+  font-weight: 500;
+}
+
+.attendance-skeleton-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+  margin-top: 4px;
+}
+
+.attendance-skeleton-box {
+  height: 64px;
+  border-radius: 12px;
+  background: #f1f5f9;
+}
+
+.skeleton-pulse {
+  animation: skeletonPulse 1.5s ease-in-out infinite;
+}
+
+@keyframes skeletonPulse {
+  0%, 100% { opacity: 0.5; }
+  50% { opacity: 0.95; }
+}
+
+@media (max-width: 768px) {
+  .attendance-page {
+    gap: 12px;
+  }
+
+  .attendance-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 2px;
+    margin-bottom: 2px;
+  }
+
+  .attendance-header h2 {
+    font-size: 18px;
+    font-weight: 700;
+    color: #1f2937;
+    margin: 0;
+  }
+
+  .attendance-header p {
+    font-size: 11.5px;
+    color: #667085;
+    margin: 0;
+  }
+
+  /* Hide bulky desktop breadcrumb on mobile */
+  .attendance-breadcrumb {
+    display: none !important;
+  }
+
+  /* Edlink-style pill segmented tabs */
+  .attendance-tabs {
+    background: #ffffff;
+    border-radius: 14px;
+    padding: 4px;
+    border: 1px solid #e5e7eb;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.03);
+    gap: 4px;
+    min-height: auto;
+    height: 42px;
+    align-items: center;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+
+  .attendance-tabs::-webkit-scrollbar {
+    display: none;
+  }
+
+  .attendance-tab {
+    min-height: 32px;
+    padding: 0 14px;
+    border-radius: 10px;
+    font-size: 12px;
+    font-weight: 600;
+    color: #64748b;
+    gap: 6px;
+    border: none;
+    transition: all 0.18s ease;
+    flex-shrink: 0;
+  }
+
+  .attendance-tab .ui-icon {
+    width: 14px;
+    height: 14px;
+    color: #94a3b8;
+  }
+
+  .attendance-tab.active {
+    background: #E7F7EC;
+    color: #008520;
+    font-weight: 700;
+  }
+
+  .attendance-tab.active::after {
+    display: none;
+  }
+
+  .attendance-tab.active .ui-icon {
+    color: #009B27;
+  }
+
+  /* Edlink-style White Cards */
+  .attendance-filter-card,
+  .attendance-workspace,
+  .attendance-table-card,
+  .attendance-panel,
+  .attendance-context-card,
+  .attendance-student-card,
+  .attendance-summary-panel {
+    border-radius: 16px;
+    padding: 14px 15px;
+    background: #ffffff;
+    border: 1px solid #e5e7eb;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.03);
+  }
+
+  .attendance-summary-card {
+    border-radius: 14px;
+    padding: 12px;
+    border: 1px solid #e5e7eb;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.03);
+  }
 }

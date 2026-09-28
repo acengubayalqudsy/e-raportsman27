@@ -10,8 +10,10 @@ use App\Models\Teacher;
 use App\Models\User;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\ValidationException;
 
 class UserController extends Controller
 {
@@ -104,6 +106,7 @@ class UserController extends Controller
             'email' => ['required', 'string', 'email', 'max:100', 'unique:users,email'],
             'password' => ['required', 'string', 'min:8'],
             'phone' => ['nullable', 'string', 'max:25'],
+            'teacher_id' => ['nullable', 'integer', 'exists:teachers,id'],
             'roles' => ['required'],
             'status' => ['nullable', Rule::in(['Aktif', 'Tidak Aktif', 'active', 'inactive'])],
             'is_active' => ['nullable', 'boolean'],
@@ -126,24 +129,32 @@ class UserController extends Controller
             $isActive = in_array($validated['status'], ['Aktif', 'active', true], true);
         }
 
-        $user = User::create([
-            'name' => trim($validated['name']),
-            'username' => strtolower(trim($validated['username'])),
-            'email' => strtolower(trim($validated['email'])),
-            'password' => Hash::make($validated['password']),
-            'phone' => $validated['phone'] ?? null,
-            'is_active' => $isActive,
-        ]);
-
-        // Resolve and attach roles
         $roleIds = $this->resolveRoleIds($validated['roles']);
-        $syncData = [];
-        $first = true;
-        foreach ($roleIds as $rId) {
-            $syncData[$rId] = ['is_primary' => $first];
-            $first = false;
+        if ($roleIds === []) {
+            throw ValidationException::withMessages(['roles' => ['Pilih minimal satu role yang terdaftar.']]);
         }
-        $user->roles()->sync($syncData);
+        $teacher = !empty($validated['teacher_id']) ? Teacher::find($validated['teacher_id']) : null;
+        if (!empty($validated['teacher_id']) && (!$teacher || $teacher->user_id)) {
+            throw ValidationException::withMessages(['teacher_id' => ['Profil guru sudah tertaut ke akun lain atau tidak tersedia.']]);
+        }
+
+        $user = DB::transaction(function () use ($validated, $isActive, $roleIds, $teacher) {
+            $user = User::create([
+                'name' => trim($validated['name']),
+                'username' => strtolower(trim($validated['username'])),
+                'email' => strtolower(trim($validated['email'])),
+                'password' => Hash::make($validated['password']),
+                'phone' => $validated['phone'] ?? null,
+                'is_active' => $isActive,
+            ]);
+            $syncData = [];
+            foreach ($roleIds as $index => $roleId) {
+                $syncData[$roleId] = ['is_primary' => $index === 0];
+            }
+            $user->roles()->sync($syncData);
+            if ($teacher) $teacher->update(['user_id' => $user->id]);
+            return $user;
+        });
 
         AuditLog::create([
             'user_id' => $request->user()?->id,
@@ -188,6 +199,7 @@ class UserController extends Controller
             'email' => ['required', 'string', 'email', 'max:100', Rule::unique('users', 'email')->ignore($user->id)],
             'password' => ['nullable', 'string', 'min:8'],
             'phone' => ['nullable', 'string', 'max:25'],
+            'teacher_id' => ['nullable', 'integer', 'exists:teachers,id'],
             'roles' => ['nullable'],
             'status' => ['nullable', Rule::in(['Aktif', 'Tidak Aktif', 'active', 'inactive'])],
             'is_active' => ['nullable', 'boolean'],
@@ -227,6 +239,9 @@ class UserController extends Controller
         $roleIds = null;
         if (isset($validated['roles'])) {
             $roleIds = $this->resolveRoleIds($validated['roles']);
+            if ($roleIds === []) {
+                throw ValidationException::withMessages(['roles' => ['Pilih minimal satu role yang terdaftar.']]);
+            }
             $adminRole = Role::where('name', 'admin')->first();
 
             if ($user->hasRole('admin') && $adminRole && !in_array($adminRole->id, $roleIds, true)) {
@@ -244,6 +259,11 @@ class UserController extends Controller
             }
         }
 
+        $teacher = !empty($validated['teacher_id']) ? Teacher::find($validated['teacher_id']) : null;
+        if (!empty($validated['teacher_id']) && (!$teacher || ($teacher->user_id && (int) $teacher->user_id !== $user->id))) {
+            throw ValidationException::withMessages(['teacher_id' => ['Profil guru sudah tertaut ke akun lain atau tidak tersedia.']]);
+        }
+
         $updateData = [
             'name' => trim($validated['name']),
             'username' => strtolower(trim($validated['username'])),
@@ -257,18 +277,24 @@ class UserController extends Controller
             $updateData['password'] = Hash::make($validated['password']);
         }
 
-        $user->update($updateData);
-
-        // Sync roles if provided
-        if ($roleIds !== null) {
-            $syncData = [];
-            $first = true;
-            foreach ($roleIds as $rId) {
-                $syncData[$rId] = ['is_primary' => $first];
-                $first = false;
+        DB::transaction(function () use ($user, $updateData, $roleIds, $validated, $teacher) {
+            $user->update($updateData);
+            if ($roleIds !== null) {
+                $syncData = [];
+                foreach ($roleIds as $index => $roleId) {
+                    $syncData[$roleId] = ['is_primary' => $index === 0];
+                }
+                $user->roles()->sync($syncData);
             }
-            $user->roles()->sync($syncData);
-        }
+            if (array_key_exists('teacher_id', $validated)) {
+                Teacher::where('user_id', $user->id)
+                    ->when($teacher, fn ($query) => $query->where('id', '!=', $teacher->id))
+                    ->update(['user_id' => null]);
+                if ($teacher && (int) $teacher->user_id !== $user->id) {
+                    $teacher->update(['user_id' => $user->id]);
+                }
+            }
+        });
 
         AuditLog::create([
             'user_id' => $request->user()?->id,
@@ -483,6 +509,7 @@ class UserController extends Controller
                 'is_primary' => (bool)$r->pivot->is_primary,
             ]),
             'nip' => $user->teacher?->nip ?? '-',
+            'teacher_id' => $user->teacher?->id,
             'lastLogin' => $user->last_login_at
                 ? $user->last_login_at->translatedFormat('d M Y, H:i')
                 : 'Belum pernah',

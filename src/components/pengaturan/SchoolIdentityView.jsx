@@ -1,8 +1,8 @@
 import { useEffect, useRef, useState } from 'react'
 import Icon from '../common/Icon.jsx'
 import schoolLogo from '../../assets/logo/sman-27-garut-logo.png'
-
-let identitySessionState = null
+import { getSchoolIdentitySession, saveSchoolIdentitySession } from '../../services/schoolIdentitySession.js'
+import { settingsService } from '../../services/settingsService.js'
 
 function IdentityField({ as = 'input', label, name, onChange, options, required, value, wide = false, ...props }) {
   const Element = as
@@ -53,6 +53,7 @@ function SettingsAside({ onBackup }) {
 }
 
 function SchoolIdentityView({ initialValue, onDirtyChange, onNotify, onOpenBackup }) {
+  const identitySessionState = getSchoolIdentitySession()
   const sessionValue = identitySessionState?.value ?? initialValue
   const sessionLogo = identitySessionState?.logo ?? initialValue.logoUrl ?? schoolLogo
   const [savedValue, setSavedValue] = useState(() => ({ ...sessionValue }))
@@ -63,7 +64,6 @@ function SchoolIdentityView({ initialValue, onDirtyChange, onNotify, onOpenBacku
   const [error, setError] = useState('')
   const [showRemoveConfirmation, setShowRemoveConfirmation] = useState(false)
   const fileRef = useRef(null)
-  const saveTimerRef = useRef(null)
   const isDirty = JSON.stringify(draft) !== JSON.stringify(savedValue) || logoPreview !== savedLogoPreview
 
   useEffect(() => {
@@ -71,7 +71,21 @@ function SchoolIdentityView({ initialValue, onDirtyChange, onNotify, onOpenBacku
     return () => onDirtyChange?.(false)
   }, [isDirty, onDirtyChange])
 
-  useEffect(() => () => window.clearTimeout(saveTimerRef.current), [])
+  useEffect(() => {
+    let active = true
+    settingsService.get('identity').then((value) => {
+      if (!active || !value) return
+      const { logo, ...identity } = value
+      const next = { ...initialValue, ...identity }
+      setDraft(next)
+      setSavedValue(next)
+      const displayLogo = logo || (value.logoRemoved ? '' : schoolLogo)
+      setLogoPreview(displayLogo)
+      setSavedLogoPreview(displayLogo)
+      saveSchoolIdentitySession(next, displayLogo)
+    }).catch((failure) => { if (active) setError(failure.message) })
+    return () => { active = false }
+  }, [initialValue])
 
   useEffect(() => {
     if (!showRemoveConfirmation) return undefined
@@ -109,7 +123,7 @@ function SchoolIdentityView({ initialValue, onDirtyChange, onNotify, onOpenBacku
     reader.readAsDataURL(file)
   }
 
-  const handleSubmit = (event) => {
+  const handleSubmit = async (event) => {
     event.preventDefault()
     const requiredFields = ['schoolName', 'npsn', 'address', 'phone', 'email', 'principal']
     if (requiredFields.some((field) => !String(draft[field] ?? '').trim())) {
@@ -117,15 +131,18 @@ function SchoolIdentityView({ initialValue, onDirtyChange, onNotify, onOpenBacku
       return
     }
     setIsSaving(true)
-    window.clearTimeout(saveTimerRef.current)
-    saveTimerRef.current = window.setTimeout(() => {
-      const nextValue = { ...draft }
-      identitySessionState = { value: nextValue, logo: logoPreview }
+    try {
+      const { logo, logoRemoved, ...nextValue } = await settingsService.save('identity', {
+        ...draft, logo: logoPreview.startsWith('data:') ? logoPreview : null, logoRemoved: !logoPreview,
+      })
+      const displayLogo = logo || (logoRemoved ? '' : schoolLogo)
+      saveSchoolIdentitySession(nextValue, displayLogo)
+      setDraft(nextValue)
       setSavedValue(nextValue)
-      setSavedLogoPreview(logoPreview)
-      setIsSaving(false)
+      setSavedLogoPreview(displayLogo)
       onNotify('Identitas sekolah berhasil diperbarui.')
-    }, 550)
+    } catch (failure) { setError(failure.message) }
+    finally { setIsSaving(false) }
   }
 
   return (
@@ -145,7 +162,7 @@ function SchoolIdentityView({ initialValue, onDirtyChange, onNotify, onOpenBacku
           <IdentityField label="Telepon" name="phone" onChange={updateDraft} required value={draft.phone} />
           <IdentityField label="Email" name="email" onChange={updateDraft} required type="email" value={draft.email} />
           <IdentityField label="Website" name="website" onChange={updateDraft} value={draft.website} />
-          <IdentityField as="select" label="Kepala Sekolah" name="principal" onChange={updateDraft} options={['Drs. H. Ridwan Kamil, M.Pd.', 'Drs. Ahmad Saepudin, M.Pd.']} required value={draft.principal} />
+          <IdentityField label="Kepala Sekolah" name="principal" onChange={updateDraft} required value={draft.principal} />
         </div>
 
         <details className="settings-advanced-fields">
