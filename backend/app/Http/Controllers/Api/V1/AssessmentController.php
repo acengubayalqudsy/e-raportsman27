@@ -385,14 +385,18 @@ class AssessmentController extends Controller
             ], 403);
         }
 
-        $enrolledCount = ClassMember::where('class_id', $request->class_id)
-            ->where('semester_id', $request->semester_id)
+        [$schoolClass, $semester] = $this->authService->assertAcademicContext((int)$request->class_id, (int)$request->semester_id);
+        $classId = $schoolClass->id;
+        $semesterId = $semester->id;
+
+        $enrolledCount = ClassMember::where('class_id', $classId)
+            ->where('semester_id', $semesterId)
             ->where('status', 'Aktif')
             ->count();
 
         $courses = CourseAssignment::with(['subject', 'teacher'])
-            ->where('class_id', $request->class_id)
-            ->where('semester_id', $request->semester_id)
+            ->where('class_id', $classId)
+            ->where('semester_id', $semesterId)
             ->where('status', 'Aktif')
             ->get();
 

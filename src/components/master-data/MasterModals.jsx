@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import Button from '../common/Button.jsx'
 import Icon from '../common/Icon.jsx'
+import excelService from '../../services/excelService.js'
 
 function MasterModalFrame({ children, description, onClose, size = 'regular', title }) {
   return (
@@ -234,30 +235,99 @@ export function MasterDetailModal({ entityLabel, name, onClose, onEdit, sections
   )
 }
 
-export function MasterImportModal({ entityLabel, onClose, onComplete }) {
-  const [fileName, setFileName] = useState('')
-  const [isImporting, setIsImporting] = useState(false)
+export function MasterImportModal({ entityLabel, module, context = {}, onClose, onComplete }) {
+  const [file, setFile] = useState(null)
+  const [source, setSource] = useState('local')
+  const [preview, setPreview] = useState(null)
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState('')
+  const [microsoft, setMicrosoft] = useState(null)
+  const [folderId, setFolderId] = useState('')
+  const [cloudFiles, setCloudFiles] = useState([])
+  const [selectedFile, setSelectedFile] = useState(null)
+  const [sheets, setSheets] = useState([])
+  const [sheet, setSheet] = useState('')
 
-  const importData = () => {
-    setIsImporting(true)
-    window.setTimeout(() => {
-      setIsImporting(false)
-      onComplete(fileName)
-    }, 650)
+  const run = async (operation) => {
+    setBusy(true)
+    setError('')
+    try { return await operation() } catch (cause) { setError(cause.message); return null } finally { setBusy(false) }
+  }
+  const loadMicrosoft = () => run(async () => {
+    const status = await excelService.microsoftStatus()
+    setMicrosoft(status)
+    if (status.connected) setCloudFiles(await excelService.microsoftFiles(folderId))
+  })
+  const selectCloudFile = (item) => run(async () => {
+    if (item.folder) {
+      setFolderId(item.id)
+      setCloudFiles(await excelService.microsoftFiles(item.id))
+      return
+    }
+    setSelectedFile(item)
+    const available = await excelService.microsoftSheets(item.id)
+    setSheets(available)
+    setSheet(available[0]?.name || '')
+  })
+  const buildPreview = () => run(async () => {
+    const result = source === 'local'
+      ? await excelService.previewLocal(module, file, context)
+      : await excelService.previewOneDrive(module, selectedFile.id, sheet, selectedFile.name, context)
+    setPreview(result)
+  })
+  const commit = () => run(async () => {
+    const result = await excelService.commit(module, preview.preview_id)
+    onComplete(result.saved_count)
+  })
+  const errorReport = () => {
+    const lines = [['Baris', 'Identifier', 'Status', 'Alasan'], ...preview.rows.map((row) => [row.row, row.identifier, row.status, row.reason])]
+    const csv = '\uFEFF' + lines.map((line) => line.map((value) => `"${String(value ?? '').replaceAll('"', '""')}"`).join(',')).join('\r\n')
+    const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }))
+    const link = document.createElement('a')
+    link.href = url
+    link.download = `laporan-import-${module}.csv`
+    link.click()
+    window.setTimeout(() => URL.revokeObjectURL(url), 1000)
   }
 
   return (
-    <MasterModalFrame description="Simulasi import frontend tanpa membaca atau mengunggah workbook." onClose={onClose} title={`Import Data ${entityLabel}`}>
+    <MasterModalFrame description="Periksa hasil pencocokan sebelum menyimpan perubahan." onClose={onClose} size="large" title={`Import Excel ${entityLabel}`}>
       <div className="master-import-body">
-        <label className="master-file-drop">
-          <Icon name="download" />
-          <strong>{fileName || 'Pilih file Excel'}</strong>
-          <span>Format yang didukung: .xlsx atau .xls</span>
-          <input accept=".xlsx,.xls" onChange={(event) => setFileName(event.target.files?.[0]?.name ?? '')} type="file" />
-        </label>
-        <button className="master-template-link" type="button"><Icon name="download" />Unduh Template {entityLabel}</button>
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 12 }}>
+          <Button className="master-button secondary" onClick={() => { setSource('local'); setPreview(null) }}>Import dari Perangkat</Button>
+          <Button className="master-button secondary" onClick={() => { setSource('onedrive'); setPreview(null); loadMicrosoft() }}>Import dari Microsoft 365</Button>
+          <button className="master-template-link" onClick={() => run(() => excelService.download(module, 'template', context))} type="button"><Icon name="download" />Download Template Excel</button>
+        </div>
+        {!preview && source === 'local' && <label className="master-file-drop"><Icon name="download" /><strong>{file?.name || 'Pilih file Excel'}</strong><span>Format .xlsx, maksimum 5 MB</span><input accept=".xlsx" onChange={(event) => setFile(event.target.files?.[0] || null)} type="file" /></label>}
+        {!preview && source === 'onedrive' && <div>
+          {!microsoft?.configured && <p>Microsoft 365 belum dikonfigurasi oleh administrator.</p>}
+          {microsoft?.configured && !microsoft.connected && <Button className="master-button secondary" onClick={() => excelService.connectMicrosoft()}>Login Microsoft</Button>}
+          {microsoft?.configured && <Button className="master-button secondary" onClick={loadMicrosoft}>Muat File OneDrive</Button>}
+          {microsoft?.connected && <><div style={{ maxHeight: 180, overflowY: 'auto' }}>
+            {folderId && <button onClick={() => run(async () => { setFolderId(''); setCloudFiles(await excelService.microsoftFiles()) })} type="button">Kembali ke root</button>}
+            {cloudFiles.map((item) => <button key={item.id} onClick={() => selectCloudFile(item)} style={{ display: 'block', padding: 6 }} type="button">{item.folder ? '📁 ' : '📄 '}{item.name}</button>)}
+          </div>{selectedFile && <label>Worksheet <select onChange={(event) => setSheet(event.target.value)} value={sheet}>{sheets.map((item) => <option key={item.id} value={item.name}>{item.name}</option>)}</select></label>}</>}
+        </div>}
+        {preview && <div>
+          <p><strong>File:</strong> {preview.file} · <strong>Worksheet:</strong> {preview.sheet} · <strong>Modul:</strong> {entityLabel}</p>
+          {Object.values(preview.context_labels || {}).some(Boolean) && <p>
+            {preview.context_labels?.academic_year && <>TP: {preview.context_labels.academic_year} · </>}
+            {preview.context_labels?.semester && <>Semester: {preview.context_labels.semester} · </>}
+            {preview.context_labels?.class && <>Kelas: {preview.context_labels.class} · </>}
+            {preview.context_labels?.subject && <>Mapel: {preview.context_labels.subject}</>}
+          </p>}
+          <p>{preview.total} baris terbaca · {preview.valid} valid · {preview.warnings} warning · {preview.errors} error</p>
+          <button onClick={errorReport} type="button">Unduh Laporan Baris</button>
+          <div style={{ maxHeight: 280, overflow: 'auto' }}><table><thead><tr><th>Baris</th><th>Identifier</th><th>Status</th><th>Alasan</th></tr></thead><tbody>
+            {preview.rows.slice(0, 200).map((row) => <tr key={row.row}><td>{row.row}</td><td>{row.identifier}</td><td>{row.status}</td><td>{row.reason}</td></tr>)}
+          </tbody></table>{preview.rows.length > 200 && <p>Menampilkan 200 baris pertama. Unduh laporan untuk seluruh baris.</p>}</div>
+        </div>}
+        {error && <p role="alert" style={{ color: '#b91c1c' }}>{error}</p>}
       </div>
-      <footer className="master-modal-footer"><Button className="master-button secondary" disabled={isImporting} onClick={onClose}>Batal</Button><Button className="master-button primary" disabled={!fileName || isImporting} onClick={importData}>{isImporting ? <span className="master-spinner" /> : <Icon name="download" />}{isImporting ? 'Mengimpor...' : 'Import Data'}</Button></footer>
+      <footer className="master-modal-footer"><Button className="master-button secondary" disabled={busy} onClick={onClose}>Batal</Button>
+        {preview ? <Button className="master-button primary" disabled={busy || preview.errors > 0 || preview.total === 0} onClick={commit}>Konfirmasi dan Simpan</Button>
+          : <Button className="master-button primary" disabled={busy || (source === 'local' ? !file : !selectedFile || !sheet)} onClick={buildPreview}>Tampilkan Preview</Button>}
+      </footer>
     </MasterModalFrame>
   )
 }

@@ -3,13 +3,19 @@ import Button from '../common/Button.jsx'
 import Icon from '../common/Icon.jsx'
 import SearchInput from '../common/SearchInput.jsx'
 import { masterSchemas } from '../../data/masterData.js'
-import { MasterDeleteModal, MasterDetailModal, MasterEntityModal } from './MasterModals.jsx'
+import { MasterDeleteModal, MasterDetailModal, MasterEntityModal, MasterImportModal } from './MasterModals.jsx'
 import MasterPagination from './MasterPagination.jsx'
 import academicService from '../../services/academicService.js'
 import { religionService } from '../../services/religionService.js'
 import { extracurricularService } from '../../services/extracurricularService.js'
 import { userService } from '../../services/userService.js'
 import { teacherService } from '../../services/teacherService.js'
+import excelService from '../../services/excelService.js'
+
+const excelModules = {
+  kelas: 'classes', ruangan: 'rooms', 'mata-pelajaran': 'subjects', 'tahun-ajaran': 'years',
+  semester: 'semesters', agama: 'religions', ekstrakurikuler: 'extracurriculars', 'pengguna-role': 'users',
+}
 
 const referenceConfig = {
   kelas: { filterKey: 'academicYear', filterLabel: 'Tahun Ajaran', allLabel: 'Semua Tahun' },
@@ -165,6 +171,7 @@ function MasterReferenceView({ activeKey, onNotify }) {
   const [rowsPerPages, setRowsPerPages] = useState({})
   const [openMenu, setOpenMenu] = useState(null)
   const [modal, setModal] = useState(null)
+  const [showImport, setShowImport] = useState(false)
   const [activationItem, setActivationItem] = useState(null)
 
   const isAcademic = academicService.isAcademicKey(activeKey)
@@ -499,9 +506,19 @@ function MasterReferenceView({ activeKey, onNotify }) {
         <div className="master-data-actions">
           <div />
           <div>
+            {activeKey !== 'pengguna-role' && <Button className="master-button secondary" onClick={() => setShowImport(true)}>
+              <Icon name="download" />Import Excel
+            </Button>}
             <Button
               className="master-button secondary"
-              onClick={() => onNotify(`Data ${schema.title.toLowerCase()} siap diekspor. Fitur Excel akan diintegrasikan pada tahap berikutnya.`)}
+              onClick={() => excelService.download(excelModules[activeKey], 'export', {
+                search: searchQuery,
+                academic_year_id: availableYears.find((year) => year.name === filterValue)?.id,
+                status: config.filterKey === 'status' && filterValue !== config.allLabel ? filterValue : '',
+                group: config.filterKey === 'group' && filterValue !== config.allLabel ? filterValue : '',
+                type: config.filterKey === 'type' && filterValue !== config.allLabel ? filterValue : '',
+                role: config.filterKey === 'role' && filterValue !== config.allLabel ? filterValue : '',
+              }).catch((error) => onNotify(error.message))}
             >
               <Icon name="document" />Export Excel
             </Button>
@@ -513,6 +530,13 @@ function MasterReferenceView({ activeKey, onNotify }) {
             </Button>
           </div>
         </div>
+
+        {showImport && <MasterImportModal
+          entityLabel={schema.title}
+          module={excelModules[activeKey]}
+          onClose={() => setShowImport(false)}
+          onComplete={(count) => { setShowImport(false); setRefreshTrigger((value) => value + 1); onNotify(`${count} data ${schema.title.toLowerCase()} berhasil diperbarui.`) }}
+        />}
 
         {fetchError && (
           <div className="master-fetch-error-banner" role="alert" style={{ margin: '12px 0' }}>

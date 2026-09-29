@@ -9,7 +9,7 @@ export const LAYOUT_MODE = LAYOUT_MODES.adaptive
 export const BREAKPOINTS = {
   mobile: 768,
   tablet: 1024,
-  desktop: 1440,
+  desktop: 1280,
 }
 
 export const ADAPTIVE_DESKTOP_MIN_WIDTH = 1280

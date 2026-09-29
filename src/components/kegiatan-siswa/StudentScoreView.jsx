@@ -5,6 +5,7 @@ import Icon from '../common/Icon.jsx'
 import SearchInput from '../common/SearchInput.jsx'
 import MasterPagination from '../master-data/MasterPagination.jsx'
 import assessmentService from '../../services/assessmentService.js'
+import excelService from '../../services/excelService.js'
 import { extracurricularService } from '../../services/extracurricularService.js'
 import { activityOptions } from '../../data/kegiatanSiswa.js'
 
@@ -287,6 +288,7 @@ function StudentScoreView({ classId: requestedClassId, semesterId: requestedSeme
             <Icon name="search" />
           </label>
           <div className="activity-score-actions">
+            <Button className="activity-button activity-button-secondary" disabled={!classId || !semesterId || isLoading} onClick={() => excelService.download('participations', 'export', { class_id: classId, semester_id: semesterId, activity_name: filters.extracurricular === 'Semua Ekskul' ? '' : filters.extracurricular, search: filters.searchQuery, status: filters.status === 'Semua Status' ? '' : filters.status }).catch((error) => onNotify?.(error.message))} type="button"><Icon name="download" />Export Excel</Button>
             {dirtyCount > 0 && (
               <span className="activity-unsaved-indicator">
                 <i aria-hidden="true" />

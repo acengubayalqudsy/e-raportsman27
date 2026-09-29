@@ -12,6 +12,7 @@ import teacherService from '../../services/teacherService.js'
 import { roomService } from '../../services/roomService.js'
 import { scheduleService } from '../../services/scheduleService.js'
 import { useAcademicContext } from '../../context/AcademicContext.jsx'
+import excelService from '../../services/excelService.js'
 
 function toStatusClass(value) {
   return String(value ?? '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '')
@@ -407,6 +408,7 @@ export function AcademicRombelView({ onNotify }) {
             </div>
           </div>
           <div style={{ display: 'flex', gap: '8px' }}>
+            <Button className="academic-button secondary" disabled={!selectedClassId || !selectedSemesterId} onClick={() => excelService.download('rombel_members', 'export', { class_id: selectedClassId, semester_id: selectedSemesterId }).catch((error) => onNotify(error.message))} type="button"><Icon name="download" /> Export Excel</Button>
             <Button className="academic-button secondary" onClick={handleOpenSync} type="button">
               <Icon name="refresh" /> Sinkronkan Data Siswa
             </Button>
@@ -972,9 +974,9 @@ export function AcademicHomeroomView({ onNotify }) {
             <h3>Penugasan Wali Kelas</h3>
             <p>Satu kelas hanya memiliki 1 wali kelas aktif per semester</p>
           </div>
-          <Button className="academic-button primary" onClick={() => openModal('add')} type="button">
+          <div><Button className="academic-button secondary" onClick={() => excelService.download('homeroom_assignments', 'export', { semester_id: selectedSemesterId, class_id: selectedClassId === 'Semua Kelas' ? '' : selectedClassId }).catch((error) => onNotify(error.message))} type="button"><Icon name="download" /> Export Excel</Button><Button className="academic-button primary" onClick={() => openModal('add')} type="button">
             <Icon name="plus" /> Atur Wali Kelas
-          </Button>
+          </Button></div>
         </div>
 
         <div className="academic-table-scroll">
@@ -1426,9 +1428,13 @@ export function AcademicTeacherAssignmentView({ onNotify }) {
             <h3>Daftar Penugasan Guru</h3>
             <p>Penugasan guru mengajar per rombel, mata pelajaran, dan semester</p>
           </div>
-          <Button className="academic-button primary" onClick={() => openModal('add')} type="button">
+          <div><Button className="academic-button secondary" onClick={() => excelService.download('course_assignments', 'export', {
+            semester_id: selectedSemesterId, class_id: selectedClassId === 'Semua Kelas' ? '' : selectedClassId,
+            subject_id: selectedSubjectId === 'Semua Mata Pelajaran' ? '' : selectedSubjectId,
+            teacher_id: selectedTeacherId === 'Semua Guru' ? '' : selectedTeacherId,
+          }).catch((error) => onNotify(error.message))} type="button"><Icon name="download" /> Export Excel</Button><Button className="academic-button primary" onClick={() => openModal('add')} type="button">
             <Icon name="plus" /> Tambah Penugasan
-          </Button>
+          </Button></div>
         </div>
 
         <div className="academic-table-scroll">

@@ -4,6 +4,7 @@ import EmptyState from '../common/EmptyState.jsx'
 import Icon from '../common/Icon.jsx'
 import Pagination from '../common/Pagination.jsx'
 import assessmentService from '../../services/assessmentService.js'
+import excelService from '../../services/excelService.js'
 import { activityOptions } from '../../data/kegiatanSiswa.js'
 
 const DEFAULT_ROWS_PER_PAGE = activityOptions.rowsPerPageOptions?.[0] || 8
@@ -580,6 +581,7 @@ function StudentNotesView({ type, classId: requestedClassId, semesterId: request
           onSearchChange={(value) => updateFilter('searchQuery', value)}
         />
         <div className="activity-notes-toolbar-actions">
+          <Button className="activity-button activity-button-secondary" disabled={!classId || !semesterId || isLoading} onClick={() => excelService.download(isHomeroom ? 'homeroom_notes' : 'cocurriculars', 'export', { class_id: classId, semester_id: semesterId, search: filters.searchQuery, status: filters.status === 'Semua Status' ? '' : filters.status }).catch((error) => onNotify?.(error.message))} type="button"><Icon name="download" />Export Excel</Button>
           {!isHomeroom && (
             <div className="activity-add-project">
               <select aria-label="Siswa untuk projek baru" onChange={(event) => setNewProjectStudentId(event.target.value)} value={newProjectStudentId}>

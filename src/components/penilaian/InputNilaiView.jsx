@@ -3,6 +3,8 @@ import AssessmentFilters from './AssessmentFilters.jsx'
 import ScorePagination from './ScorePagination.jsx'
 import ScoreTable from './ScoreTable.jsx'
 import assessmentService from '../../services/assessmentService.js'
+import excelService from '../../services/excelService.js'
+import { MasterImportModal } from '../master-data/MasterModals.jsx'
 
 const assessmentTypes = ['Semua Jenis', 'Formatif', 'Sumatif Lingkup Materi', 'Sumatif Akhir Semester']
 
@@ -17,6 +19,7 @@ function InputNilaiView({ onNotify }) {
   const [reloadKey, setReloadKey] = useState(0)
   const [savedScores, setSavedScores] = useState({})
   const [showCreate, setShowCreate] = useState(false)
+  const [showImport, setShowImport] = useState(false)
   const [objectives, setObjectives] = useState([])
   const [newObjective, setNewObjective] = useState({ code: '', description: '' })
   const [newAssessment, setNewAssessment] = useState({ title: '', type: 'Formatif', learning_objective_id: '', passing_grade: '75', assessment_date: '' })
@@ -410,6 +413,8 @@ function InputNilaiView({ onNotify }) {
 
       {selectedCourseId && !loadError && (
         <div className="assessment-create-area">
+          <button className="assessment-button secondary" disabled={isLocked || isSaving} onClick={() => setShowImport(true)} type="button">Import Excel</button>
+          <button className="assessment-button secondary" onClick={() => excelService.download('scores', 'export', { course_assignment_id: selectedCourseId }).catch((error) => onNotify(error.message))} type="button">Export Excel</button>
           <button className="assessment-button secondary" disabled={isLocked || isSaving} onClick={() => setShowCreate((current) => !current)} type="button">
             {showCreate ? 'Tutup Formulir' : '+ Tambah Instrumen Penilaian'}
           </button>
@@ -470,6 +475,13 @@ function InputNilaiView({ onNotify }) {
         rowsPerPage={rowsPerPage}
         totalItems={filteredStudents.length}
         totalPages={totalPages}
+      />}
+      {showImport && selectedCourseId && <MasterImportModal
+        context={{ course_assignment_id: selectedCourseId }}
+        entityLabel="Nilai"
+        module="scores"
+        onClose={() => setShowImport(false)}
+        onComplete={(count) => { setShowImport(false); setReloadKey((key) => key + 1); onNotify(`${count} nilai berhasil diimport.`) }}
       />}
     </section>
   )

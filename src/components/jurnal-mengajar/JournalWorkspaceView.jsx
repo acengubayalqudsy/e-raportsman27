@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useAcademicContext } from '../../context/AcademicContext.jsx'
 import journalService from '../../services/journalService.js'
+import excelService from '../../services/excelService.js'
+import { MasterImportModal } from '../master-data/MasterModals.jsx'
 import Button from '../common/Button.jsx'
 import EmptyState from '../common/EmptyState.jsx'
 import Icon from '../common/Icon.jsx'
@@ -88,6 +90,7 @@ function JournalWorkspaceView({ mode = 'jurnal', onNotify }) {
   const [optionsError, setOptionsError] = useState('')
   const [formError, setFormError] = useState('')
   const [form, setForm] = useState(null)
+  const [showImport, setShowImport] = useState(false)
   const title = labels[mode] || labels.jurnal
 
   useEffect(() => {
@@ -284,7 +287,10 @@ function JournalWorkspaceView({ mode = 'jurnal', onNotify }) {
         <label className="journal-filter-field"><span>Cari</span><input type="search" value={filters.search} onChange={(event) => updateFilter('search', event.target.value)} placeholder="Materi, aktivitas, catatan..." /></label>
       </div>
 
-      <div className="journal-workspace-heading"><div><h3>{title}</h3><p>{meta.total} catatan pertemuan pada konteks yang dipilih.</p></div><Button className="journal-button journal-button-primary" disabled={!selectedSemesterId || assignments.length === 0} onClick={openCreate}><Icon name="plus" />Tambah {mode === 'jurnal' ? 'Jurnal' : mode === 'materi' ? 'Materi' : mode === 'catatan' ? 'Catatan' : 'Aktivitas'}</Button></div>
+      <div className="journal-workspace-heading"><div><h3>{title}</h3><p>{meta.total} catatan pertemuan pada konteks yang dipilih.</p></div><div><Button className="journal-button journal-button-secondary" disabled={!selectedSemesterId} onClick={() => setShowImport(true)}><Icon name="download" />Import Excel</Button><Button className="journal-button journal-button-secondary" disabled={!selectedSemesterId} onClick={() => excelService.download('journals', 'export', {
+        academic_year_id: selectedYearId, semester_id: selectedSemesterId, class_id: filters.class_id, subject_id: filters.subject_id, search: filters.search,
+      }).catch((cause) => onNotify?.(cause.message))}><Icon name="download" />Export Excel</Button><Button className="journal-button journal-button-primary" disabled={!selectedSemesterId || assignments.length === 0} onClick={openCreate}><Icon name="plus" />Tambah {mode === 'jurnal' ? 'Jurnal' : mode === 'materi' ? 'Materi' : mode === 'catatan' ? 'Catatan' : 'Aktivitas'}</Button></div></div>
+      {showImport && <MasterImportModal entityLabel="Jurnal Mengajar" module="journals" context={{ semester_id: selectedSemesterId, class_id: filters.class_id }} onClose={() => setShowImport(false)} onComplete={(count) => { setShowImport(false); setRefresh((value) => value + 1); onNotify?.(`${count} jurnal berhasil diperbarui.`) }} />}
       {(error || optionsError) && <div className="journal-live-error" role="alert">{error || optionsError}</div>}
       {!selectedSemesterId ? <div className="journal-live-state" role="status">Pilih semester untuk melihat jurnal mengajar.</div> : isLoading ? <div className="journal-live-state" role="status">Memuat {title.toLowerCase()}...</div> : journals.length === 0 ? <EmptyState className="journal-empty-state"><strong>Belum ada {title.toLowerCase()}</strong><p>{assignments.length === 0 ? 'Tambahkan penugasan mengajar aktif pada modul Akademik.' : 'Klik tombol tambah untuk membuat catatan pertemuan.'}</p></EmptyState> : (
         <div className="journal-live-table-wrap"><table className="journal-live-table journal-workspace-table"><thead><tr><th>Tanggal</th><th>Kelas / Mapel</th><th>Pertemuan</th><th>{mode === 'jurnal' ? 'Materi / Aktivitas' : title}</th><th>Status</th><th>Aksi</th></tr></thead><tbody>{journals.map((journal) => <tr key={journal.id}><td>{journal.date}</td><td><strong>{journal.class_name}</strong><small>{journal.subject_name} · {journal.teacher_name}</small></td><td>{journal.meeting}</td><td className="journal-workspace-detail">{renderDetails(journal)}</td><td>{journal.status}</td><td><Button aria-label={`Edit ${title} ${journal.id}`} className="journal-workspace-icon-button" onClick={() => openEdit(journal)}><Icon name="edit" /></Button>{mode === 'jurnal' && <Button aria-label={`Hapus jurnal ${journal.id}`} className="journal-workspace-icon-button is-danger" onClick={() => remove(journal)}><Icon name="trash" /></Button>}</td></tr>)}</tbody></table></div>

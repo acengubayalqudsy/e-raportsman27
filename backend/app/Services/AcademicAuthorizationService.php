@@ -28,7 +28,10 @@ class AcademicAuthorizationService
             return SchoolClass::pluck('id')->toArray();
         }
 
-        $teacher = $user->teacher;
+        $teacher = $user->teacher ?? \App\Models\Teacher::where('user_id', $user->id)->first();
+        if (!$teacher && !empty($user->email)) {
+            $teacher = \App\Models\Teacher::where('email', $user->email)->first();
+        }
         if (!$teacher) {
             return [];
         }
@@ -46,6 +49,13 @@ class AcademicAuthorizationService
             ->when($semesterId, fn($q) => $q->where('semester_id', $semesterId))
             ->pluck('class_id')
             ->toArray();
+
+        if (empty($homeroomClassIds)) {
+            $homeroomClassIds = HomeroomAssignment::where('teacher_id', $teacher->id)
+                ->where('status', 'Aktif')
+                ->pluck('class_id')
+                ->toArray();
+        }
 
         return array_values(array_unique(array_map('intval', array_merge($courseClassIds, $homeroomClassIds))));
     }
@@ -112,7 +122,7 @@ class AcademicAuthorizationService
      */
     public function canAccessClass(User $user, int $classId, ?int $semesterId = null): bool
     {
-        if ($user->hasRole('admin')) {
+        if ($user->hasAnyRole(['admin', 'kepala_sekolah'])) {
             return true;
         }
 
@@ -121,7 +131,11 @@ class AcademicAuthorizationService
         }
 
         $allowedClassIds = $this->getAllowedClassIds($user, $semesterId);
-        return in_array((int)$classId, $allowedClassIds, true);
+        if (in_array((int)$classId, $allowedClassIds, true)) {
+            return true;
+        }
+
+        return in_array((int)$classId, $this->getAllowedClassIds($user, null), true);
     }
 
     public function assertAcademicContext(int $classId, int $semesterId): array
@@ -129,10 +143,28 @@ class AcademicAuthorizationService
         $schoolClass = SchoolClass::find($classId);
         $semester = Semester::find($semesterId);
 
-        if (!$schoolClass || !$semester || (int) $schoolClass->academic_year_id !== (int) $semester->academic_year_id) {
+        if (!$schoolClass || !$semester) {
             throw ValidationException::withMessages([
-                'academic_context' => ['Kelas dan semester harus berada pada tahun ajaran yang sama.'],
+                'academic_context' => ['Konteks kelas atau semester tidak ditemukan.'],
             ]);
+        }
+
+        if ((int) $schoolClass->academic_year_id !== (int) $semester->academic_year_id) {
+            $matchingSemester = Semester::where('academic_year_id', $schoolClass->academic_year_id)
+                ->where('name', $semester->name)
+                ->first()
+                ?? Semester::where('academic_year_id', $schoolClass->academic_year_id)
+                    ->where('status', 'Aktif')
+                    ->first()
+                ?? Semester::where('academic_year_id', $schoolClass->academic_year_id)->first();
+
+            if ($matchingSemester) {
+                $semester = $matchingSemester;
+            } else {
+                throw ValidationException::withMessages([
+                    'academic_context' => ['Kelas dan semester harus berada pada tahun ajaran yang sama.'],
+                ]);
+            }
         }
 
         return [$schoolClass, $semester];
@@ -227,19 +259,36 @@ class AcademicAuthorizationService
      */
     public function isHomeroomTeacher(User $user, int $classId, ?int $semesterId = null): bool
     {
-        if ($user->hasRole('admin')) {
+        if ($user->hasRole('admin') || $user->hasRole('super_admin')) {
             return true;
         }
 
-        $teacher = $user->teacher;
+        $teacher = $user->teacher ?? \App\Models\Teacher::where('user_id', $user->id)->first();
+        if (!$teacher && !empty($user->email)) {
+            $teacher = \App\Models\Teacher::where('email', $user->email)->first();
+        }
         if (!$teacher) {
             return false;
         }
 
-        return HomeroomAssignment::where('teacher_id', $teacher->id)
+        $isAssignedHomeroom = HomeroomAssignment::where('teacher_id', $teacher->id)
             ->where('class_id', $classId)
             ->where('status', 'Aktif')
             ->when($semesterId, fn($q) => $q->where('semester_id', $semesterId))
+            ->exists();
+
+        if ($isAssignedHomeroom) {
+            return true;
+        }
+
+        // Allow walikelas role or teachers actively assigned to courses in this class
+        if ($user->hasRole('walikelas') && $this->canAccessClass($user, $classId, $semesterId)) {
+            return true;
+        }
+
+        return CourseAssignment::where('teacher_id', $teacher->id)
+            ->where('class_id', $classId)
+            ->where('status', 'Aktif')
             ->exists();
     }
 

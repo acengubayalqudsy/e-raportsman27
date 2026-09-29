@@ -5,6 +5,7 @@ import Icon from '../common/Icon.jsx'
 import SearchInput from '../common/SearchInput.jsx'
 import { academicAnnouncements } from '../../data/akademik.js'
 import scheduleService from '../../services/scheduleService.js'
+import excelService from '../../services/excelService.js'
 import AcademicModal from './AcademicModal.jsx'
 import AcademicSummary from './AcademicSummary.jsx'
 import { useAcademicContext } from '../../context/AcademicContext.jsx'
@@ -724,7 +725,12 @@ function AcademicScheduleView({ onNotify }) {
           <Button className="academic-button secondary" onClick={() => notify('Filter lanjutan siap digunakan.')}>
             <Icon name="filter" />Filter Lanjutan
           </Button>
-          <Button className="academic-button secondary" onClick={() => notify('Jadwal berhasil disiapkan untuk ekspor.')}>
+          <Button className="academic-button secondary" onClick={() => excelService.download('schedules', 'export', {
+            academic_year_id: selectedAcademicYearId, semester_id: selectedSemesterId,
+            class_id: apiOptions.classes.find((item) => item.name === selectedClass)?.id,
+            day_of_week: selectedDay === 'Semua Hari' ? '' : selectedDay,
+            search: query,
+          }).catch((error) => notify(error.message))}>
             <Icon name="download" />Ekspor Jadwal
           </Button>
           <Button className="academic-button secondary" onClick={() => notify('Jadwal berhasil disiapkan untuk dicetak.')}>

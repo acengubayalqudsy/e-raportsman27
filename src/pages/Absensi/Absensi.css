@@ -1161,6 +1161,10 @@
   50% { opacity: 0.95; }
 }
 
+.attendance-mobile-card-grid {
+  display: none;
+}
+
 @media (max-width: 768px) {
   .attendance-page {
     gap: 12px;
@@ -1191,77 +1195,530 @@
     display: none !important;
   }
 
-  /* Edlink-style pill segmented tabs */
-  .attendance-tabs {
+  /* Desktop Tabs hidden on mobile */
+  .attendance-tabs-desktop {
+    display: none !important;
+  }
+
+  /* Mobile Edlink-style 4-Card Grid (exact match to Gambar 1 Modul Rapor) */
+  .attendance-mobile-card-grid {
+    display: grid !important;
+    grid-template-columns: repeat(4, 1fr) !important;
+    gap: 12px 6px;
+    padding: 16px 12px;
     background: #ffffff;
-    border-radius: 14px;
-    padding: 4px;
+    border-radius: 16px;
     border: 1px solid #e5e7eb;
     box-shadow: 0 1px 3px rgba(0, 0, 0, 0.03);
-    gap: 4px;
-    min-height: auto;
-    height: 42px;
+    margin-bottom: 14px;
+  }
+
+  .attendance-mobile-card {
+    display: flex;
+    flex-direction: column;
     align-items: center;
-    overflow-x: auto;
-    scrollbar-width: none;
-  }
-
-  .attendance-tabs::-webkit-scrollbar {
-    display: none;
-  }
-
-  .attendance-tab {
-    min-height: 32px;
-    padding: 0 14px;
-    border-radius: 10px;
-    font-size: 12px;
-    font-weight: 600;
-    color: #64748b;
     gap: 6px;
-    border: none;
-    transition: all 0.18s ease;
+    text-decoration: none;
+    width: 100%;
+    -webkit-tap-highlight-color: transparent;
+    transition: transform 0.15s ease;
+  }
+
+  .attendance-mobile-card:active {
+    transform: scale(0.95);
+  }
+
+  .attendance-mobile-icon-box {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 48px;
+    height: 48px;
+    border-radius: 14px;
+    transition: all 0.2s ease;
+  }
+
+  .attendance-mobile-icon-box .ui-icon {
+    width: 23px;
+    height: 23px;
+  }
+
+  .attendance-mobile-icon-box.tone-green {
+    background: #E7F7EC;
+    color: #008520;
+  }
+
+  .attendance-mobile-icon-box.tone-blue {
+    background: #EEF2FF;
+    color: #4F46E5;
+  }
+
+  .attendance-mobile-icon-box.tone-purple {
+    background: #F3E8FF;
+    color: #9333EA;
+  }
+
+  .attendance-mobile-icon-box.tone-amber {
+    background: #FEF3C7;
+    color: #D97706;
+  }
+
+  .attendance-mobile-card-label {
+    font-size: 11px;
+    font-weight: 600;
+    color: #374151;
+    text-align: center;
+    line-height: 1.2;
+    max-width: 100%;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  /* Active Card State */
+  .attendance-mobile-card.active .attendance-mobile-icon-box {
+    background: #009B27 !important;
+    color: #ffffff !important;
+    box-shadow: 0 4px 10px rgba(0, 155, 39, 0.28);
+    transform: translateY(-2px);
+  }
+
+  .attendance-mobile-card.active .attendance-mobile-icon-box .ui-icon {
+    color: #ffffff !important;
+  }
+
+  .attendance-mobile-card.active .attendance-mobile-card-label {
+    color: #009B27 !important;
+    font-weight: 700 !important;
+  }
+
+  /* Summary Grid on Mobile matching Gambar 1 */
+  .attendance-summary-grid {
+    display: grid !important;
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    gap: 10px !important;
+    margin-bottom: 14px;
+  }
+
+  .attendance-summary-card:first-child {
+    grid-column: span 2 !important;
+  }
+
+  .attendance-summary-card {
+    border-radius: 16px !important;
+    padding: 14px 12px !important;
+    background: #ffffff !important;
+    border: 1px solid #e5e7eb !important;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.03) !important;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+
+  .attendance-summary-icon {
+    width: 44px;
+    height: 44px;
+    border-radius: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
     flex-shrink: 0;
   }
 
-  .attendance-tab .ui-icon {
+  .attendance-summary-icon .ui-icon {
+    width: 22px;
+    height: 22px;
+  }
+
+  .attendance-summary-icon.green { background: #E7F7EC; color: #008520; }
+  .attendance-summary-icon.blue { background: #EEF2FF; color: #4F46E5; }
+  .attendance-summary-icon.orange { background: #FFF7ED; color: #EA580C; }
+  .attendance-summary-icon.purple { background: #F3E8FF; color: #9333EA; }
+  .attendance-summary-icon.teal { background: #E0F2FE; color: #0284C7; }
+
+  .attendance-summary-copy {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0;
+  }
+
+  .attendance-summary-copy small {
+    font-size: 11px;
+    color: #64748b;
+    font-weight: 500;
+  }
+
+  .attendance-summary-copy strong {
+    font-size: 20px;
+    color: #0f172a;
+    font-weight: 800;
+    line-height: 1.1;
+  }
+
+  .attendance-summary-copy span {
+    font-size: 10px;
+    color: #94a3b8;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  /* Edlink-style Rounded Cards for Table & Filter on Mobile */
+  .attendance-filter-card,
+  .attendance-table-card,
+  .attendance-panel {
+    border-radius: 16px !important;
+    padding: 14px 12px !important;
+    background: #ffffff !important;
+    border: 1px solid #e5e7eb !important;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.03) !important;
+  }
+
+  /* Filter Grid on Mobile (2 columns, matching Gambar 1) */
+  .attendance-filter-grid {
+    display: grid !important;
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    gap: 10px 8px !important;
+    width: 100% !important;
+  }
+
+  .attendance-actions-toolbar {
+    grid-column: span 2;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+
+  .attendance-actions-toolbar > span {
+    font-size: 11px;
+    font-weight: 600;
+    color: #475569;
+  }
+
+  .attendance-field {
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 4px !important;
+    min-width: 0 !important;
+  }
+
+  .attendance-field > span {
+    font-size: 11px !important;
+    font-weight: 600 !important;
+    color: #475569 !important;
+    line-height: 1.2 !important;
+  }
+
+  .attendance-field select,
+  .attendance-field input {
+    width: 100% !important;
+    height: 38px !important;
+    min-height: 38px !important;
+    border-radius: 10px !important;
+    border: 1px solid #e2e8f0 !important;
+    background-color: #f8fafc !important;
+    font-size: 12px !important;
+    font-weight: 500 !important;
+    color: #1e293b !important;
+    padding: 0 24px 0 10px !important;
+    transition: all 0.15s ease !important;
+    box-sizing: border-box !important;
+    outline: none !important;
+  }
+
+  .attendance-field select {
+    appearance: none !important;
+    -webkit-appearance: none !important;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='%2364748B'%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M19 9l-7 7-7-7'%3E%3C/path%3E%3C/svg%3E") !important;
+    background-repeat: no-repeat !important;
+    background-position: right 8px center !important;
+    background-size: 14px 14px !important;
+  }
+
+  .attendance-field select:focus,
+  .attendance-field input:focus {
+    border-color: #009B27 !important;
+    background-color: #ffffff !important;
+    box-shadow: 0 0 0 3px rgba(0, 155, 39, 0.12) !important;
+  }
+
+  /* Table Header & Sticky Column */
+  .attendance-live-table-wrap {
+    overflow-x: auto !important;
+    -webkit-overflow-scrolling: touch;
+    border-radius: 12px;
+    border: 1px solid #e2e8f0;
+    margin-top: 10px;
+  }
+
+  .attendance-live-table {
+    width: 100% !important;
+    min-width: 600px !important;
+    border-collapse: collapse !important;
+  }
+
+  .attendance-live-table th {
+    background: #f8fafc !important;
+    color: #475569 !important;
+    font-weight: 700 !important;
+    font-size: 10px !important;
+    text-transform: uppercase !important;
+    padding: 10px 8px !important;
+    border-bottom: 1px solid #e2e8f0 !important;
+  }
+
+  .attendance-live-table td {
+    padding: 8px 8px !important;
+    border-bottom: 1px solid #f1f5f9 !important;
+    vertical-align: middle !important;
+  }
+
+  .attendance-live-table .sticky-col {
+    position: sticky !important;
+    left: 0 !important;
+    background: #ffffff !important;
+    z-index: 2 !important;
+    border-right: 1px solid #e2e8f0 !important;
+    min-width: 150px !important;
+    box-shadow: 2px 0 5px rgba(0, 0, 0, 0.03) !important;
+  }
+
+  .attendance-live-table th.sticky-col {
+    background: #f8fafc !important;
+    z-index: 3 !important;
+  }
+
+  .attendance-student-meta strong {
+    font-size: 11.5px !important;
+    color: #0f172a !important;
+    font-weight: 700 !important;
+    display: block;
+    line-height: 1.2;
+  }
+
+  .attendance-student-meta small {
+    font-size: 10px !important;
+    color: #64748b !important;
+    display: block;
+    margin-top: 2px;
+  }
+
+  /* Number Inputs for Sick, Permitted, Absent */
+  .attendance-num-input {
+    width: 58px !important;
+    height: 32px !important;
+    border-radius: 8px !important;
+    text-align: center !important;
+    font-weight: 700 !important;
+    font-size: 12px !important;
+    box-sizing: border-box !important;
+    outline: none !important;
+    margin: 0 auto;
+    display: block;
+  }
+
+  .attendance-num-input.input-sick {
+    background: #FFF7ED !important;
+    border: 1px solid #FED7AA !important;
+    color: #C2410C !important;
+  }
+
+  .attendance-num-input.input-permitted {
+    background: #EFF6FF !important;
+    border: 1px solid #BFDBFE !important;
+    color: #1D4ED8 !important;
+  }
+
+  .attendance-num-input.input-absent {
+    background: #FEF2F2 !important;
+    border: 1px solid #FECACA !important;
+    color: #B91C1C !important;
+  }
+
+  .attendance-text-input {
+    width: 100% !important;
+    min-width: 160px;
+    height: 32px !important;
+    border-radius: 8px !important;
+    border: 1px solid #e2e8f0 !important;
+    background: #f8fafc !important;
+    font-size: 11px !important;
+    padding: 0 8px !important;
+    box-sizing: border-box !important;
+    color: #1e293b !important;
+    outline: none !important;
+  }
+
+  .attendance-text-input:focus {
+    border-color: #009B27 !important;
+    background: #ffffff !important;
+  }
+
+  /* Status Dropdown in Per-Kelas and Per-Mapel */
+  .attendance-status-select {
+    width: 100% !important;
+    min-width: 110px !important;
+    height: 32px !important;
+    border-radius: 8px !important;
+    font-size: 11px !important;
+    font-weight: 700 !important;
+    padding: 0 8px !important;
+    outline: none !important;
+  }
+
+  .attendance-status-select.status-hadir {
+    background: #E7F7EC !important;
+    color: #008520 !important;
+    border: 1px solid #A7F3D0 !important;
+  }
+
+  .attendance-status-select.status-sakit {
+    background: #FFF7ED !important;
+    color: #C2410C !important;
+    border: 1px solid #FED7AA !important;
+  }
+
+  .attendance-status-select.status-izin {
+    background: #EFF6FF !important;
+    color: #1D4ED8 !important;
+    border: 1px solid #BFDBFE !important;
+  }
+
+  .attendance-status-select.status-alpa {
+    background: #FEF2F2 !important;
+    color: #B91C1C !important;
+    border: 1px solid #FECACA !important;
+  }
+
+  .attendance-status-select.status-none {
+    background: #f8fafc !important;
+    color: #64748b !important;
+    border: 1px solid #e2e8f0 !important;
+  }
+
+  /* Context Header in Card */
+  .attendance-live-context {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    padding-bottom: 8px;
+    border-bottom: 1px solid #f1f5f9;
+  }
+
+  .attendance-context-title {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    color: #0f172a;
+    font-size: 13px;
+  }
+
+  .attendance-context-title .ui-icon {
+    width: 16px;
+    height: 16px;
+    color: #008520;
+  }
+
+  .attendance-badge-soft {
+    font-size: 10.5px;
+    padding: 2px 8px;
+    border-radius: 6px;
+    background: #f1f5f9;
+    color: #475569;
+    font-weight: 600;
+  }
+
+  .attendance-live-actions {
+    margin-top: 14px;
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+  }
+
+  .attendance-button-primary {
+    background: linear-gradient(135deg, #008520, #00A82D) !important;
+    color: #ffffff !important;
+    border: none !important;
+    border-radius: 10px !important;
+    font-size: 12px !important;
+    font-weight: 700 !important;
+    padding: 0 16px !important;
+    height: 38px !important;
+    box-shadow: 0 4px 10px rgba(0, 133, 32, 0.25) !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    gap: 6px !important;
+  }
+
+  .attendance-button-secondary {
+    background: #ffffff !important;
+    border: 1px solid #008520 !important;
+    color: #008520 !important;
+    border-radius: 10px !important;
+    font-size: 11px !important;
+    font-weight: 700 !important;
+    padding: 0 12px !important;
+    height: 34px !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    gap: 6px !important;
+  }
+
+  .attendance-button-outline {
+    background: #f0fdf4 !important;
+    border: 1px solid #86efac !important;
+    color: #15803d !important;
+    border-radius: 10px !important;
+    font-size: 11px !important;
+    font-weight: 700 !important;
+    padding: 0 12px !important;
+    height: 34px !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    gap: 6px !important;
+  }
+
+  .attendance-readonly-note {
+    font-size: 11px;
+    color: #64748b;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .attendance-readonly-note .ui-icon {
     width: 14px;
     height: 14px;
     color: #94a3b8;
   }
 
-  .attendance-tab.active {
-    background: #E7F7EC;
-    color: #008520;
+  /* Badge status for per-siswa history */
+  .attendance-badge-status {
+    display: inline-block;
+    padding: 3px 8px;
+    border-radius: 9999px;
+    font-size: 10.5px;
     font-weight: 700;
   }
 
-  .attendance-tab.active::after {
-    display: none;
+  .attendance-badge-status.status-hadir {
+    background: #E7F7EC;
+    color: #008520;
   }
 
-  .attendance-tab.active .ui-icon {
-    color: #009B27;
+  .attendance-badge-status.status-sakit {
+    background: #FFF7ED;
+    color: #C2410C;
   }
 
-  /* Edlink-style White Cards */
-  .attendance-filter-card,
-  .attendance-workspace,
-  .attendance-table-card,
-  .attendance-panel,
-  .attendance-context-card,
-  .attendance-student-card,
-  .attendance-summary-panel {
-    border-radius: 16px;
-    padding: 14px 15px;
-    background: #ffffff;
-    border: 1px solid #e5e7eb;
-    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.03);
+  .attendance-badge-status.status-izin {
+    background: #EFF6FF;
+    color: #1D4ED8;
   }
 
-  .attendance-summary-card {
-    border-radius: 14px;
-    padding: 12px;
-    border: 1px solid #e5e7eb;
-    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.03);
+  .attendance-badge-status.status-alpa {
+    background: #FEF2F2;
+    color: #B91C1C;
   }
 }

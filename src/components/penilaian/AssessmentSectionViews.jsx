@@ -2,6 +2,8 @@ import { useEffect, useState } from 'react'
 import Button from '../common/Button.jsx'
 import Icon from '../common/Icon.jsx'
 import assessmentService from '../../services/assessmentService.js'
+import excelService from '../../services/excelService.js'
+import { MasterImportModal } from '../master-data/MasterModals.jsx'
 import {
   formatScore,
   getPredicate,
@@ -50,7 +52,7 @@ function SectionHeading({ icon, title, description, action }) {
   )
 }
 
-function NilaiPerMapelView() {
+function NilaiPerMapelView({ onNotify }) {
   const [assignedCourses, setAssignedCourses] = useState([])
   const [selectedCourseId, setSelectedCourseId] = useState(null)
   const [gradebook, setGradebook] = useState(null)
@@ -91,6 +93,7 @@ function NilaiPerMapelView() {
         selectedCourseId={selectedCourseId}
       />
       <div className="assessment-secondary-card">
+        {selectedCourseId && <button className="assessment-button secondary" onClick={() => excelService.download('scores', 'export', { course_assignment_id: selectedCourseId }).catch((error) => onNotify(error.message))} type="button">Export Excel</button>}
         <SectionHeading
           description={`Monitoring rekapitulasi nilai ${gradebook?.course_assignment?.subject_name || ''} kelas ${gradebook?.course_assignment?.class_name || ''}.`}
           icon="table"
@@ -189,6 +192,8 @@ function CapaianKompetensiView({ onNotify }) {
   const [descriptions, setDescriptions] = useState({})
   const [isLocked, setIsLocked] = useState(false)
   const [loading, setLoading] = useState(false)
+  const [showImport, setShowImport] = useState(false)
+  const [refreshKey, setRefreshKey] = useState(0)
 
   useEffect(() => {
     async function load() {
@@ -220,7 +225,7 @@ function CapaianKompetensiView({ onNotify }) {
       setLoading(false)
     }
     loadGb()
-  }, [selectedCourseId])
+  }, [selectedCourseId, refreshKey])
 
   const handleSaveDescriptions = async () => {
     if (!selectedCourseId) return
@@ -257,6 +262,11 @@ function CapaianKompetensiView({ onNotify }) {
         selectedCourseId={selectedCourseId}
       />
       <div className="assessment-secondary-card">
+        {selectedCourseId && <div style={{ display: 'flex', gap: 8, padding: '12px 0' }}>
+          <button className="assessment-button secondary" disabled={isLocked} onClick={() => setShowImport(true)} type="button">Import Excel</button>
+          <button className="assessment-button secondary" onClick={() => excelService.download('competencies', 'export', { course_assignment_id: selectedCourseId }).catch((error) => onNotify(error.message))} type="button">Export Excel</button>
+        </div>}
+        {showImport && selectedCourseId && <MasterImportModal context={{ course_assignment_id: selectedCourseId }} entityLabel="Capaian Kompetensi" module="competencies" onClose={() => setShowImport(false)} onComplete={(count) => { setShowImport(false); setRefreshKey((key) => key + 1); onNotify(`${count} capaian kompetensi diperbarui.`) }} />}
         <SectionHeading
           action={
             <Button
@@ -317,7 +327,7 @@ function CapaianKompetensiView({ onNotify }) {
   )
 }
 
-function RekapNilaiView() {
+function RekapNilaiView({ onNotify }) {
   const [classes, setClasses] = useState([])
   const [selectedClassId, setSelectedClassId] = useState(null)
   const [semesterId, setSemesterId] = useState(null)
@@ -382,6 +392,7 @@ function RekapNilaiView() {
       </div>
 
       <div className="assessment-secondary-card">
+        {selectedClassId && semesterId && <button className="assessment-button secondary" onClick={() => excelService.download('class_recap', 'export', { class_id: selectedClassId, semester_id: semesterId }).catch((error) => onNotify(error.message))} type="button">Export Excel</button>}
         <SectionHeading
           description="Ringkasan nilai seluruh mata pelajaran dalam format leger kelas."
           icon="table"
@@ -523,6 +534,7 @@ function ValidasiNilaiView({ onNotify }) {
       </div>
 
       <div className="assessment-secondary-card">
+        {selectedClassId && semesterId && <button className="assessment-button secondary" onClick={() => excelService.download('validation_status', 'export', { class_id: selectedClassId, semester_id: semesterId }).catch((error) => onNotify(error.message))} type="button">Export Excel</button>}
         <SectionHeading
           description="Pastikan nilai dan deskripsi capaian lengkap sebelum digunakan pada Rapor & Leger."
           icon="check"

@@ -1,13 +1,26 @@
 import { useCallback, useEffect, useState } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import Button from '../common/Button.jsx'
 import Icon from '../common/Icon.jsx'
 import sman27Logo from '../../assets/logo/sman-27-garut-logo.png'
 import assessmentService from '../../services/assessmentService.js'
+import excelService from '../../services/excelService.js'
 import { formatRaporScore, schoolIdentity } from '../../data/rapor.js'
 import RaporContextFilters from './RaporContextFilters.jsx'
+import SupplementaryDataModal from './SupplementaryDataModal.jsx'
 
 function StudentRaporPreview({ onNotify }) {
-  const [studentId, setStudentId] = useState('')
+  const [searchParams] = useSearchParams()
+  const paramStudentId = searchParams.get('student_id')
+
+  const [studentId, setStudentId] = useState(paramStudentId || '')
+  const [prevParamStudentId, setPrevParamStudentId] = useState(paramStudentId)
+
+  if (paramStudentId !== prevParamStudentId) {
+    setPrevParamStudentId(paramStudentId)
+    setStudentId(paramStudentId || '')
+  }
+
   const [reportData, setReportData] = useState(null)
   const [loading, setLoading] = useState(false)
   const [errorMessage, setErrorMessage] = useState('')
@@ -15,11 +28,24 @@ function StudentRaporPreview({ onNotify }) {
   const [supplementaryLoading, setSupplementaryLoading] = useState(false)
   const [supplementaryError, setSupplementaryError] = useState('')
   const [filterState, setFilterState] = useState({ loading: true, error: '', classData: null })
+  const [reloadNonce, setReloadNonce] = useState(0)
+  const [showSupplementaryModal, setShowSupplementaryModal] = useState(false)
+  const [modalTab, setModalTab] = useState('absensi')
+
   const handleOptionsReady = useCallback((state) => {
     setFilterState(state)
-    const firstStudent = state.classData?.students?.[0]
-    if (firstStudent) setStudentId((current) => current || String(firstStudent.student_id))
-  }, [])
+    const students = state.classData?.students || []
+    if (students.length > 0) {
+      if (!paramStudentId || !students.some((s) => String(s.student_id) === String(paramStudentId))) {
+        setStudentId((current) => {
+          if (!current || !students.some((s) => String(s.student_id) === String(current))) {
+            return String(students[0].student_id)
+          }
+          return current
+        })
+      }
+    }
+  }, [paramStudentId])
 
   useEffect(() => {
     if (!studentId) return undefined
@@ -28,7 +54,8 @@ function StudentRaporPreview({ onNotify }) {
       setLoading(true)
       setErrorMessage('')
       setReportData(null)
-      const res = await assessmentService.getReportCard(studentId, filterState.context?.active_semester?.id || filterState.context?.assigned_courses?.[0]?.semester_id)
+      const semId = filterState.semesterId || filterState.context?.active_semester?.id || filterState.context?.assigned_courses?.[0]?.semester_id
+      const res = await assessmentService.getReportCard(studentId, semId)
       if (isMounted && res.success && res.data) {
         setReportData(res.data)
       } else if (isMounted) {
@@ -39,11 +66,11 @@ function StudentRaporPreview({ onNotify }) {
     }
     loadReport()
     return () => { isMounted = false }
-  }, [studentId, filterState.context?.active_semester?.id, filterState.context?.assigned_courses])
+  }, [studentId, filterState.semesterId, filterState.context?.active_semester?.id, filterState.context?.assigned_courses, reloadNonce])
 
   useEffect(() => {
     const classId = filterState.classId
-    const semesterId = filterState.context?.active_semester?.id || filterState.context?.assigned_courses?.[0]?.semester_id
+    const semesterId = filterState.semesterId || filterState.context?.active_semester?.id || filterState.context?.assigned_courses?.[0]?.semester_id
     if (!studentId || !classId || !semesterId) return undefined
 
     let isMounted = true
@@ -62,7 +89,7 @@ function StudentRaporPreview({ onNotify }) {
     }
     loadSupplementary()
     return () => { isMounted = false }
-  }, [filterState.classId, filterState.context, studentId])
+  }, [filterState.classId, filterState.semesterId, filterState.context, studentId, reloadNonce])
 
   const studentInfo = reportData?.student
   const results = reportData?.academic_results?.map((r) => ({
@@ -124,6 +151,13 @@ function StudentRaporPreview({ onNotify }) {
           </span>
         </div>
         <div>
+          <Button className="report-button secondary" onClick={() => { setModalTab('absensi'); setShowSupplementaryModal(true); }}>
+            <Icon name="edit" />
+            Kelola Data Pelengkap
+          </Button>
+          <Button className="report-button secondary" onClick={() => excelService.download('report_card', 'export', { student_id: studentId, semester_id: filterState.context?.active_semester?.id || filterState.context?.assigned_courses?.[0]?.semester_id }).catch((error) => onNotify(error.message))}>
+            <Icon name="download" />Export Excel
+          </Button>
           <Button className="report-button secondary" onClick={handlePrint}>
             <Icon name="eye" />
             Preview Cetak
@@ -276,6 +310,18 @@ function StudentRaporPreview({ onNotify }) {
           )}
         </article>
       )}
+
+      <SupplementaryDataModal
+        activeTab={modalTab}
+        classId={filterState.classId}
+        isOpen={showSupplementaryModal}
+        onClose={() => setShowSupplementaryModal(false)}
+        onSaved={(msg) => {
+          onNotify?.(msg)
+          setReloadNonce((n) => n + 1)
+        }}
+        semesterId={filterState.semesterId || filterState.context?.active_semester?.id || filterState.context?.assigned_courses?.[0]?.semester_id}
+      />
     </section>
   )
 }

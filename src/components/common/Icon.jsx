@@ -63,6 +63,13 @@ function Icon({ name, className = '' }) {
         <path d="M9.5 16.5h5" />
       </>
     ),
+    fileWord: (
+      <>
+        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+        <path d="M14 2v6h6" />
+        <path d="M8.5 13.5l1.5 5 1.5-4 1.5 4 1.5-5" />
+      </>
+    ),
     settings: (
       <>
         <path d="M12 8.2a3.8 3.8 0 1 0 0 7.6 3.8 3.8 0 0 0 0-7.6Z" />

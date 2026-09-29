@@ -21,6 +21,7 @@ use App\Models\StudentAttendance;
 use App\Models\StudentCocurricular;
 use App\Models\StudentExtracurricular;
 use App\Models\StudentScore;
+use App\Models\Teacher;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Support\Facades\DB;
@@ -45,12 +46,18 @@ class AssessmentService
                 ?? Semester::where('academic_year_id', $activeYear->id)->first();
         }
 
-        $teacher = $user->teacher;
+        $teacher = $user->teacher ?? Teacher::where('user_id', $user->id)->first();
+        if (!$teacher && !empty($user->email)) {
+            $teacher = Teacher::where('email', $user->email)->first();
+        }
+
         $assignedCourses = [];
         $homeroomClass = null;
+        $homeroomClasses = [];
 
         if ($user->hasRole('admin')) {
-            $query = CourseAssignment::with(['schoolClass', 'subject', 'teacher', 'semester'])
+            $query = CourseAssignment::with(['schoolClass.academicYear', 'subject', 'teacher', 'semester'])
+                ->whereHas('schoolClass')
                 ->where('status', 'Aktif');
             if ($activeSemester && $query->clone()->where('semester_id', $activeSemester->id)->exists()) {
                 $query->where('semester_id', $activeSemester->id);
@@ -71,77 +78,110 @@ class AssessmentService
                 ])
                 ->values()
                 ->all();
+
+            $allClasses = SchoolClass::with('academicYear')->where('status', 'Aktif')->get()
+                ->map(fn($c) => [
+                    'class_id' => $c->id,
+                    'class_name' => $c->name,
+                    'academic_year_id' => $c->academic_year_id,
+                    'academic_year_name' => $c->academicYear?->name,
+                ])->values()->all();
+
+            $homeroomClasses = $allClasses;
             $firstCourse = !empty($assignedCourses) ? $assignedCourses[0] : null;
             if ($firstCourse) {
                 $homeroomClass = [
                     'class_id' => $firstCourse['class_id'],
                     'class_name' => $firstCourse['class_name'],
                 ];
-            } else {
-                $firstClass = SchoolClass::where('status', 'Aktif')->first() ?? SchoolClass::first();
-                if ($firstClass) {
-                    $homeroomClass = [
-                        'class_id' => $firstClass->id,
-                        'class_name' => $firstClass->name,
-                    ];
-                }
-            }
-        } elseif ($teacher) {
-            $query = CourseAssignment::with(['schoolClass', 'subject', 'semester'])
-                ->where('teacher_id', $teacher->id)
-                ->where('status', 'Aktif');
-            if ($activeSemester && $query->clone()->where('semester_id', $activeSemester->id)->exists()) {
-                $query->where('semester_id', $activeSemester->id);
-            }
-            $assignedCourses = $query->get()
-                ->map(fn($ca) => [
-                    'course_assignment_id' => $ca->id,
-                    'class_id' => $ca->class_id,
-                    'class_name' => $ca->schoolClass?->name ?? 'Kelas ' . $ca->class_id,
-                    'grade' => $ca->schoolClass?->grade,
-                    'academic_year_id' => $ca->academic_year_id,
-                    'semester_id' => $ca->semester_id,
-                    'semester_name' => $ca->semester?->name,
-                    'subject_id' => $ca->subject_id,
-                    'subject_name' => $ca->subject?->name ?? 'Mapel ' . $ca->subject_id,
-                    'role' => $ca->role,
-                ])
-                ->values()
-                ->all();
-
-            $homeroom = HomeroomAssignment::with('schoolClass')
-                ->where('teacher_id', $teacher->id)
-                ->where('status', 'Aktif')
-                ->when($activeSemester, fn($q) => $q->where('semester_id', $activeSemester->id))
-                ->first()
-                ?? HomeroomAssignment::with('schoolClass')
-                    ->where('teacher_id', $teacher->id)
-                    ->where('status', 'Aktif')
-                    ->latest('id')
-                    ->first();
-
-            if ($homeroom) {
+            } elseif (!empty($allClasses)) {
                 $homeroomClass = [
-                    'class_id' => $homeroom->class_id,
-                    'class_name' => $homeroom->schoolClass?->name ?? 'Kelas ' . $homeroom->class_id,
+                    'class_id' => $allClasses[0]['class_id'],
+                    'class_name' => $allClasses[0]['class_name'],
                 ];
+            }
+        } else {
+            // For Teacher or Wali Kelas
+            if ($teacher) {
+                $query = CourseAssignment::with(['schoolClass.academicYear', 'subject', 'semester'])
+                    ->whereHas('schoolClass')
+                    ->where('teacher_id', $teacher->id)
+                    ->where('status', 'Aktif');
+                if ($activeSemester && $query->clone()->where('semester_id', $activeSemester->id)->exists()) {
+                    $query->where('semester_id', $activeSemester->id);
+                }
+                $assignedCourses = $query->get()
+                    ->map(fn($ca) => [
+                        'course_assignment_id' => $ca->id,
+                        'class_id' => $ca->class_id,
+                        'class_name' => $ca->schoolClass?->name ?? 'Kelas ' . $ca->class_id,
+                        'grade' => $ca->schoolClass?->grade,
+                        'academic_year_id' => $ca->academic_year_id,
+                        'semester_id' => $ca->semester_id,
+                        'semester_name' => $ca->semester?->name,
+                        'subject_id' => $ca->subject_id,
+                        'subject_name' => $ca->subject?->name ?? 'Mapel ' . $ca->subject_id,
+                        'role' => $ca->role,
+                    ])
+                    ->values()
+                    ->all();
+            }
+
+            // Find homeroom assignments for this user
+            $homeroomQuery = HomeroomAssignment::with(['schoolClass.academicYear', 'semester'])
+                ->whereHas('schoolClass')
+                ->where('status', 'Aktif');
+
+            if ($teacher) {
+                $homeroomQuery->where('teacher_id', $teacher->id);
+            } elseif ($user->hasRole('walikelas')) {
+                // If user is walikelas without teacher link, find assignments assigned to walikelas
+                $homeroomQuery->whereHas('teacher', fn($q) => $q->where('user_id', $user->id));
+            }
+
+            $homeroomList = $homeroomQuery->get();
+
+            // If empty and user has walikelas role, fallback to any active homeroom assignments
+            if ($homeroomList->isEmpty() && $user->hasRole('walikelas')) {
+                $homeroomList = HomeroomAssignment::with(['schoolClass.academicYear', 'semester'])
+                    ->whereHas('schoolClass')
+                    ->where('status', 'Aktif')
+                    ->get();
+            }
+
+            $homeroomClasses = $homeroomList->map(fn($h) => [
+                'class_id' => $h->class_id,
+                'class_name' => $h->schoolClass?->name ?? 'Kelas ' . $h->class_id,
+                'academic_year_id' => $h->academic_year_id ?? $h->schoolClass?->academic_year_id,
+                'academic_year_name' => $h->schoolClass?->academicYear?->name,
+                'semester_id' => $h->semester_id,
+                'semester_name' => $h->semester?->name,
+            ])->unique('class_id')->values()->all();
+
+            $primaryHomeroom = $homeroomList->firstWhere('semester_id', $activeSemester?->id)
+                ?? $homeroomList->first();
+
+            if ($primaryHomeroom) {
+                $homeroomClass = [
+                    'class_id' => $primaryHomeroom->class_id,
+                    'class_name' => $primaryHomeroom->schoolClass?->name ?? 'Kelas ' . $primaryHomeroom->class_id,
+                    'academic_year_id' => $primaryHomeroom->schoolClass?->academic_year_id,
+                    'academic_year_name' => $primaryHomeroom->schoolClass?->academicYear?->name,
+                    'semester_id' => $primaryHomeroom->semester_id,
+                    'semester_name' => $primaryHomeroom->semester?->name,
+                ];
+
+                // If user is primarily walikelas, align context to the assigned homeroom class!
+                if ($user->hasRole('walikelas') && $primaryHomeroom->schoolClass?->academicYear) {
+                    $activeYear = $primaryHomeroom->schoolClass->academicYear;
+                    if ($primaryHomeroom->semester) {
+                        $activeSemester = $primaryHomeroom->semester;
+                    }
+                }
             } elseif (!empty($assignedCourses)) {
                 $homeroomClass = [
                     'class_id' => $assignedCourses[0]['class_id'],
                     'class_name' => $assignedCourses[0]['class_name'],
-                ];
-            }
-        } elseif ($user->hasRole('walikelas')) {
-            $activeHomeroom = HomeroomAssignment::with('schoolClass')
-                ->where('status', 'Aktif')
-                ->when($activeSemester, fn($q) => $q->where('semester_id', $activeSemester->id))
-                ->first()
-                ?? HomeroomAssignment::with('schoolClass')->where('status', 'Aktif')->first();
-
-            if ($activeHomeroom) {
-                $homeroomClass = [
-                    'class_id' => $activeHomeroom->class_id,
-                    'class_name' => $activeHomeroom->schoolClass?->name ?? 'Kelas ' . $activeHomeroom->class_id,
                 ];
             }
         }
@@ -151,6 +191,7 @@ class AssessmentService
             'active_semester' => $activeSemester ? ['id' => $activeSemester->id, 'name' => $activeSemester->name] : null,
             'assigned_courses' => $assignedCourses,
             'homeroom_class' => $homeroomClass,
+            'homeroom_classes' => $homeroomClasses,
         ];
     }
 
@@ -668,8 +709,8 @@ class AssessmentService
      */
     public function getClassRecap(int $classId, int $semesterId): array
     {
-        $schoolClass = \App\Models\SchoolClass::find($classId);
-        $semester = Semester::with('academicYear')->find($semesterId);
+        [$schoolClass, $semester] = $this->authService->assertAcademicContext($classId, $semesterId);
+        $semesterId = $semester->id;
 
         // 1. All active members of the class
         $members = ClassMember::with('student')
@@ -861,8 +902,8 @@ class AssessmentService
      */
     public function getSupplementaryData(int $classId, int $semesterId): array
     {
-        $schoolClass = SchoolClass::find($classId);
-        $semester = Semester::with('academicYear')->find($semesterId);
+        [$schoolClass, $semester] = $this->authService->assertAcademicContext($classId, $semesterId);
+        $semesterId = $semester->id;
 
         $members = ClassMember::with('student')
             ->where('class_id', $classId)

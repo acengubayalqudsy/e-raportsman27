@@ -10,6 +10,7 @@ use App\Models\SchoolClass;
 use App\Models\Semester;
 use App\Services\AcademicAuthorizationService;
 use App\Services\SavedReportService;
+use App\Services\ExcelWorkbookService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -21,6 +22,7 @@ class SavedReportController extends Controller
     public function __construct(
         private SavedReportService $reports,
         private AcademicAuthorizationService $authorization,
+        private ExcelWorkbookService $workbook,
     ) {}
 
     private function allowedClassIds(Request $request, int $semesterId): array
@@ -76,6 +78,17 @@ class SavedReportController extends Controller
         ];
         if ($includeSnapshot) $data['snapshot'] = $report->snapshot;
         return $data;
+    }
+
+    public function exportExcel(Request $request, SavedReport $report): \Symfony\Component\HttpFoundation\BinaryFileResponse
+    {
+        abort_unless($this->canView($request, $report), 403);
+        $snapshot = $report->snapshot ?: [];
+        $headers = $snapshot['columns'] ?? [];
+        $rows = $snapshot['rows'] ?? [];
+        if (!is_array($headers) || !is_array($rows)) abort(422, 'Snapshot laporan tidak valid.');
+        return response()->download($this->workbook->write($headers, $rows), "laporan-{$report->id}.xlsx")
+            ->deleteFileAfterSend(true);
     }
 
     public function options(Request $request): JsonResponse

@@ -16,6 +16,7 @@ use App\Http\Controllers\Api\V1\ScheduleController;
 use App\Http\Controllers\Api\V1\SettingsController;
 use App\Http\Controllers\Api\V1\DatabaseBackupController;
 use App\Http\Controllers\Api\V1\StudentController;
+use App\Http\Controllers\Api\V1\ExcelController;
 use App\Http\Controllers\Api\V1\TeacherController;
 use App\Http\Controllers\Api\V1\UserController;
 use Illuminate\Support\Facades\Route;
@@ -27,6 +28,16 @@ use Illuminate\Support\Facades\Route;
 */
 
 Route::prefix('v1')->group(function () {
+
+    Route::prefix('excel')->middleware(['web', 'auth:sanctum'])->group(function () {
+        Route::get('microsoft/status', [ExcelController::class, 'microsoftStatus']);
+        Route::get('microsoft/files', [ExcelController::class, 'microsoftFiles']);
+        Route::get('microsoft/files/{fileId}/worksheets', [ExcelController::class, 'microsoftSheets']);
+        Route::get('{module}/template', [ExcelController::class, 'template']);
+        Route::get('{module}/export', [ExcelController::class, 'export']);
+        Route::post('{module}/preview', [ExcelController::class, 'preview']);
+        Route::post('{module}/commit', [ExcelController::class, 'commit']);
+    });
 
     Route::prefix('settings')->middleware(['auth:sanctum', 'role:admin'])->group(function () {
         Route::get('/activity-logs', [SettingsController::class, 'logs']);
@@ -280,6 +291,7 @@ Route::prefix('v1')->group(function () {
     Route::prefix('reports')->middleware(['auth:sanctum', 'role:admin,walikelas,kepala_sekolah'])->group(function () {
         Route::get('/options', [SavedReportController::class, 'options']);
         Route::get('/', [SavedReportController::class, 'index']);
+        Route::get('/{report}/excel', [SavedReportController::class, 'exportExcel'])->whereNumber('report');
         Route::post('/', [SavedReportController::class, 'store']);
         Route::get('/{report}', [SavedReportController::class, 'show'])->whereNumber('report');
         Route::put('/{report}', [SavedReportController::class, 'update'])->whereNumber('report');

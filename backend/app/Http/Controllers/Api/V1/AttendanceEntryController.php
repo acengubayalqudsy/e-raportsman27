@@ -22,13 +22,26 @@ class AttendanceEntryController extends Controller
 
     public function classes(Request $request): JsonResponse
     {
-        $data = $request->validate(['semester_id' => 'required|integer|exists:semesters,id']);
-        $classIds = $this->authService->getAllowedClassIds($request->user(), (int) $data['semester_id']);
-        $semester = Semester::findOrFail($data['semester_id']);
-        $classes = SchoolClass::whereIn('id', $classIds)
-            ->where('academic_year_id', $semester->academic_year_id)
-            ->orderBy('name')
-            ->get(['id', 'name']);
+        $data = $request->validate(['semester_id' => 'nullable|integer|exists:semesters,id']);
+        $semesterId = !empty($data['semester_id']) ? (int) $data['semester_id'] : null;
+        $classIds = $this->authService->getAllowedClassIds($request->user(), $semesterId);
+
+        $query = SchoolClass::with('academicYear')
+            ->whereIn('id', $classIds);
+
+        if ($semesterId) {
+            $semester = Semester::findOrFail($semesterId);
+            $query->where('academic_year_id', $semester->academic_year_id);
+        }
+
+        $classes = $query->orderBy('name')
+            ->get()
+            ->map(fn ($c) => [
+                'id' => $c->id,
+                'name' => $c->name,
+                'academic_year_id' => $c->academic_year_id,
+                'academic_year_name' => $c->academicYear?->name,
+            ]);
 
         return response()->json(['success' => true, 'data' => $classes]);
     }

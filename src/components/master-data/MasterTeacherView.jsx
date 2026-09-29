@@ -8,6 +8,7 @@ import {
   teacherSummary as defaultTeacherSummary,
 } from '../../data/masterData.js'
 import teacherService from '../../services/teacherService.js'
+import excelService from '../../services/excelService.js'
 import academicService from '../../services/academicService.js'
 import {
   MasterDeleteModal,
@@ -364,7 +365,13 @@ function MasterTeacherView({ onNotify }) {
             </Button>
             <Button
               className="master-button secondary"
-              onClick={() => onNotify('Data guru siap diekspor. Fitur Excel akan diintegrasikan pada tahap berikutnya.')}
+              onClick={() => excelService.download('teachers', 'export', {
+                search: searchQuery,
+                status: filters.status === 'Semua Status' ? '' : filters.status,
+                gender: filters.gender === 'Laki-laki' ? 'L' : filters.gender === 'Perempuan' ? 'P' : '',
+                employment_status: filters.employmentStatus === 'Semua Kepegawaian' ? '' : filters.employmentStatus,
+                subject: filters.subject === 'Semua Mata Pelajaran' ? '' : filters.subject,
+              }).catch((error) => onNotify(error.message))}
             >
               <Icon name="document" />
               Export Excel
@@ -381,7 +388,7 @@ function MasterTeacherView({ onNotify }) {
             <strong>{selectedRows.size} guru dipilih</strong>
             <span>
               <button
-                onClick={() => onNotify(`${selectedRows.size} data guru siap diekspor.`)}
+                onClick={() => excelService.download('teachers', 'export', { ids: [...selectedRows].join(',') }).catch((error) => onNotify(error.message))}
                 type="button"
               >
                 Export
@@ -554,10 +561,12 @@ function MasterTeacherView({ onNotify }) {
       {modal?.type === 'import' && (
         <MasterImportModal
           entityLabel="Guru"
+          module="teachers"
           onClose={() => setModal(null)}
-          onComplete={() => {
+          onComplete={(count) => {
             setModal(null)
-            onNotify('Simulasi import data guru berhasil.')
+            setRefreshTrigger((k) => k + 1)
+            onNotify(`${count} data guru berhasil diperbarui.`)
           }}
         />
       )}

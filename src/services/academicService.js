@@ -219,6 +219,10 @@ export const academicService = {
   // =========================================================================
   // 3. KELAS / ROMBEL REFERENSI
   // =========================================================================
+  async getSchoolClasses(params = {}) {
+    return this.getClasses(params)
+  },
+
   async getClasses(params = {}) {
     const query = new URLSearchParams()
     if (params.page) query.set('page', params.page)

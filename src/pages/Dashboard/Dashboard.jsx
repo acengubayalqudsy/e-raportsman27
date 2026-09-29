@@ -4,6 +4,7 @@ import Icon from '../../components/common/Icon.jsx'
 import { activities, announcements, attendanceData, scheduleRows, stats } from '../../data/dashboard.js'
 import { useAuth } from '../../auth/AuthContext.jsx'
 import { canAccessModule } from '../../constants/roles.js'
+import { useBreakpoint } from '../../hooks/useBreakpoint.js'
 
 function formatDate(date) {
   const formatted = new Intl.DateTimeFormat('id-ID', {
@@ -230,12 +231,13 @@ function Dashboard() {
   const currentDate = useMemo(() => formatDate(new Date()), [])
   const { user, roles } = useAuth()
   const userName = user?.name ? user.name.split(' ')[0] : 'Pengguna'
+  const breakpoint = useBreakpoint()
 
   return (
     <>
       <DashboardHeader date={currentDate} userName={userName} />
 
-      <MobileMenuGrid roles={roles} />
+      {breakpoint.isMobile && <MobileMenuGrid roles={roles} />}
 
       <section className="stats-grid" aria-label="Ringkasan dashboard">
         {stats.map((stat) => (

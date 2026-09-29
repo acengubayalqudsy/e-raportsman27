@@ -1891,13 +1891,31 @@
 }
 
 .report-export-actions {
-  display: flex;
-  flex-direction: column;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 8px;
+  margin-top: 12px;
 }
 
 .report-export-actions .report-button {
   width: 100%;
+}
+
+.report-button.report-button-word {
+  background: #2563eb;
+  color: #ffffff;
+  border: 1px solid #2563eb;
+  box-shadow: 0 1px 2px rgba(37, 99, 235, 0.15);
+}
+
+.report-button.report-button-word:hover:not(:disabled) {
+  background: #1d4ed8;
+  border-color: #1d4ed8;
+}
+
+.report-button.report-button-word:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
 }
 
 .report-toast {
@@ -2177,8 +2195,20 @@
   .report-ranking-summary article.item-0,
   .report-ranking-summary article:first-child { grid-column: 1 / -1 !important; }
   .report-pagination-controls label { width: auto !important; }
-  .report-preview-toolbar > div:last-child { width: 100%; flex-direction: column; }
-  .report-preview-toolbar .report-button { width: 100%; }
+  .report-preview-toolbar > div:last-child {
+    width: 100% !important;
+    display: flex !important;
+    flex-wrap: wrap !important;
+    gap: 6px !important;
+  }
+  .report-preview-toolbar .report-button {
+    flex: 1 1 calc(50% - 4px) !important;
+    height: 38px !important;
+    min-height: 38px !important;
+    font-size: 11px !important;
+    padding: 0 6px !important;
+    white-space: nowrap !important;
+  }
   .report-paper-header { flex-direction: column; }
   .report-paper-identity dl div { grid-template-columns: 1fr; gap: 2px; }
   .report-cover-paper { min-height: 0; padding: 0; border: 0; }
@@ -2817,6 +2847,32 @@
 
   .report-context-filters .report-field.field-documentType {
     grid-column: 1 / -1 !important;
+  }
+
+  /* Khusus semua tab dengan 4 Kolom Filter (Per Siswa, Deskripsi, Cetak PDF):
+     Baris 1: Kolom Kelas & Pilihan Khusus (Pilih Siswa / Mata Pelajaran / Jenis Dokumen) berdampingan
+     Baris 2: Kolom Tahun Ajaran & Semester berdampingan */
+  .report-context-filters.fields-4 .report-field.field-className,
+  .report-context-filters.fields-4 > label:first-of-type {
+    grid-column: 1 / 2 !important;
+    grid-row: 1 !important;
+  }
+
+  .report-context-filters.fields-4 .report-field.field-studentId,
+  .report-context-filters.fields-4 .report-field.field-subject,
+  .report-context-filters.fields-4 .report-field.field-documentType {
+    grid-column: 2 / 3 !important;
+    grid-row: 1 !important;
+  }
+
+  .report-context-filters.fields-4 .report-field.field-academicYear {
+    grid-column: 1 / 2 !important;
+    grid-row: 2 !important;
+  }
+
+  .report-context-filters.fields-4 .report-field.field-semester {
+    grid-column: 2 / 3 !important;
+    grid-row: 2 !important;
   }
 
   .report-panel {
@@ -3461,6 +3517,124 @@
     justify-content: center !important;
     gap: 6px !important;
     white-space: nowrap !important;
+  }
+
+  /* Cetak PDF / Export Rapor Mobile Workspace */
+  .report-export-layout {
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 14px !important;
+  }
+
+  .report-export-card {
+    background: #ffffff !important;
+    border-radius: 16px !important;
+    border: 1px solid #e5e7eb !important;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.03) !important;
+    padding: 16px 14px !important;
+    display: flex !important;
+    flex-direction: column !important;
+  }
+
+  .report-export-card .report-export-icon {
+    width: 44px !important;
+    height: 44px !important;
+    border-radius: 12px !important;
+  }
+
+  .report-export-card h3 {
+    margin: 12px 0 4px !important;
+    font-size: 15px !important;
+    font-weight: 700 !important;
+    color: #0f172a !important;
+  }
+
+  .report-export-card > p {
+    margin: 0 !important;
+    font-size: 11.5px !important;
+    color: #64748b !important;
+    line-height: 1.4 !important;
+  }
+
+  .report-export-card dl {
+    margin: 12px 0 !important;
+    padding: 10px 0 !important;
+    border-block: 1px solid #f1f5f9 !important;
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 6px !important;
+  }
+
+  .report-export-card dl div {
+    display: flex !important;
+    justify-content: space-between !important;
+    align-items: center !important;
+    padding: 3px 0 !important;
+  }
+
+  .report-export-card dt {
+    font-size: 11px !important;
+    color: #64748b !important;
+    font-weight: 500 !important;
+  }
+
+  .report-export-card dd {
+    font-size: 12px !important;
+    font-weight: 700 !important;
+    color: #1e293b !important;
+  }
+
+  /* 4 Tombol Export (Preview, Cetak, Export PDF, Export Word) tersusun ringkas dalam 2x2 grid */
+  .report-export-actions {
+    display: grid !important;
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    gap: 8px !important;
+    width: 100% !important;
+    margin-top: 10px !important;
+  }
+
+  .report-export-actions .report-button {
+    width: 100% !important;
+    height: 40px !important;
+    min-height: 40px !important;
+    font-size: 11.5px !important;
+    font-weight: 700 !important;
+    border-radius: 10px !important;
+    padding: 0 8px !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    gap: 6px !important;
+    white-space: nowrap !important;
+  }
+
+  .report-button.report-button-word {
+    background: #2563eb !important;
+    color: #ffffff !important;
+    border: 1px solid #2563eb !important;
+  }
+
+  .report-button.report-button-word:hover:not(:disabled) {
+    background: #1d4ed8 !important;
+    border-color: #1d4ed8 !important;
+  }
+
+  .report-button.report-button-word:active:not(:disabled) {
+    transform: translateY(1px) !important;
+  }
+
+  .report-button.report-button-word:disabled {
+    opacity: 0.55 !important;
+    cursor: not-allowed !important;
+  }
+
+  .report-export-card > small {
+    display: block !important;
+    margin-top: 10px !important;
+    color: #64748b !important;
+    font-size: 10.5px !important;
+    text-align: center !important;
+    line-height: 1.35 !important;
   }
 
   /* Dokumen Paper Container & Anti-Bleed */

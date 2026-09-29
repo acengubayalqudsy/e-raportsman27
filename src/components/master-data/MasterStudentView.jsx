@@ -7,6 +7,7 @@ import {
   masterSchemas,
 } from '../../data/masterData.js'
 import { studentService } from '../../services/studentService.js'
+import excelService from '../../services/excelService.js'
 import { religionService } from '../../services/religionService.js'
 import academicService from '../../services/academicService.js'
 import { useAcademicContext } from '../../context/AcademicContext.jsx'
@@ -100,7 +101,7 @@ function createDetailSections(student) {
 }
 
 function MasterStudentView({ onNotify }) {
-  const { selectedYearId } = useAcademicContext()
+  const { selectedYearId, selectedSemesterId } = useAcademicContext()
   const [students, setStudents] = useState([])
   const [summaryCards, setSummaryCards] = useState([])
   const [meta, setMeta] = useState({ current_page: 1, last_page: 1, per_page: 8, total: 0 })
@@ -357,7 +358,14 @@ function MasterStudentView({ onNotify }) {
             </Button>
             <Button
               className="master-button secondary"
-              onClick={() => onNotify('Data siswa siap diekspor. Fitur Excel akan diintegrasikan pada tahap berikutnya.')}
+              onClick={() => excelService.download('students', 'export', {
+                search: searchQuery,
+                class_name: filters.className === 'Semua Kelas' ? '' : filters.className,
+                status: filters.status === 'Semua Status' ? '' : filters.status,
+                gender: filters.gender === 'Laki-laki' ? 'L' : filters.gender === 'Perempuan' ? 'P' : '',
+                grade: ['X', 'XI', 'XII'].includes(filters.grade) ? filters.grade : '',
+                study_group: filters.studyGroup === 'Semua Rombel' ? '' : filters.studyGroup,
+              }).catch((error) => onNotify(error.message))}
             >
               <Icon name="document" />Export Excel
             </Button>
@@ -545,10 +553,13 @@ function MasterStudentView({ onNotify }) {
       {modal?.type === 'import' && (
         <MasterImportModal
           entityLabel="Siswa"
+          module="students"
+          context={{ academic_year_id: selectedYearId, semester_id: selectedSemesterId }}
           onClose={() => setModal(null)}
-          onComplete={() => {
+          onComplete={(count) => {
             setModal(null)
-            onNotify('Fitur import data siswa akan diintegrasikan pada tahap berikutnya.')
+            setRefreshTrigger((k) => k + 1)
+            onNotify(`${count} data siswa berhasil diimport.`)
           }}
         />
       )}

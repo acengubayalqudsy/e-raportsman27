@@ -5,6 +5,9 @@ import Icon from '../common/Icon.jsx'
 import SearchInput from '../common/SearchInput.jsx'
 import MasterPagination from '../master-data/MasterPagination.jsx'
 import assessmentService from '../../services/assessmentService.js'
+import excelService from '../../services/excelService.js'
+import { useAuth } from '../../auth/AuthContext.jsx'
+import { MasterImportModal } from '../master-data/MasterModals.jsx'
 import { extracurricularService } from '../../services/extracurricularService.js'
 
 function ActivityModal({ children, description, onClose, title, wide = false }) {
@@ -271,6 +274,8 @@ function ParticipationDetailModal({ onClose, onEdit, participation, studentParti
 }
 
 function StudentParticipationView({ classId: requestedClassId, semesterId: requestedSemesterId, onNotify = () => {} }) {
+  const { roles } = useAuth()
+  const canImportExcel = roles.some((role) => ['admin', 'walikelas'].includes(role.name))
   const [participations, setParticipations] = useState([])
   const [availableStudents, setAvailableStudents] = useState([])
   const [availableExtracurriculars, setAvailableExtracurriculars] = useState([])
@@ -294,6 +299,7 @@ function StudentParticipationView({ classId: requestedClassId, semesterId: reque
   const [rowsPerPage, setRowsPerPage] = useState(8)
   const [openMenuId, setOpenMenuId] = useState(null)
   const [modal, setModal] = useState(null)
+  const [showImport, setShowImport] = useState(false)
 
   const classId = requestedClassId || context?.homeroom_class?.class_id || context?.assigned_courses?.[0]?.class_id
   const semesterId = requestedSemesterId || context?.active_semester?.id
@@ -633,9 +639,13 @@ function StudentParticipationView({ classId: requestedClassId, semesterId: reque
             Data keikutsertaan terhubung langsung ke MariaDB (Semester {activeSemesterName} {activeYearName})
           </span>
           <div>
+            {canImportExcel && <Button className="activity-button activity-button-secondary" onClick={() => setShowImport(true)} type="button"><Icon name="download" />Import Excel</Button>}
             <Button
               className="activity-button activity-button-secondary"
-              onClick={() => onNotify(`${filteredParticipations.length.toLocaleString('id-ID')} data keikutsertaan siap diekspor.`)}
+              onClick={() => excelService.download('participations', 'export', {
+                class_id: classId, semester_id: semesterId, search: searchQuery,
+                activity_name: filters.extracurricular === 'Semua Ekskul' ? '' : filters.extracurricular,
+              }).catch((error) => onNotify(error.message))}
               type="button"
             >
               <Icon name="download" />Ekspor Data
@@ -649,6 +659,7 @@ function StudentParticipationView({ classId: requestedClassId, semesterId: reque
             </Button>
           </div>
         </div>
+        {showImport && <MasterImportModal entityLabel="Keikutsertaan Ekstrakurikuler" module="participations" context={{ class_id: classId, semester_id: semesterId }} onClose={() => setShowImport(false)} onComplete={(count) => { setShowImport(false); setRefreshTrigger((value) => value + 1); onNotify(`${count} data keikutsertaan diperbarui.`) }} />}
       </section>
 
       <div className="activity-participation-layout">

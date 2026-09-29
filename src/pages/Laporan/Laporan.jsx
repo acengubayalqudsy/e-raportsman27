@@ -4,6 +4,7 @@ import Breadcrumb from '../../components/layout/Breadcrumb.jsx'
 import { useAcademicContext } from '../../context/AcademicContext.jsx'
 import { reportTabs } from '../../data/laporan.js'
 import savedReportService from '../../services/savedReportService.js'
+import excelService from '../../services/excelService.js'
 import './Laporan.css'
 
 const emptyForm = { type: 'nilai', class_id: '', student_id: '', title: '', notes: '' }
@@ -219,7 +220,7 @@ function Laporan() {
       <div className="saved-report-meta"><span>Dibuat oleh <strong>{preview.creator_name || '-'}</strong></span><span>Diperbarui <strong>{dateLabel(preview.generated_at)}</strong></span><span>Jumlah baris <strong>{preview.row_count}</strong></span></div>
       {editing ? <form className="saved-report-edit" onSubmit={saveDetails}><label>Judul<input maxLength="200" required value={preview.title} onChange={(event) => setPreview((current) => ({ ...current, title: event.target.value }))} /></label><label>Catatan<textarea maxLength="2000" rows="2" value={preview.notes || ''} onChange={(event) => setPreview((current) => ({ ...current, notes: event.target.value }))} /></label><div><button onClick={() => openReport(preview.id)} type="button">Batal</button><button className="saved-report-primary" disabled={busy} type="submit">Simpan perubahan</button></div></form> : preview.notes && <p className="saved-report-note">{preview.notes}</p>}
       <div className="saved-report-table-wrap"><table><thead><tr>{(preview.snapshot?.columns || []).map((column, index) => <th key={`${column}-${index}`}>{column}</th>)}</tr></thead><tbody>{(preview.snapshot?.rows || []).length ? preview.snapshot.rows.map((row, index) => <tr key={index}>{row.map((cell, cellIndex) => <td key={cellIndex}>{cell ?? '-'}</td>)}</tr>) : <tr><td colSpan={preview.snapshot?.columns?.length || 1}>Belum ada data sumber untuk laporan ini.</td></tr>}</tbody></table></div>
-    </div><footer><div>{preview.can_modify && <><button disabled={busy} onClick={() => setEditing(true)} type="button">Ubah Detail</button><button disabled={busy} onClick={refreshReport} type="button">Perbarui Data</button><button className="danger" disabled={busy} onClick={deleteReport} type="button">Hapus</button></>}</div><div><button onClick={() => exportCsv(preview)} type="button">Unduh CSV</button><button className="saved-report-primary" onClick={() => window.print()} type="button">Cetak</button></div></footer></section></div>}
+    </div><footer><div>{preview.can_modify && <><button disabled={busy} onClick={() => setEditing(true)} type="button">Ubah Detail</button><button disabled={busy} onClick={refreshReport} type="button">Perbarui Data</button><button className="danger" disabled={busy} onClick={deleteReport} type="button">Hapus</button></>}</div><div><button onClick={() => exportCsv(preview)} type="button">Unduh CSV</button><button onClick={() => excelService.downloadSavedReport(preview.id).catch((cause) => setError(cause.message))} type="button">Export Excel</button><button className="saved-report-primary" onClick={() => window.print()} type="button">Cetak</button></div></footer></section></div>}
   </section>
 }
 

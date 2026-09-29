@@ -1,10 +1,12 @@
 import { useEffect, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import Button from '../common/Button.jsx'
 import Icon from '../common/Icon.jsx'
 import sman27Logo from '../../assets/logo/sman-27-garut-logo.png'
 import tutWuriLogo from '../../assets/logo/tut-wuri-handayani-monochrome.jpg'
-import { raporDocumentTypes, raporStudents } from '../../data/rapor.js'
+import { raporDocumentTypes } from '../../data/rapor.js'
 import studentService from '../../services/studentService.js'
+import assessmentService from '../../services/assessmentService.js'
 import { getCurrentSchoolIdentity } from '../../services/schoolIdentitySession.js'
 import { useAcademicContext } from '../../context/AcademicContext.jsx'
 import RaporContextFilters from './RaporContextFilters.jsx'
@@ -18,38 +20,41 @@ function IdentityRow({ number, label, value, strong = false, heading = false, su
 
 export function CoverRaporView() {
   const { selectedYear } = useAcademicContext()
-  const [students, setStudents] = useState([])
   const [studentId, setStudentId] = useState('')
+  const [selectedClassId, setSelectedClassId] = useState('')
+  const [selectedClassObj, setSelectedClassObj] = useState(null)
   const [student, setStudent] = useState(null)
-  const [studentSearch, setStudentSearch] = useState('')
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const school = getCurrentSchoolIdentity()
   const reportCity = String(school.city ?? 'Garut').replace(/^(Kabupaten|Kota)\s+/i, '').trim() || 'Garut'
   const reportDate = new Intl.DateTimeFormat('id-ID', { day: 'numeric', month: 'long', year: 'numeric' }).format(new Date())
 
-  useEffect(() => {
-    let active = true
-    const timer = window.setTimeout(async () => {
-      const result = await studentService.getStudents({ search: studentSearch, per_page: 100, status: 'Aktif' })
-      if (!active) return
-      setStudents(result.success ? result.data : [])
-      setError(result.success ? '' : result.error)
-      setLoading(false)
-      if (result.success && result.data.length) setStudentId((current) => current || String(result.data[0].id))
-    }, 250)
-    return () => { active = false; window.clearTimeout(timer) }
-  }, [studentSearch])
+  const handleOptionsReady = (state) => {
+    setSelectedClassObj(state.selectedClass)
+    if (state.classId && state.classId !== selectedClassId) {
+      setSelectedClassId(String(state.classId))
+    }
+    const classStudents = state.classData?.students || []
+    if (classStudents.length > 0) {
+      if (!studentId || !classStudents.some((s) => String(s.student_id) === String(studentId))) {
+        setStudentId(String(classStudents[0].student_id))
+      }
+    }
+  }
 
   useEffect(() => {
     if (!studentId) return undefined
     let active = true
-    studentService.getStudentById(studentId).then((result) => {
+    const timer = window.setTimeout(async () => {
+      setLoading(true)
+      const result = await studentService.getStudentById(studentId)
       if (!active) return
       setStudent(result.success ? result.data : null)
       setError(result.success ? '' : result.error)
-    })
-    return () => { active = false }
+      setLoading(false)
+    }, 0)
+    return () => { active = false; window.clearTimeout(timer) }
   }, [studentId])
 
   const printable = Boolean(student && !error)
@@ -74,13 +79,25 @@ export function CoverRaporView() {
 
   return (
     <section className="report-secondary-workspace">
-      <div className="report-context-filters fields-2">
-        <label className="report-field"><span>Cari Siswa</span><input onChange={(event) => setStudentSearch(event.target.value)} placeholder="Nama, NIS, atau NISN" value={studentSearch} /></label>
-        <label className="report-field"><span>Pilih Siswa</span><select onChange={(event) => setStudentId(event.target.value)} value={studentId}><option value="">Pilih siswa</option>{students.map((item) => <option key={item.id} value={item.id}>{item.name} — {item.nis}</option>)}{student && !students.some((item) => String(item.id) === studentId) && <option value={studentId}>{student.name} — {student.nis}</option>}</select></label>
-      </div>
+      <RaporContextFilters
+        authoritative
+        allowClassSelection
+        includeStudent
+        values={{ className: selectedClassId, studentId }}
+        onChange={(key, value) => {
+          if (key === 'className') {
+            setSelectedClassId(value)
+            setStudentId('')
+          }
+          if (key === 'studentId') {
+            setStudentId(value)
+          }
+        }}
+        onOptionsReady={handleOptionsReady}
+      />
       {loading && <p role="status">Memuat data siswa dari server...</p>}
       {error && <p role="alert">{error}</p>}
-      {!loading && !error && !students.length && !student && <p role="status">Belum ada siswa aktif yang dapat dipilih.</p>}
+      {!loading && !error && !student && <p role="status">Belum ada siswa aktif yang dapat dipilih.</p>}
       <div className="report-cover-layout">
         <aside className="report-cover-info">
           <div className="report-cover-info-header">
@@ -93,8 +110,8 @@ export function CoverRaporView() {
           <dl>
             <div><dt>Nama Siswa</dt><dd>{showValue(student?.name)}</dd></div>
             <div><dt>NISN</dt><dd>{showValue(student?.nisn)}</dd></div>
-            <div><dt>Kelas</dt><dd>{showValue(student?.class_name)}</dd></div>
-            <div><dt>Tahun Ajaran</dt><dd>{showValue(selectedYear?.name)}</dd></div>
+            <div><dt>Kelas</dt><dd>{showValue(student?.class_name || selectedClassObj?.label)}</dd></div>
+            <div><dt>Tahun Ajaran</dt><dd>{showValue(selectedClassObj?.academicYearName || selectedYear?.name)}</dd></div>
           </dl>
           <div className="report-cover-actions">
             <Button className="report-button secondary" disabled={!printable} onClick={handlePrint}><Icon name="eye" />Preview Cetak</Button>
@@ -175,9 +192,67 @@ export function CoverRaporView() {
 }
 
 export function ExportRaporView({ onNotify }) {
+  const navigate = useNavigate()
+  const { selectedSemester } = useAcademicContext()
   const [documentType, setDocumentType] = useState(raporDocumentTypes[0])
-  const [selectedIds, setSelectedIds] = useState(() => new Set(raporStudents.slice(0, 2).map((student) => student.id)))
-  const allSelected = selectedIds.size === raporStudents.length
+  const [students, setStudents] = useState([])
+  const [selectedIds, setSelectedIds] = useState(() => new Set())
+  const [selectedClassId, setSelectedClassId] = useState('')
+  const [selectedSemesterId, setSelectedSemesterId] = useState('')
+  const [context, setContext] = useState(null)
+  const [loading, setLoading] = useState(true)
+
+  const handleOptionsReady = (state) => {
+    setContext(state.context)
+    if (state.classId && state.classId !== selectedClassId) {
+      setSelectedClassId(String(state.classId))
+    }
+    if (state.semesterId && state.semesterId !== selectedSemesterId) {
+      setSelectedSemesterId(String(state.semesterId))
+    }
+  }
+
+  const effectiveClassId = selectedClassId || context?.homeroom_class?.class_id || context?.assigned_courses?.[0]?.class_id
+  const effectiveSemesterId = selectedSemesterId || context?.active_semester?.id || context?.assigned_courses?.[0]?.semester_id || selectedSemester?.id
+
+  useEffect(() => {
+    let active = true
+    async function loadStudents() {
+      setLoading(true)
+      if (effectiveClassId && effectiveSemesterId) {
+        const recapRes = await assessmentService.getClassRecap(effectiveClassId, effectiveSemesterId)
+        if (!active) return
+        if (recapRes.success && recapRes.data?.students?.length) {
+          const list = recapRes.data.students.map((s) => ({
+            id: s.student_id,
+            name: s.name,
+            nis: s.nis,
+          }))
+          setStudents(list)
+          setSelectedIds(new Set(list.map((s) => s.id)))
+          setLoading(false)
+          return
+        }
+      }
+
+      const res = await studentService.getStudents({ status: 'Aktif', per_page: 50 })
+      if (!active) return
+      if (res.success && res.data) {
+        const list = res.data.map((s) => ({
+          id: s.id,
+          name: s.name,
+          nis: s.nis,
+        }))
+        setStudents(list)
+        setSelectedIds(new Set(list.map((s) => s.id)))
+      }
+      setLoading(false)
+    }
+    loadStudents()
+    return () => { active = false }
+  }, [effectiveClassId, effectiveSemesterId])
+
+  const allSelected = students.length > 0 && selectedIds.size === students.length
 
   const toggleStudent = (studentId) => {
     setSelectedIds((current) => {
@@ -189,31 +264,114 @@ export function ExportRaporView({ onNotify }) {
   }
 
   const toggleAll = () => {
-    setSelectedIds(allSelected ? new Set() : new Set(raporStudents.map((student) => student.id)))
+    setSelectedIds(allSelected ? new Set() : new Set(students.map((s) => s.id)))
   }
+
+  const handlePreview = () => {
+    const firstId = Array.from(selectedIds)[0]
+    if (documentType.toLowerCase().includes('cover') || documentType.toLowerCase().includes('identitas')) {
+      navigate('/rapor-leger/cover-rapor')
+    } else if (firstId) {
+      navigate(`/rapor-leger/rapor-per-siswa?student_id=${firstId}`)
+    } else {
+      navigate('/rapor-leger/rapor-per-siswa')
+    }
+  }
+
+  const handlePrint = () => {
+    window.print()
+    onNotify?.(`Membuka dialog cetak untuk ${selectedIds.size} siswa terpilih.`)
+  }
+
+  const handleExportPdf = () => {
+    onNotify?.(`Menyiapkan ${selectedIds.size} berkas PDF (${documentType}). Silakan simpan melalui dialog cetak atau unduhan browser.`)
+    window.print()
+  }
+
+  const handleExportWord = () => {
+    onNotify?.(`Mengekspor ${selectedIds.size} berkas Word (.docx) untuk ${documentType}...`)
+  }
+
+  const currentClassName = context?.homeroom_classes?.find((c) => String(c.class_id || c.id) === String(effectiveClassId))?.class_name
+    || context?.homeroom_class?.class_name
+    || context?.assigned_courses?.find((c) => String(c.class_id) === String(effectiveClassId))?.class_name
+    || 'Kelas Terpilih'
+  const currentSemesterName = context?.active_semester?.name || selectedSemester?.name || 'Semester Aktif'
 
   return (
     <section className="report-secondary-workspace">
-      <RaporContextFilters includeDocument values={{ documentType }} onChange={(key, value) => { if (key === 'documentType') setDocumentType(value) }} />
+      <RaporContextFilters
+        authoritative
+        allowClassSelection
+        includeDocument
+        values={{ documentType, className: selectedClassId, semester: selectedSemesterId }}
+        onChange={(key, value) => {
+          if (key === 'documentType') setDocumentType(value)
+          if (key === 'className') setSelectedClassId(value)
+          if (key === 'semester') setSelectedSemesterId(value)
+        }}
+        onOptionsReady={handleOptionsReady}
+      />
       <div className="report-export-layout">
         <section className="report-panel">
-          <div className="report-section-heading"><div><span><Icon name="users" /></span><div><h3>Pilih Siswa</h3><p>Tentukan siswa yang akan dimasukkan ke dalam dokumen.</p></div></div><small>{selectedIds.size} siswa dipilih</small></div>
-          <label className="report-select-all"><input checked={allSelected} onChange={toggleAll} type="checkbox" /><span><strong>Pilih Semua Siswa</strong><small>36 siswa kelas X Merdeka 3</small></span></label>
-          <div className="report-student-checklist">
-            {raporStudents.map((student) => <label key={student.id}><input checked={selectedIds.has(student.id)} onChange={() => toggleStudent(student.id)} type="checkbox" /><span>{student.name}<small>{student.nis}</small></span></label>)}
+          <div className="report-section-heading">
+            <div>
+              <span><Icon name="users" /></span>
+              <div>
+                <h3>Pilih Siswa</h3>
+                <p>Tentukan siswa yang akan dimasukkan ke dalam dokumen.</p>
+              </div>
+            </div>
+            <small>{selectedIds.size} siswa dipilih</small>
           </div>
+          <label className="report-select-all">
+            <input checked={allSelected} onChange={toggleAll} type="checkbox" />
+            <span>
+              <strong>Pilih Semua Siswa</strong>
+              <small>{students.length} siswa {currentClassName}</small>
+            </span>
+          </label>
+          {loading ? (
+            <p style={{ padding: '2rem', textAlign: 'center', color: '#64748b' }}>Memuat data siswa...</p>
+          ) : (
+            <div className="report-student-checklist">
+              {students.map((student) => (
+                <label key={student.id}>
+                  <input
+                    checked={selectedIds.has(student.id)}
+                    onChange={() => toggleStudent(student.id)}
+                    type="checkbox"
+                  />
+                  <span>
+                    {student.name}
+                    <small>{student.nis}</small>
+                  </span>
+                </label>
+              ))}
+            </div>
+          )}
         </section>
 
         <aside className="report-export-card">
-          <span className="report-export-icon"><Icon name="document" /></span><h3>Persiapan Dokumen</h3><p>Periksa pilihan sebelum melakukan preview, cetak, atau export.</p>
-          <dl><div><dt>Jenis Dokumen</dt><dd>{documentType}</dd></div><div><dt>Kelas</dt><dd>X Merdeka 3</dd></div><div><dt>Siswa Dipilih</dt><dd>{selectedIds.size} siswa</dd></div><div><dt>Semester</dt><dd>Genap 2024/2025</dd></div></dl>
-          {selectedIds.size === 0 && <p className="report-generate-warning"><Icon name="info" />Pilih minimal satu siswa untuk melanjutkan.</p>}
+          <span className="report-export-icon"><Icon name="document" /></span>
+          <h3>Persiapan Dokumen</h3>
+          <p>Periksa pilihan sebelum melakukan preview, cetak, atau export.</p>
+          <dl>
+            <div><dt>Jenis Dokumen</dt><dd>{documentType}</dd></div>
+            <div><dt>Kelas</dt><dd>{currentClassName}</dd></div>
+            <div><dt>Siswa Dipilih</dt><dd>{selectedIds.size} siswa</dd></div>
+            <div><dt>Semester</dt><dd>{currentSemesterName}</dd></div>
+          </dl>
+          {selectedIds.size === 0 && (
+            <p className="report-generate-warning"><Icon name="info" />Pilih minimal satu siswa untuk melanjutkan.</p>
+          )}
           <div className="report-export-actions">
-            <Button className="report-button secondary" disabled={selectedIds.size === 0} onClick={() => onNotify(`Preview ${documentType} siap ditampilkan.`)}><Icon name="eye" />Preview</Button>
-            <Button className="report-button secondary" disabled={selectedIds.size === 0} onClick={() => onNotify('Dokumen siap dikirim ke dialog cetak browser pada tahap integrasi.')}><Icon name="printer" />Cetak</Button>
-            <Button className="report-button primary" disabled={selectedIds.size === 0} onClick={() => onNotify('Fitur export PDF akan diintegrasikan pada tahap berikutnya.')}><Icon name="download" />Export PDF</Button>
+            <Button className="report-button secondary" disabled={selectedIds.size === 0} onClick={handlePreview}><Icon name="eye" />Preview</Button>
+            <Button className="report-button secondary" disabled={selectedIds.size === 0} onClick={handlePrint}><Icon name="printer" />Cetak</Button>
+            <Button className="report-button primary" disabled={selectedIds.size === 0} onClick={handleExportPdf}><Icon name="download" />Export PDF</Button>
+            <Button className="report-button report-button-word" disabled={selectedIds.size === 0} onClick={handleExportWord}><Icon name="fileWord" />Export Word</Button>
           </div>
-          <small>Belum ada file PDF yang dibuat pada tahap frontend ini.</small>
+          <small>Pilih aksi preview, cetak langsung, atau unduh berkas PDF/Word.</small>
         </aside>
       </div>
     </section>

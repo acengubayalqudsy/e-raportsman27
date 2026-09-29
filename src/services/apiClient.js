@@ -4,7 +4,7 @@
  * CSRF pre-flight, credentials inclusion, and standardized error responses.
  */
 
-const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000').replace(/\/+$/, '')
+export const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL || window.location.origin).replace(/\/+$/, '')
 
 /**
  * Extract CSRF token from document.cookie (XSRF-TOKEN cookie set by Laravel Sanctum)

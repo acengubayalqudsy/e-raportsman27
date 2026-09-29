@@ -1,7 +1,8 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import assessmentService from '../../services/assessmentService.js'
 import academicService from '../../services/academicService.js'
 import { useAcademicContext } from '../../context/AcademicContext.jsx'
+import { useAuth } from '../../auth/AuthContext.jsx'
 import Icon from '../common/Icon.jsx'
 import { raporDocumentTypes, raporOptions } from '../../data/rapor.js'
 
@@ -18,13 +19,18 @@ function RaporContextFilters({
   onOptionsReady = noop,
 }) {
   const academicCtx = useAcademicContext()
+  const { hasRole } = useAuth()
+  const isAdmin = Boolean(hasRole && hasRole('admin'))
   const [context, setContext] = useState(null)
   const [allClasses, setAllClasses] = useState([])
   const [classData, setClassData] = useState(null)
   const [selectedClassId, setSelectedClassId] = useState('')
+  const [selectedYearId, setSelectedYearId] = useState('')
+  const [selectedSemesterId, setSelectedSemesterId] = useState('')
   const [loading, setLoading] = useState(authoritative)
   const [error, setError] = useState('')
 
+  // 1. Initial authoritative context and classes load
   useEffect(() => {
     if (!authoritative) return undefined
 
@@ -36,7 +42,7 @@ function RaporContextFilters({
       try {
         const [contextResult, classesResult] = await Promise.all([
           assessmentService.getContext(),
-          allowClassSelection ? academicService.getSchoolClasses({ per_page: 100 }) : Promise.resolve({ success: false, data: [] }),
+          isAdmin ? academicService.getClasses({ per_page: 100 }) : Promise.resolve(null),
         ])
 
         if (!isMounted) return
@@ -56,25 +62,50 @@ function RaporContextFilters({
         const nextContext = contextResult.data
         setContext(nextContext)
 
-        let classId = nextContext.homeroom_class?.class_id || nextContext.homeroom_class?.id || nextContext.assigned_courses?.[0]?.class_id
-        if (!classId && classesResult?.success && classesResult.data.length > 0) {
-          classId = classesResult.data[0].id
-        }
+        // Resolve assigned homeroom classes or teaching classes
+        const homeroomList = Array.isArray(nextContext.homeroom_classes) && nextContext.homeroom_classes.length > 0
+          ? nextContext.homeroom_classes
+          : (nextContext.homeroom_class ? [nextContext.homeroom_class] : [])
 
-        const semesterId = nextContext.active_semester?.id
-          || nextContext.assigned_courses?.[0]?.semester_id
-          || academicCtx?.selectedSemester?.id
-          || academicCtx?.activeSemester?.id
+        let initialClassId = String(
+          homeroomList[0]?.class_id
+          || homeroomList[0]?.id
+          || nextContext.assigned_courses?.[0]?.class_id
+          || (isAdmin ? classesResult?.data?.[0]?.id : '')
+          || ''
+        )
 
-        setSelectedClassId(String(classId || ''))
+        setSelectedClassId(initialClassId)
 
-        if (!includeStudent && !includeSubject) {
+        // Find initial class object to align academic year and semester
+        const initialClassObj = homeroomList.find((c) => String(c.class_id || c.id) === initialClassId)
+          || nextContext.assigned_courses?.find((c) => String(c.class_id) === initialClassId)
+          || (isAdmin ? classesResult?.data?.find((c) => String(c.id) === initialClassId) : null)
+
+        const initialYearId = String(
+          initialClassObj?.academic_year_id
+          || nextContext.active_academic_year?.id
+          || academicCtx?.selectedYearId
+          || ''
+        )
+        setSelectedYearId(initialYearId)
+
+        const initialSemId = String(
+          initialClassObj?.semester_id
+          || nextContext.active_semester?.id
+          || academicCtx?.selectedSemesterId
+          || ''
+        )
+        setSelectedSemesterId(initialSemId)
+
+        if (!initialClassId) {
+          setError('Belum ada kelas yang ditugaskan oleh Administrator untuk akun ini.')
           setLoading(false)
-        } else if (!classId || !semesterId) {
-          setError('Kelas atau semester belum tersedia untuk akun ini.')
+        } else if (!includeStudent && !includeSubject) {
           setLoading(false)
         }
-      } catch {
+      } catch (err) {
+        console.error('[RaporContextFilters] Context load error:', err)
         if (isMounted) {
           setError('Terjadi kendala saat memuat data konteks akademik.')
           setLoading(false)
@@ -84,77 +115,267 @@ function RaporContextFilters({
 
     loadOptions()
     return () => { isMounted = false }
-  }, [authoritative, allowClassSelection, includeStudent, includeSubject, academicCtx?.selectedSemester?.id, academicCtx?.activeSemester?.id])
+  }, [authoritative, academicCtx?.selectedSemesterId, academicCtx?.selectedYearId, includeStudent, includeSubject, isAdmin])
 
+  // 2. Build authoritative class options strictly reflecting Master Data and Admin assignments
+  const classOptions = useMemo(() => {
+    if (!authoritative) {
+      return raporOptions.classes.map((value) => ({ label: value, value }))
+    }
+
+    const map = new Map()
+
+    // 1. Homeroom classes assigned by Admin (Primary for Wali Kelas)
+    if (Array.isArray(context?.homeroom_classes) && context.homeroom_classes.length > 0) {
+      context.homeroom_classes.forEach((cls) => {
+        const id = String(cls.class_id || cls.id)
+        if (id) {
+          map.set(id, {
+            value: id,
+            label: cls.class_name || cls.name,
+            academicYearId: cls.academic_year_id,
+            academicYearName: cls.academic_year_name,
+            semesterId: cls.semester_id,
+            semesterName: cls.semester_name,
+          })
+        }
+      })
+    } else if (context?.homeroom_class) {
+      const cls = context.homeroom_class
+      const id = String(cls.class_id || cls.id)
+      if (id) {
+        map.set(id, {
+          value: id,
+          label: cls.class_name || cls.name,
+          academicYearId: cls.academic_year_id,
+          academicYearName: cls.academic_year_name,
+          semesterId: cls.semester_id,
+          semesterName: cls.semester_name,
+        })
+      }
+    }
+
+    // 2. Assigned teaching courses (Secondary, for teachers)
+    if (Array.isArray(context?.assigned_courses)) {
+      context.assigned_courses.forEach((course) => {
+        const id = String(course.class_id)
+        if (id && !map.has(id)) {
+          map.set(id, {
+            value: id,
+            label: course.class_name,
+            academicYearId: course.academic_year_id,
+            semesterId: course.semester_id,
+          })
+        }
+      })
+    }
+
+    // 3. Admin view: only Administrator can access and switch to any class from Master Data
+    if (isAdmin) {
+      allClasses.forEach((cls) => {
+        const id = String(cls.id)
+        if (!map.has(id)) {
+          map.set(id, {
+            value: id,
+            label: cls.name,
+            academicYearId: cls.academic_year_id,
+            academicYearName: cls.academic_year?.name,
+          })
+        }
+      })
+    }
+
+    return Array.from(map.values())
+  }, [authoritative, context, allClasses, isAdmin])
+
+  // Effective selected class
+  const effectiveClassId = String(values.className ?? selectedClassId ?? classOptions[0]?.value ?? '')
+  const selectedClassObj = useMemo(() => {
+    return classOptions.find((c) => c.value === effectiveClassId) || classOptions[0] || null
+  }, [classOptions, effectiveClassId])
+
+  // Effective academic year
+  const effectiveYearId = String(
+    values.academicYear
+    ?? selectedYearId
+    ?? selectedClassObj?.academicYearId
+    ?? context?.active_academic_year?.id
+    ?? academicCtx?.selectedYearId
+    ?? ''
+  )
+
+  // 3. Build Academic Year Options
+  const academicYearOptions = !authoritative
+    ? raporOptions.academicYears.map((value) => ({ label: value, value }))
+    : (academicCtx?.availableYears?.length
+        ? academicCtx.availableYears.map((y) => ({ label: y.name, value: String(y.id) }))
+        : (context?.active_academic_year
+            ? [{ label: context.active_academic_year.name, value: String(context.active_academic_year.id) }]
+            : []))
+
+  // 4. Build Semester Options (cascaded by effective year)
+  let matchingSemesters = []
+  if (!authoritative) {
+    matchingSemesters = raporOptions.semesters.map((value) => ({ label: value, value }))
+  } else {
+    const list = (academicCtx?.allSemesters || []).filter(
+      (s) => String(s.academic_year_id) === effectiveYearId
+    )
+    if (list.length > 0) {
+      matchingSemesters = list.map((s) => ({ label: s.name, value: String(s.id) }))
+    } else if (context?.active_semester) {
+      matchingSemesters = [{ label: context.active_semester.name, value: String(context.active_semester.id) }]
+    } else if (academicCtx?.allSemesters?.length) {
+      matchingSemesters = academicCtx.allSemesters.map((s) => ({ label: s.name, value: String(s.id) }))
+    }
+  }
+  const semesterOptions = matchingSemesters
+
+  // Effective selected semester
+  let effectiveSemesterId = ''
+  if (values.semester) {
+    effectiveSemesterId = String(values.semester)
+  } else if (selectedSemesterId && semesterOptions.some((opt) => opt.value === String(selectedSemesterId))) {
+    effectiveSemesterId = String(selectedSemesterId)
+  } else if (selectedClassObj?.semesterId && semesterOptions.some((opt) => opt.value === String(selectedClassObj.semesterId))) {
+    effectiveSemesterId = String(selectedClassObj.semesterId)
+  } else {
+    const activeSem = (academicCtx?.allSemesters || []).find(
+      (s) => String(s.academic_year_id) === effectiveYearId && s.status === 'Aktif'
+    )
+    if (activeSem) {
+      effectiveSemesterId = String(activeSem.id)
+    } else {
+      effectiveSemesterId = semesterOptions[0]?.value || String(context?.active_semester?.id || '')
+    }
+  }
+
+  // 5. Load real students and subjects for the selected class & semester from backend
   useEffect(() => {
     if (!authoritative || (!includeStudent && !includeSubject)) return undefined
-    const semesterId = context?.active_semester?.id
-      || context?.assigned_courses?.[0]?.semester_id
-      || academicCtx?.selectedSemester?.id
-      || academicCtx?.activeSemester?.id
+    if (!effectiveClassId || !effectiveSemesterId) return undefined
 
-    if (!selectedClassId || !semesterId) return undefined
     let active = true
-
     async function loadClassData() {
       setLoading(true)
       setClassData(null)
-      const result = await assessmentService.getClassRecap(selectedClassId, semesterId)
-      if (!active) return
-      setClassData(result.success ? result.data : null)
-      setError(result.success ? '' : result.error || 'Gagal memuat pilihan akademik.')
-      setLoading(false)
+      setError('')
+
+      try {
+        const result = await assessmentService.getClassRecap(effectiveClassId, effectiveSemesterId)
+        if (!active) return
+
+        if (result.success && result.data) {
+          setClassData(result.data)
+          setError('')
+        } else {
+          setClassData(null)
+          setError(result.error || 'Gagal memuat pilihan data siswa/mapel.')
+        }
+      } catch {
+        if (active) setError('Terjadi kendala saat memuat data siswa.')
+      } finally {
+        if (active) setLoading(false)
+      }
     }
 
     loadClassData()
     return () => { active = false }
-  }, [authoritative, context, includeStudent, includeSubject, selectedClassId, academicCtx?.selectedSemester?.id, academicCtx?.activeSemester?.id])
+  }, [authoritative, effectiveClassId, effectiveSemesterId, includeStudent, includeSubject])
 
+  // 6. Notify parent component with complete authoritative context
   useEffect(() => {
     if (!authoritative) return
     onOptionsReady({
       context,
       classData,
-      classId: selectedClassId,
+      classId: effectiveClassId,
+      semesterId: effectiveSemesterId,
+      academicYearId: effectiveYearId,
+      selectedClass: selectedClassObj,
+      students: classData?.students ?? [],
+      subjects: classData?.subjects ?? [],
       loading,
       error,
     })
-  }, [authoritative, classData, context, error, loading, onOptionsReady, selectedClassId])
+  }, [authoritative, classData, context, effectiveClassId, effectiveSemesterId, effectiveYearId, error, loading, onOptionsReady, selectedClassObj])
 
-  const classOptions = [...new Map([
-    ...(context?.homeroom_class ? [[context.homeroom_class.class_id || context.homeroom_class.id, {
-      label: context.homeroom_class.class_name || context.homeroom_class.name,
-      value: String(context.homeroom_class.class_id || context.homeroom_class.id),
-    }]] : []),
-    ...(context?.assigned_courses || []).map((course) => [course.class_id, { label: course.class_name, value: String(course.class_id) }]),
-    ...(allowClassSelection ? allClasses.map((c) => [c.id, { label: c.name, value: String(c.id) }]) : []),
-  ]).values()]
+  // Handle class selection change with cascading year and semester
+  const handleClassChange = (newClassId) => {
+    setSelectedClassId(newClassId)
+    setClassData(null)
 
+    const classObj = classOptions.find((c) => c.value === newClassId)
+    const nextYearId = String(classObj?.academicYearId || effectiveYearId)
+    setSelectedYearId(nextYearId)
+
+    // Find matching semester for this class/year
+    const matchingSems = (academicCtx?.allSemesters || []).filter(
+      (s) => String(s.academic_year_id) === nextYearId
+    )
+    const nextSemId = String(
+      classObj?.semesterId
+      || matchingSems.find((s) => s.status === 'Aktif')?.id
+      || matchingSems[0]?.id
+      || effectiveSemesterId
+    )
+    setSelectedSemesterId(nextSemId)
+
+    onChange('className', newClassId)
+    onChange('academicYear', nextYearId)
+    onChange('semester', nextSemId)
+  }
+
+  // Handle semester change
+  const handleSemesterChange = (newSemesterId) => {
+    setSelectedSemesterId(newSemesterId)
+    onChange('semester', newSemesterId)
+  }
+
+  // Handle academic year change
+  const handleYearChange = (newYearId) => {
+    setSelectedYearId(newYearId)
+    onChange('academicYear', newYearId)
+
+    // Auto-select first class and semester for this year
+    const classesForYear = classOptions.filter((c) => String(c.academicYearId) === String(newYearId))
+    if (classesForYear.length > 0 && !classesForYear.some((c) => c.value === effectiveClassId)) {
+      handleClassChange(classesForYear[0].value)
+    } else {
+      const matchingSems = (academicCtx?.allSemesters || []).filter(
+        (s) => String(s.academic_year_id) === String(newYearId)
+      )
+      const nextSemId = String(matchingSems.find((s) => s.status === 'Aktif')?.id || matchingSems[0]?.id || '')
+      if (nextSemId) {
+        setSelectedSemesterId(nextSemId)
+        onChange('semester', nextSemId)
+      }
+    }
+  }
+
+  // 7. Field definitions
   const fields = [
     {
       key: 'className',
       label: 'Kelas',
-      options: authoritative
-        ? (allowClassSelection ? classOptions : classOptions.filter((option) => option.value === selectedClassId))
-        : raporOptions.classes.map((value) => ({ label: value, value })),
+      value: effectiveClassId,
+      options: classOptions,
+      disabled: !allowClassSelection && !isAdmin && classOptions.length <= 1,
+      onFieldChange: handleClassChange,
     },
     {
       key: 'academicYear',
       label: 'Tahun Ajaran',
-      options: authoritative
-        ? (context?.active_academic_year
-            ? [{ label: context.active_academic_year.name, value: String(context.active_academic_year.id) }]
-            : (academicCtx?.selectedYear ? [{ label: academicCtx.selectedYear.name, value: String(academicCtx.selectedYear.id) }] : []))
-        : raporOptions.academicYears.map((value) => ({ label: value, value })),
+      value: effectiveYearId,
+      options: academicYearOptions,
+      onFieldChange: handleYearChange,
     },
     {
       key: 'semester',
       label: 'Semester',
-      options: authoritative
-        ? (context?.active_semester
-            ? [{ label: context.active_semester.name, value: String(context.active_semester.id) }]
-            : (academicCtx?.selectedSemester ? [{ label: academicCtx.selectedSemester.name, value: String(academicCtx.selectedSemester.id) }] : []))
-        : raporOptions.semesters.map((value) => ({ label: value, value })),
+      value: effectiveSemesterId,
+      options: semesterOptions,
+      onFieldChange: handleSemesterChange,
     },
   ]
 
@@ -162,27 +383,33 @@ function RaporContextFilters({
     fields.splice(1, 0, {
       key: 'subject',
       label: 'Mata Pelajaran',
+      value: String(values.subject ?? ''),
       options: authoritative
         ? (classData?.subjects ?? []).map((subject) => ({ label: subject.name, value: String(subject.id) }))
         : [],
+      onFieldChange: (val) => onChange('subject', val),
     })
   }
 
   if (includeStudent) {
-    fields.push({
+    fields.splice(1, 0, {
       key: 'studentId',
       label: 'Pilih Siswa',
+      value: String(values.studentId ?? ''),
       options: authoritative
         ? (classData?.students ?? []).map((student) => ({ label: `${student.name} - ${student.nis}`, value: String(student.student_id) }))
         : [],
+      onFieldChange: (val) => onChange('studentId', val),
     })
   }
 
   if (includeDocument) {
-    fields.push({
+    fields.splice(1, 0, {
       key: 'documentType',
       label: 'Jenis Dokumen',
+      value: String(values.documentType ?? raporDocumentTypes[0]),
       options: raporDocumentTypes.map((value) => ({ label: value, value })),
+      onFieldChange: (val) => onChange('documentType', val),
     })
   }
 
@@ -204,18 +431,14 @@ function RaporContextFilters({
         <label className={`report-field field-${field.key}`} key={field.key}>
           <span>{field.label}</span>
           <select
-            {...(field.key === 'className' && authoritative
-              ? { value: selectedClassId }
-              : Object.prototype.hasOwnProperty.call(values, field.key)
-              ? { value: values[field.key] }
-              : { defaultValue: field.options[0]?.value ?? '' })}
+            disabled={Boolean(field.disabled)}
+            value={field.value}
             onChange={(event) => {
-              if (field.key === 'className' && authoritative) {
-                setClassData(null)
-                setLoading(true)
-                setSelectedClassId(event.target.value)
+              if (field.onFieldChange) {
+                field.onFieldChange(event.target.value)
+              } else {
+                onChange(field.key, event.target.value)
               }
-              onChange(field.key, event.target.value)
             }}
           >
             {field.options.length === 0 && <option value="">Pilih {field.label.toLowerCase()}</option>}

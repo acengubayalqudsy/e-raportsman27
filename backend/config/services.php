@@ -2,6 +2,13 @@
 
 return [
 
+    'microsoft_excel' => [
+        'tenant' => env('MICROSOFT_TENANT_ID', 'organizations'),
+        'client_id' => env('MICROSOFT_CLIENT_ID'),
+        'client_secret' => env('MICROSOFT_CLIENT_SECRET'),
+        'frontend_url' => env('FRONTEND_URL', 'http://localhost:5173'),
+    ],
+
     /*
     |--------------------------------------------------------------------------
     | Third Party Services

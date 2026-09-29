@@ -1,16 +1,22 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import Button from '../common/Button.jsx'
 import Icon from '../common/Icon.jsx'
 import assessmentService from '../../services/assessmentService.js'
+import academicService from '../../services/academicService.js'
 import { useAcademicContext } from '../../context/AcademicContext.jsx'
+import { useAuth } from '../../auth/AuthContext.jsx'
 import SupplementaryDataModal from './SupplementaryDataModal.jsx'
 
 function GenerateRaporView({ onNotify }) {
   const navigate = useNavigate()
-  const { selectedYear, selectedSemester } = useAcademicContext()
+  const { selectedYear, allSemesters } = useAcademicContext()
+  const { hasRole } = useAuth()
+  const isAdmin = Boolean(hasRole && hasRole('admin'))
   const [context, setContext] = useState(null)
+  const [allClasses, setAllClasses] = useState([])
   const [selectedClassId, setSelectedClassId] = useState('')
+  const [selectedSemesterId, setSelectedSemesterId] = useState('')
   const [supplementary, setSupplementary] = useState(null)
   const [validationStatuses, setValidationStatuses] = useState([])
   const [loading, setLoading] = useState(false)
@@ -20,21 +26,95 @@ function GenerateRaporView({ onNotify }) {
   const [modalOpen, setModalOpen] = useState(false)
   const [modalTab, setModalTab] = useState('absensi')
 
-  const classes = [...new Map([
-    ...(context?.homeroom_class ? [[context.homeroom_class.class_id, { id: context.homeroom_class.class_id, name: context.homeroom_class.class_name }]] : []),
-    ...(context?.assigned_courses || []).map((course) => [course.class_id, { id: course.class_id, name: course.class_name }]),
-  ]).values()]
+  const classes = useMemo(() => {
+    const list = []
+    const map = new Map()
+
+    const homeroomList = Array.isArray(context?.homeroom_classes) && context.homeroom_classes.length > 0
+      ? context.homeroom_classes
+      : (context?.homeroom_class ? [context.homeroom_class] : [])
+
+    homeroomList.forEach((cls) => {
+      const id = String(cls.class_id || cls.id)
+      if (id && !map.has(id)) {
+        map.set(id, true)
+        list.push({
+          id,
+          name: cls.class_name || cls.name,
+          academic_year_id: cls.academic_year_id,
+          academic_year_name: cls.academic_year_name,
+          semester_id: cls.semester_id,
+          semester_name: cls.semester_name,
+        })
+      }
+    })
+
+    ;(context?.assigned_courses || []).forEach((course) => {
+      const id = String(course.class_id)
+      if (id && !map.has(id)) {
+        map.set(id, true)
+        list.push({
+          id,
+          name: course.class_name,
+          academic_year_id: course.academic_year_id,
+          semester_id: course.semester_id,
+        })
+      }
+    })
+
+    if (isAdmin && Array.isArray(allClasses)) {
+      allClasses.forEach((cls) => {
+        const id = String(cls.id)
+        if (id && !map.has(id)) {
+          map.set(id, true)
+          list.push({
+            id,
+            name: cls.name,
+            academic_year_id: cls.academic_year_id,
+            academic_year_name: cls.academic_year?.name,
+          })
+        }
+      })
+    }
+
+    return list
+  }, [context, isAdmin, allClasses])
+
   const effectiveClassId = selectedClassId || (classes[0]?.id ? String(classes[0].id) : '')
-  const classId = effectiveClassId
-  const semesterId = context?.active_semester?.id || context?.assigned_courses?.[0]?.semester_id || selectedSemester?.id
+  const selectedClass = classes.find((c) => String(c.id) === String(effectiveClassId)) || classes[0] || null
+
+  const filteredSemesters = (allSemesters || []).filter(
+    (s) => String(s.academic_year_id) === String(selectedClass?.academic_year_id)
+  )
+  const availableSemesters = filteredSemesters.length > 0
+    ? filteredSemesters
+    : (context?.active_semester ? [context.active_semester] : [])
+
+  const effectiveSemesterId = selectedSemesterId
+    || String(selectedClass?.semester_id || availableSemesters.find((s) => s.status === 'Aktif')?.id || availableSemesters[0]?.id || context?.active_semester?.id || '')
+
+  const selectedSemesterObj = availableSemesters.find((s) => String(s.id) === String(effectiveSemesterId))
+
+  const handleClassChange = (newClassId) => {
+    setSelectedClassId(newClassId)
+    const cls = classes.find((c) => String(c.id) === String(newClassId))
+    const sems = (allSemesters || []).filter((s) => String(s.academic_year_id) === String(cls?.academic_year_id))
+    const nextSemId = String(
+      cls?.semester_id
+      || sems.find((s) => s.status === 'Aktif')?.id
+      || sems[0]?.id
+      || ''
+    )
+    if (nextSemId) setSelectedSemesterId(nextSemId)
+  }
 
   const refreshData = async () => {
-    if (!classId || !semesterId) return
+    if (!effectiveClassId || !effectiveSemesterId) return
     setLoading(true)
     setErrorMessage('')
     const [suppRes, valRes] = await Promise.all([
-      assessmentService.getSupplementaryData(classId, semesterId),
-      assessmentService.getValidationStatus(classId, semesterId),
+      assessmentService.getSupplementaryData(effectiveClassId, effectiveSemesterId),
+      assessmentService.getValidationStatus(effectiveClassId, effectiveSemesterId),
     ])
 
     setSupplementary(suppRes.success ? suppRes.data : null)
@@ -46,20 +126,37 @@ function GenerateRaporView({ onNotify }) {
   useEffect(() => {
     let isMounted = true
     async function init() {
-      const ctxRes = await assessmentService.getContext()
-      if (isMounted && ctxRes.success && ctxRes.data) {
+      const [ctxRes, classesRes] = await Promise.all([
+        assessmentService.getContext(),
+        isAdmin ? academicService.getClasses({ per_page: 100 }) : Promise.resolve(null),
+      ])
+      if (!isMounted) return
+      if (classesRes?.success && Array.isArray(classesRes.data)) {
+        setAllClasses(classesRes.data)
+      }
+      if (ctxRes.success && ctxRes.data) {
         setContext(ctxRes.data)
-        setSelectedClassId(String(ctxRes.data.homeroom_class?.class_id || ctxRes.data.assigned_courses?.[0]?.class_id || ''))
-      } else if (isMounted) {
+        const initialClassId = String(
+          ctxRes.data.homeroom_classes?.[0]?.class_id
+          || ctxRes.data.homeroom_class?.class_id
+          || ctxRes.data.assigned_courses?.[0]?.class_id
+          || (isAdmin ? classesRes?.data?.[0]?.id : '')
+          || ''
+        )
+        setSelectedClassId(initialClassId)
+        if (!initialClassId) {
+          setErrorMessage('Belum ada kelas yang ditugaskan oleh Administrator untuk akun ini.')
+        }
+      } else {
         setErrorMessage(ctxRes.error || 'Gagal memuat konteks akademik.')
       }
     }
     init()
     return () => { isMounted = false }
-  }, [])
+  }, [isAdmin])
 
   useEffect(() => {
-    if (!classId || !semesterId) return undefined
+    if (!effectiveClassId || !effectiveSemesterId) return undefined
     let active = true
     async function loadSelectedClass() {
       setLoading(true)
@@ -67,8 +164,8 @@ function GenerateRaporView({ onNotify }) {
       setSupplementary(null)
       setValidationStatuses([])
       const [suppRes, valRes] = await Promise.all([
-        assessmentService.getSupplementaryData(classId, semesterId),
-        assessmentService.getValidationStatus(classId, semesterId),
+        assessmentService.getSupplementaryData(effectiveClassId, effectiveSemesterId),
+        assessmentService.getValidationStatus(effectiveClassId, effectiveSemesterId),
       ])
       if (!active) return
       setSupplementary(suppRes.success ? suppRes.data : null)
@@ -78,7 +175,7 @@ function GenerateRaporView({ onNotify }) {
     }
     loadSelectedClass()
     return () => { active = false }
-  }, [classId, semesterId])
+  }, [effectiveClassId, effectiveSemesterId])
 
   // Calculate real readiness metrics
   const totalStudents = supplementary?.students?.length || 0
@@ -149,9 +246,27 @@ function GenerateRaporView({ onNotify }) {
   return (
     <section className="report-secondary-workspace">
       <div className="report-context-filters fields-3">
-        <label className="report-field"><span>Kelas</span><select value={selectedClassId} onChange={(event) => setSelectedClassId(event.target.value)}><option value="">Pilih kelas</option>{classes.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select></label>
-        <label className="report-field"><span>Tahun Ajaran</span><input readOnly value={context?.active_academic_year?.name || selectedYear?.name || '-'} /></label>
-        <label className="report-field"><span>Semester</span><input readOnly value={context?.active_semester?.name || selectedSemester?.name || '-'} /></label>
+        <label className="report-field">
+          <span>Kelas</span>
+          <select value={effectiveClassId} onChange={(event) => handleClassChange(event.target.value)}>
+            <option value="">Pilih kelas</option>
+            {classes.map((item) => (
+              <option key={item.id} value={item.id}>{item.name}</option>
+            ))}
+          </select>
+        </label>
+        <label className="report-field">
+          <span>Tahun Ajaran</span>
+          <input readOnly value={selectedClass?.academic_year_name || context?.active_academic_year?.name || selectedYear?.name || '-'} />
+        </label>
+        <label className="report-field">
+          <span>Semester</span>
+          <select value={effectiveSemesterId} onChange={(event) => setSelectedSemesterId(event.target.value)}>
+            {availableSemesters.map((sem) => (
+              <option key={sem.id} value={sem.id}>{sem.name}</option>
+            ))}
+          </select>
+        </label>
       </div>
       {errorMessage && <p role="alert" className="report-generate-warning">{errorMessage}</p>}
       <div className="report-generate-layout">
@@ -211,10 +326,10 @@ function GenerateRaporView({ onNotify }) {
           <h3>Generate Draf Rapor Kelas</h3>
           <p>Menyiapkan pratinjau rapor untuk seluruh siswa rombel binaan.</p>
           <dl className="report-generate-details">
-            <div><dt>Kelas</dt><dd>{classes.find((item) => String(item.id) === selectedClassId)?.name || '-'}</dd></div>
+            <div><dt>Kelas</dt><dd>{selectedClass?.name || '-'}</dd></div>
             <div><dt>Jumlah Siswa</dt><dd>{totalStudents} siswa</dd></div>
-            <div><dt>Tahun Ajaran</dt><dd>{context?.active_academic_year?.name || selectedYear?.name || '-'}</dd></div>
-            <div><dt>Semester</dt><dd>{context?.active_semester?.name || selectedSemester?.name || '-'}</dd></div>
+            <div><dt>Tahun Ajaran</dt><dd>{selectedClass?.academic_year_name || context?.active_academic_year?.name || selectedYear?.name || '-'}</dd></div>
+            <div><dt>Semester</dt><dd>{selectedSemesterObj?.name || context?.active_semester?.name || '-'}</dd></div>
           </dl>
 
           <div className="report-policy-note">
@@ -223,7 +338,7 @@ function GenerateRaporView({ onNotify }) {
 
           <Button
             className="report-button primary"
-            disabled={loading || !classId || !totalStudents || Boolean(errorMessage)}
+            disabled={loading || !effectiveClassId || !totalStudents || Boolean(errorMessage)}
             onClick={() => navigate('/rapor-leger/rapor-per-siswa')}
           >
             <Icon name="eye" />
@@ -234,14 +349,14 @@ function GenerateRaporView({ onNotify }) {
 
       <SupplementaryDataModal
         activeTab={modalTab}
-        classId={classId}
+        classId={effectiveClassId}
         isOpen={modalOpen}
         onClose={() => setModalOpen(false)}
         onSaved={(msg) => {
           onNotify?.(msg)
           refreshData()
         }}
-        semesterId={semesterId}
+        semesterId={effectiveSemesterId}
       />
     </section>
   )
