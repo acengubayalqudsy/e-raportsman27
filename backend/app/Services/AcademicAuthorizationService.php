@@ -47,13 +47,6 @@ class AcademicAuthorizationService
             ->pluck('class_id')
             ->toArray();
 
-        if (empty($homeroomClassIds)) {
-            $homeroomClassIds = HomeroomAssignment::where('teacher_id', $teacher->id)
-                ->where('status', 'Aktif')
-                ->pluck('class_id')
-                ->toArray();
-        }
-
         return array_values(array_unique(array_map('intval', array_merge($courseClassIds, $homeroomClassIds))));
     }
 
@@ -85,28 +78,12 @@ class AcademicAuthorizationService
             return false;
         }
 
-        // Primary check: membership in class_members
-        $isMember = ClassMember::where('student_id', $studentModel->id)
+        // Primary canonical check: active membership in class_members
+        return ClassMember::where('student_id', $studentModel->id)
             ->whereIn('class_id', $allowedClassIds)
             ->where('status', 'Aktif')
             ->when($semesterId, fn($q) => $q->where('semester_id', $semesterId))
             ->exists();
-
-        if ($isMember) {
-            return true;
-        }
-
-        // Fallback check for transitional compatibility if class_name matches
-        if (!empty($studentModel->current_class_name)) {
-            $matchingClass = SchoolClass::where('name', $studentModel->current_class_name)
-                ->whereIn('id', $allowedClassIds)
-                ->exists();
-            if ($matchingClass) {
-                return true;
-            }
-        }
-
-        return false;
     }
 
     /**
@@ -128,11 +105,7 @@ class AcademicAuthorizationService
         }
 
         $allowedClassIds = $this->getAllowedClassIds($user, $semesterId);
-        if (in_array((int)$classId, $allowedClassIds, true)) {
-            return true;
-        }
-
-        return in_array((int)$classId, $this->getAllowedClassIds($user, null), true);
+        return in_array((int)$classId, $allowedClassIds, true);
     }
 
     public function assertAcademicContext(int $classId, int $semesterId): array
@@ -147,21 +120,9 @@ class AcademicAuthorizationService
         }
 
         if ((int) $schoolClass->academic_year_id !== (int) $semester->academic_year_id) {
-            $matchingSemester = Semester::where('academic_year_id', $schoolClass->academic_year_id)
-                ->where('name', $semester->name)
-                ->first()
-                ?? Semester::where('academic_year_id', $schoolClass->academic_year_id)
-                    ->where('status', 'Aktif')
-                    ->first()
-                ?? Semester::where('academic_year_id', $schoolClass->academic_year_id)->first();
-
-            if ($matchingSemester) {
-                $semester = $matchingSemester;
-            } else {
-                throw ValidationException::withMessages([
-                    'academic_context' => ['Kelas dan semester harus berada pada tahun ajaran yang sama.'],
-                ]);
-            }
+            throw ValidationException::withMessages([
+                'academic_context' => ['Kelas dan semester harus berada pada tahun ajaran yang sama.'],
+            ]);
         }
 
         return [$schoolClass, $semester];
