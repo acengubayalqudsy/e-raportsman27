@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import Button from '../common/Button.jsx'
 import Icon from '../common/Icon.jsx'
 import SearchInput from '../common/SearchInput.jsx'
@@ -72,7 +72,7 @@ export function AcademicRombelView({ onNotify }) {
   const [classes, setClasses] = useState([])
   const [loadingRefs, setLoadingRefs] = useState(true)
 
-  const [selectedGrade, setSelectedGrade] = useState('X')
+  const [selectedGrade, setSelectedGrade] = useState('Semua Tingkat')
   const [selectedClassId, setSelectedClassId] = useState('')
   const [searchQuery, setSearchQuery] = useState('')
 
@@ -82,6 +82,7 @@ export function AcademicRombelView({ onNotify }) {
   const [rowsPerPage, setRowsPerPage] = useState(10)
   const [totalItems, setTotalItems] = useState(0)
   const [stats, setStats] = useState(null)
+  const reqIdRef = useRef(0)
 
   // Modals state
   const [addOpen, setAddOpen] = useState(false)
@@ -103,35 +104,44 @@ export function AcademicRombelView({ onNotify }) {
   const [syncPreview, setSyncPreview] = useState(null)
   const [syncLoading, setSyncLoading] = useState(false)
 
-  // 1. Fetch classes reference data
+  // 1. Fetch classes reference data & reset dependent state on selectedYearId change
   useEffect(() => {
     let mounted = true
-    async function loadRefs() {
+
+    const timer = window.setTimeout(async () => {
+      setSelectedClassId('')
+      setMembers([])
+      setTotalItems(0)
+      setStats(null)
+      setCurrentPage(1)
+
       try {
         const clsRes = await academicService.getClasses({ per_page: 100 })
         if (!mounted) return
         const clsList = clsRes.success ? clsRes.data : []
         setClasses(clsList)
 
-        const firstClass = clsList.find((c) => String(c.academic_year_id) === String(selectedYearId) && c.grade === 'X')
-          || clsList.find((c) => String(c.academic_year_id) === String(selectedYearId))
-          || clsList[0]
+        const matchingClasses = clsList.filter((c) => String(c.academic_year_id) === String(selectedYearId))
+        const firstClass = matchingClasses[0] || null
         if (firstClass) setSelectedClassId(String(firstClass.id))
       } catch (err) {
         console.error('Failed to load academic refs', err)
       } finally {
         if (mounted) setLoadingRefs(false)
       }
+    }, 0)
+
+    return () => {
+      mounted = false
+      window.clearTimeout(timer)
     }
-    loadRefs()
-    return () => { mounted = false }
   }, [selectedYearId])
 
   // Filtered classes strictly matching selectedYearId
   const availableClasses = useMemo(() => {
     return classes.filter((c) => {
       const matchYear = !selectedYearId || String(c.academic_year_id) === String(selectedYearId)
-      const matchGrade = !selectedGrade || c.grade === selectedGrade
+      const matchGrade = selectedGrade === 'Semua Tingkat' || !selectedGrade || c.grade === selectedGrade
       return matchYear && matchGrade
     })
   }, [classes, selectedYearId, selectedGrade])
@@ -149,9 +159,19 @@ export function AcademicRombelView({ onNotify }) {
     return classes.find((c) => String(c.id) === String(effectiveClassId))
   }, [classes, effectiveClassId])
 
-  // 2. Fetch Members & Stats
+  // 2. Fetch Members & Stats with request race protection
   const loadMembers = useCallback(async () => {
-    if (!effectiveClassId || !selectedSemesterId) return
+    const currentReqId = ++reqIdRef.current
+    // Immediately clear stale rows and totals so previous data doesn't linger
+    setMembers([])
+    setTotalItems(0)
+    setStats(null)
+
+    if (!effectiveClassId || !selectedSemesterId) {
+      setLoadingMembers(false)
+      return
+    }
+
     setLoadingMembers(true)
     try {
       const [res, statsRes] = await Promise.all([
@@ -168,6 +188,9 @@ export function AcademicRombelView({ onNotify }) {
         }),
       ])
 
+      // Ignore responses from superseded requests
+      if (currentReqId !== reqIdRef.current) return
+
       if (res.success) {
         setMembers(res.data)
         setTotalItems(res.meta?.total || res.data.length)
@@ -180,10 +203,14 @@ export function AcademicRombelView({ onNotify }) {
         setStats(statsRes.data)
       }
     } catch (err) {
+      if (currentReqId !== reqIdRef.current) return
       console.error('Error fetching rombel members:', err)
       setMembers([])
+      setTotalItems(0)
     } finally {
-      setLoadingMembers(false)
+      if (currentReqId === reqIdRef.current) {
+        setLoadingMembers(false)
+      }
     }
   }, [effectiveClassId, selectedSemesterId, selectedYearId, searchQuery, currentPage, rowsPerPage])
 
@@ -370,11 +397,12 @@ export function AcademicRombelView({ onNotify }) {
               label="Tingkat"
               onChange={(e) => {
                 setSelectedGrade(e.target.value)
-                const matched = classes.find((c) => String(c.academic_year_id) === String(selectedYearId) && c.grade === e.target.value)
+                const matched = classes.find((c) => String(c.academic_year_id) === String(selectedYearId) && (e.target.value === 'Semua Tingkat' || c.grade === e.target.value))
                 if (matched) setSelectedClassId(String(matched.id))
+                else setSelectedClassId('')
                 setCurrentPage(1)
               }}
-              options={['X', 'XI', 'XII']}
+              options={['Semua Tingkat', 'X', 'XI', 'XII']}
               value={selectedGrade}
             />
             <AcademicField
@@ -743,6 +771,7 @@ export function AcademicHomeroomView({ onNotify }) {
   const [rowsPerPage, setRowsPerPage] = useState(10)
   const [totalItems, setTotalItems] = useState(0)
   const [stats, setStats] = useState(null)
+  const hrReqIdRef = useRef(0)
 
   const [modal, setModal] = useState(null) // { type: 'add' | 'edit', item?: object }
   const [formClassId, setFormClassId] = useState('')
@@ -787,9 +816,18 @@ export function AcademicHomeroomView({ onNotify }) {
     })
   }, [classes, selectedYearId, selectedGrade])
 
-  // 2. Fetch Homerooms & Stats
+  // 2. Fetch Homerooms & Stats with request race protection
   const loadHomerooms = useCallback(async () => {
-    if (!selectedSemesterId) return
+    const currentReqId = ++hrReqIdRef.current
+    setAssignments([])
+    setTotalItems(0)
+    setStats(null)
+
+    if (!selectedSemesterId) {
+      setLoadingAssignments(false)
+      return
+    }
+
     setLoadingAssignments(true)
     try {
       const params = {
@@ -809,6 +847,8 @@ export function AcademicHomeroomView({ onNotify }) {
         }),
       ])
 
+      if (currentReqId !== hrReqIdRef.current) return
+
       if (res.success) {
         setAssignments(res.data)
         setTotalItems(res.meta?.total || res.data.length)
@@ -821,10 +861,14 @@ export function AcademicHomeroomView({ onNotify }) {
         setStats(statsRes.data)
       }
     } catch (err) {
+      if (currentReqId !== hrReqIdRef.current) return
       console.error('Error fetching homerooms:', err)
       setAssignments([])
+      setTotalItems(0)
     } finally {
-      setLoadingAssignments(false)
+      if (currentReqId === hrReqIdRef.current) {
+        setLoadingAssignments(false)
+      }
     }
   }, [selectedSemesterId, selectedYearId, selectedClassId, searchQuery, currentPage, rowsPerPage])
 
@@ -1178,6 +1222,7 @@ export function AcademicTeacherAssignmentView({ onNotify }) {
   const [rowsPerPage, setRowsPerPage] = useState(10)
   const [totalItems, setTotalItems] = useState(0)
   const [stats, setStats] = useState(null)
+  const caReqIdRef = useRef(0)
 
   const [modal, setModal] = useState(null)
   const [formTeacherId, setFormTeacherId] = useState('')
@@ -1224,9 +1269,18 @@ export function AcademicTeacherAssignmentView({ onNotify }) {
     return classes.filter((c) => String(c.academic_year_id) === String(selectedYearId))
   }, [classes, selectedYearId])
 
-  // 2. Fetch Assignments & Stats
+  // 2. Fetch Assignments & Stats with request race protection
   const loadCourseAssignments = useCallback(async () => {
-    if (!selectedSemesterId) return
+    const currentReqId = ++caReqIdRef.current
+    setAssignments([])
+    setTotalItems(0)
+    setStats(null)
+
+    if (!selectedSemesterId) {
+      setLoadingAssignments(false)
+      return
+    }
+
     setLoadingAssignments(true)
     try {
       const params = {
@@ -1248,6 +1302,8 @@ export function AcademicTeacherAssignmentView({ onNotify }) {
         }),
       ])
 
+      if (currentReqId !== caReqIdRef.current) return
+
       if (res.success) {
         setAssignments(res.data)
         setTotalItems(res.meta?.total || res.data.length)
@@ -1260,10 +1316,14 @@ export function AcademicTeacherAssignmentView({ onNotify }) {
         setStats(statsRes.data)
       }
     } catch (err) {
+      if (currentReqId !== caReqIdRef.current) return
       console.error('Error fetching course assignments:', err)
       setAssignments([])
+      setTotalItems(0)
     } finally {
-      setLoadingAssignments(false)
+      if (currentReqId === caReqIdRef.current) {
+        setLoadingAssignments(false)
+      }
     }
   }, [selectedSemesterId, selectedYearId, selectedClassId, selectedSubjectId, selectedTeacherId, searchQuery, currentPage, rowsPerPage])
 

@@ -50,10 +50,13 @@ export function AcademicProvider({ children }) {
         activeYr = { id: found.id, name: found.name }
       }
       if (!activeSem && semsList.length > 0 && activeYr) {
-        const found = semsList.find((s) => s.academic_year_id === activeYr.id && s.status === 'Aktif')
-          || semsList.find((s) => s.academic_year_id === activeYr.id)
-          || semsList[0]
-        if (found) activeSem = { id: found.id, name: found.name }
+        const found = semsList.find((s) => String(s.academic_year_id) === String(activeYr.id) && s.status === 'Aktif')
+          || semsList.find((s) => String(s.academic_year_id) === String(activeYr.id))
+        if (found) {
+          activeSem = { id: found.id, name: found.name, academic_year_id: found.academic_year_id }
+        } else {
+          activeSem = null
+        }
       }
 
       setActiveAcademicYear(activeYr)
@@ -64,13 +67,20 @@ export function AcademicProvider({ children }) {
         const yrIdStr = String(activeYr.id)
         setSelectedYearIdState(yrIdStr)
 
-        if (activeSem) {
+        if (activeSem && String(activeSem.academic_year_id) === yrIdStr) {
           setSelectedSemesterIdState(String(activeSem.id))
         } else {
           const matchingSems = semsList.filter((s) => String(s.academic_year_id) === yrIdStr)
           const firstSem = matchingSems.find((s) => s.status === 'Aktif') || matchingSems[0]
-          if (firstSem) setSelectedSemesterIdState(String(firstSem.id))
+          if (firstSem) {
+            setSelectedSemesterIdState(String(firstSem.id))
+          } else {
+            setSelectedSemesterIdState('')
+          }
         }
+      } else {
+        setSelectedYearIdState('')
+        setSelectedSemesterIdState('')
       }
     } catch (err) {
       console.error('Failed to load global academic context', err)
@@ -84,9 +94,9 @@ export function AcademicProvider({ children }) {
     return () => window.clearTimeout(timer)
   }, [loadAcademicContext])
 
-  // Cascading: Semesters available for selectedYearId
+  // Cascading: Semesters available for selectedYearId (strictly scoped to selected year)
   const availableSemesters = useMemo(() => {
-    if (!selectedYearId) return allSemesters
+    if (!selectedYearId) return []
     return allSemesters.filter((s) => String(s.academic_year_id) === String(selectedYearId))
   }, [allSemesters, selectedYearId])
 
@@ -96,10 +106,9 @@ export function AcademicProvider({ children }) {
   }, [availableYears, selectedYearId])
 
   const selectedSemester = useMemo(() => {
-    return availableSemesters.find((s) => String(s.id) === String(selectedSemesterId))
-      || allSemesters.find((s) => String(s.id) === String(selectedSemesterId))
-      || null
-  }, [availableSemesters, allSemesters, selectedSemesterId])
+    if (!selectedSemesterId) return null
+    return availableSemesters.find((s) => String(s.id) === String(selectedSemesterId)) || null
+  }, [availableSemesters, selectedSemesterId])
 
   // Changing academic year automatically cascades selected semester to matching year's semester
   const setSelectedYearId = useCallback((newYearId) => {
@@ -117,8 +126,19 @@ export function AcademicProvider({ children }) {
   }, [allSemesters])
 
   const setSelectedSemesterId = useCallback((newSemId) => {
-    setSelectedSemesterIdState(String(newSemId))
-  }, [])
+    if (!newSemId) {
+      setSelectedSemesterIdState('')
+      return
+    }
+    const semIdStr = String(newSemId)
+    const isValid = availableSemesters.some((s) => String(s.id) === semIdStr)
+    if (isValid) {
+      setSelectedSemesterIdState(semIdStr)
+    } else {
+      console.warn(`Rejected cross-year semester selection: ID ${semIdStr} does not belong to selected year ${selectedYearId}`)
+      setSelectedSemesterIdState('')
+    }
+  }, [availableSemesters, selectedYearId])
 
   const value = useMemo(() => ({
     activeAcademicYear,

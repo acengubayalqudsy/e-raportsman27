@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import AssessmentFilters from './AssessmentFilters.jsx'
 import ScorePagination from './ScorePagination.jsx'
 import ScoreTable from './ScoreTable.jsx'
@@ -36,6 +36,7 @@ function InputNilaiView({ onNotify }) {
   const [currentPage, setCurrentPage] = useState(1)
   const [rowsPerPage, setRowsPerPage] = useState(8)
   const [savedRows, setSavedRows] = useState(() => new Set())
+  const gbReqIdRef = useRef(0)
 
   // 1. Load context (assigned courses) on mount
   useEffect(() => {
@@ -43,7 +44,9 @@ function InputNilaiView({ onNotify }) {
     async function loadContext() {
       setIsLoading(true)
       const res = await assessmentService.getContext()
-      if (isMounted && res.success && res.data) {
+      if (!isMounted) return
+
+      if (res.success && res.data) {
         const courses = res.data.assigned_courses || []
         setAssignedCourses(courses)
 
@@ -56,24 +59,43 @@ function InputNilaiView({ onNotify }) {
             subject: first.subject_name,
             semester: first.semester_name || res.data.active_semester?.name || '',
           }))
+          setLoadError('')
         } else {
+          setSelectedCourseId(null)
+          setFilters({
+            className: '',
+            subject: '',
+            assessmentType: assessmentTypes[0],
+            semester: res.data.active_semester?.name || '',
+          })
+          setStudents([])
+          setAssessments([])
+          setSavedScores({})
+          setIsLocked(false)
+          setSavedRows(new Set())
           setLoadError('Belum ada penugasan mengajar aktif untuk akun ini.')
         }
-      } else if (isMounted) {
+      } else {
+        setSelectedCourseId(null)
+        setAssignedCourses([])
+        setStudents([])
+        setAssessments([])
         setLoadError(res.error || 'Gagal memuat penugasan mengajar.')
       }
-      if (isMounted) setIsLoading(false)
+      setIsLoading(false)
     }
     loadContext()
     return () => { isMounted = false }
   }, [])
 
-  // 2. Load Gradebook when selected course changes
+  // 2. Load Gradebook when selected course changes with race guard
   useEffect(() => {
     if (!selectedCourseId) return
-    let isMounted = true
 
-    async function loadGradebook() {
+    const reqId = ++gbReqIdRef.current
+    let cancelled = false
+
+    const timer = window.setTimeout(async () => {
       setIsLoading(true)
       setLoadError('')
       setStudents([])
@@ -81,42 +103,45 @@ function InputNilaiView({ onNotify }) {
       setSavedScores({})
       setIsLocked(false)
       setSavedRows(new Set())
+
       const res = await assessmentService.getGradebook(selectedCourseId)
-      if (isMounted && res.success && res.data) {
+      if (cancelled || reqId !== gbReqIdRef.current) return
+
+      if (res.success && res.data) {
         const gb = res.data
         setIsLocked(Boolean(gb.is_locked))
         setAssessments(gb.assessments || [])
 
-        {
-          const loadedStudents = (gb.students || []).map((st) => {
-            const scoresObj = {}
-            if (st.scores) {
-              Object.entries(st.scores).forEach(([assId, sc]) => {
-                scoresObj[assId] = sc.final_score !== null && sc.final_score !== undefined ? sc.final_score : ''
-              })
-            }
-            return {
-              id: st.id,
-              nis: st.nis,
-              name: st.name,
-              kkm: gb.assessments?.[0]?.passing_grade ?? 75,
-              scores: scoresObj,
-              final_grade: st.final_grade,
-            }
-          })
-          setStudents(loadedStudents)
-          setSavedScores(Object.fromEntries(loadedStudents.map((s) => [s.id, { ...s.scores }])))
-          // Mark all loaded rows as saved initially
-          setSavedRows(new Set(loadedStudents.map((s) => s.id)))
-        }
-      } else if (isMounted) {
+        const loadedStudents = (gb.students || []).map((st) => {
+          const scoresObj = {}
+          if (st.scores) {
+            Object.entries(st.scores).forEach(([assId, sc]) => {
+              scoresObj[assId] = sc.final_score !== null && sc.final_score !== undefined ? sc.final_score : ''
+            })
+          }
+          return {
+            id: st.id,
+            nis: st.nis,
+            name: st.name,
+            kkm: gb.assessments?.[0]?.passing_grade ?? 75,
+            scores: scoresObj,
+            final_grade: st.final_grade,
+          }
+        })
+        setStudents(loadedStudents)
+        setSavedScores(Object.fromEntries(loadedStudents.map((s) => [s.id, { ...s.scores }])))
+        // Mark all loaded rows as saved initially
+        setSavedRows(new Set(loadedStudents.map((s) => s.id)))
+      } else {
         setLoadError(res.error || 'Gagal memuat buku nilai.')
       }
-      if (isMounted) setIsLoading(false)
-    }
+      setIsLoading(false)
+    }, 0)
 
-    loadGradebook()
-    return () => { isMounted = false }
+    return () => {
+      cancelled = true
+      window.clearTimeout(timer)
+    }
   }, [selectedCourseId, reloadKey])
 
   const selectedCourse = assignedCourses.find((course) => course.course_assignment_id === selectedCourseId)

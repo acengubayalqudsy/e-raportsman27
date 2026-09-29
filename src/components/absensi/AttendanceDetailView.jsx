@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useAcademicContext } from '../../context/AcademicContext.jsx'
 import { useAuth } from '../../auth/AuthContext.jsx'
 import assessmentService from '../../services/assessmentService.js'
@@ -185,7 +185,9 @@ function AttendanceDetailView({ mode, onNotify }) {
     return Array.from(map.values())
   }, [context, isAdmin, allClasses])
 
-  const selectedClass = classOptions.find((c) => String(c.id) === String(selectedClassId)) || classOptions[0] || null
+  const detailReqIdRef = useRef(0)
+
+  const selectedClass = classOptions.find((c) => String(c.id) === String(selectedClassId)) || null
 
   // 3. Cascaded Semesters for selected class's year
   const matchingSemesters = useMemo(() => {
@@ -198,6 +200,9 @@ function AttendanceDetailView({ mode, onNotify }) {
     || String(selectedClass?.semester_id || matchingSemesters.find((s) => s.status === 'Aktif')?.id || matchingSemesters[0]?.id || '')
 
   const handleClassChange = (newClassId) => {
+    setData(null)
+    setDraftOverrides({})
+    setIsDirty(false)
     setSelectedClassId(newClassId)
     setCourseId('')
     setStudentId('')
@@ -218,51 +223,87 @@ function AttendanceDetailView({ mode, onNotify }) {
   }
 
   const handleYearChange = (newYearId) => {
+    setData(null)
+    setDraftOverrides({})
+    setIsDirty(false)
     setSelectedYearId(newYearId)
     const sems = (allSemesters || []).filter((s) => String(s.academic_year_id) === String(newYearId))
     const nextSemId = String(sems.find((s) => s.status === 'Aktif')?.id || sems[0]?.id || '')
-    if (nextSemId) setSelectedSemesterId(nextSemId)
+    setSelectedSemesterId(nextSemId)
+    setSelectedClassId('')
+    setCourseId('')
+    setStudentId('')
   }
 
-  // 4. Fetch Attendance Entries
+  const handleSemesterChange = (newSemId) => {
+    setData(null)
+    setDraftOverrides({})
+    setIsDirty(false)
+    setSelectedSemesterId(newSemId)
+    setCourseId('')
+    setStudentId('')
+  }
+
+  // 4. Fetch Attendance Entries with race guard and immediate clearing
   useEffect(() => {
-    if (!selectedClassId || !effectiveSemesterId) return undefined
+    if (!selectedClassId || !effectiveSemesterId) {
+      return undefined
+    }
+
+    const reqId = ++detailReqIdRef.current
     let cancelled = false
-    const load = async () => {
+
+    const timer = window.setTimeout(async () => {
+      setData(null)
+      setDraftOverrides({})
+      setIsDirty(false)
       setIsLoading(true)
       setError('')
-      const result = await assessmentService.getAttendanceEntries({
-        class_id: selectedClassId,
-        semester_id: effectiveSemesterId,
-        scope,
-        ...(scope === 'subject' && courseId ? { course_assignment_id: courseId } : {}),
-        ...(mode === 'per-siswa' ? (studentId ? { student_id: studentId } : {}) : { date }),
-      })
-      if (cancelled) return
-      if (!result.success) {
-        setData(null)
-        setError(result.error)
-      } else {
-        setData(result.data)
-        setDraftOverrides({})
-        setIsDirty(false)
-        if (scope === 'subject' && !result.data.courses.some((course) => String(course.id) === courseId)) {
-          setCourseId(String(result.data.courses[0]?.id || ''))
-        }
-        if (mode === 'per-siswa' && !result.data.students.some((student) => String(student.student_id) === studentId)) {
-          setStudentId(String(result.data.students[0]?.student_id || ''))
-        }
-        const semester = result.data.semester
-        if (semester?.start_date && semester?.end_date) {
-          if (date < semester.start_date || date > semester.end_date) {
-            setDate(semester.start_date)
+
+      try {
+        const result = await assessmentService.getAttendanceEntries({
+          class_id: selectedClassId,
+          semester_id: effectiveSemesterId,
+          scope,
+          ...(scope === 'subject' && courseId ? { course_assignment_id: courseId } : {}),
+          ...(mode === 'per-siswa' ? (studentId ? { student_id: studentId } : {}) : { date }),
+        })
+        if (cancelled || reqId !== detailReqIdRef.current) return
+        if (!result.success) {
+          setData(null)
+          setError(result.error || 'Gagal memuat data absensi.')
+        } else {
+          setData(result.data)
+          setDraftOverrides({})
+          setIsDirty(false)
+          if (scope === 'subject' && !result.data.courses.some((course) => String(course.id) === courseId)) {
+            setCourseId(String(result.data.courses[0]?.id || ''))
+          }
+          if (mode === 'per-siswa' && !result.data.students.some((student) => String(student.student_id) === studentId)) {
+            setStudentId(String(result.data.students[0]?.student_id || ''))
+          }
+          const semester = result.data.semester
+          if (semester?.start_date && semester?.end_date) {
+            if (date < semester.start_date || date > semester.end_date) {
+              setDate(semester.start_date)
+            }
           }
         }
+      } catch (err) {
+        if (cancelled || reqId !== detailReqIdRef.current) return
+        setData(null)
+        setError(err?.message || 'Terjadi gangguan jaringan.')
+      } finally {
+        if (!cancelled && reqId === detailReqIdRef.current) {
+          setIsLoading(false)
+        }
       }
-      setIsLoading(false)
+    }, 0)
+
+    return () => {
+      cancelled = true
+      window.clearTimeout(timer)
     }
-    void load()
-    return () => { cancelled = true }
   }, [selectedClassId, effectiveSemesterId, courseId, date, mode, refresh, scope, studentId])
 
   const usableData = data?.class?.id === Number(selectedClassId) && data?.semester?.id === Number(effectiveSemesterId) ? data : null
@@ -460,7 +501,7 @@ function AttendanceDetailView({ mode, onNotify }) {
             <span>Semester</span>
             <select
               disabled={matchingSemesters.length === 0}
-              onChange={(event) => setSelectedSemesterId(event.target.value)}
+              onChange={(event) => handleSemesterChange(event.target.value)}
               value={effectiveSemesterId}
             >
               {matchingSemesters.map((semester) => (

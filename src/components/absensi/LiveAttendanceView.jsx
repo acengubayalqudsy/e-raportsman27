@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useAcademicContext } from '../../context/AcademicContext.jsx'
 import { useAuth } from '../../auth/AuthContext.jsx'
 import assessmentService from '../../services/assessmentService.js'
@@ -191,7 +191,9 @@ function LiveAttendanceView({ onNotify = () => {} }) {
     return Array.from(map.values())
   }, [context, isAdmin, allClasses])
 
-  const selectedClass = classOptions.find((c) => String(c.id) === String(selectedClassId)) || classOptions[0] || null
+  const attReqIdRef = useRef(0)
+
+  const selectedClass = classOptions.find((c) => String(c.id) === String(selectedClassId)) || null
 
   // 3. Filtered semesters matching selected class's academic year
   const matchingSemesters = useMemo(() => {
@@ -206,8 +208,10 @@ function LiveAttendanceView({ onNotify = () => {} }) {
   const selectedSemesterObj = (allSemesters || []).find((s) => String(s.id) === String(effectiveSemesterId))
   const selectedYearObj = (availableYears || []).find((y) => String(y.id) === String(selectedYearId || selectedClass?.academic_year_id))
 
-  // 4. Handle class change: auto-cascade year and semester
+  // 4. Handle class change: auto-cascade year and semester with immediate clear
   const handleClassChange = (newClassId) => {
+    setRows([])
+    setCanEdit(false)
     setSelectedClassId(newClassId)
     const cls = classOptions.find((c) => String(c.id) === String(newClassId))
     if (cls) {
@@ -226,27 +230,46 @@ function LiveAttendanceView({ onNotify = () => {} }) {
   }
 
   const handleYearChange = (newYearId) => {
+    setRows([])
+    setCanEdit(false)
     setSelectedYearId(newYearId)
     const sems = (allSemesters || []).filter((s) => String(s.academic_year_id) === String(newYearId))
     const nextSemId = String(sems.find((s) => s.status === 'Aktif')?.id || sems[0]?.id || '')
-    if (nextSemId) setSelectedSemesterId(nextSemId)
+    setSelectedSemesterId(nextSemId)
+    const validClasses = classOptions.filter((c) => !c.academic_year_id || String(c.academic_year_id) === String(newYearId))
+    if (!validClasses.some((c) => String(c.id) === String(selectedClassId))) {
+      setSelectedClassId(validClasses[0]?.id || '')
+    }
   }
 
-  // 5. Load attendance entries for the selected class and semester
-  useEffect(() => {
-    if (!selectedClassId || !effectiveSemesterId) return undefined
+  const handleSemesterChange = (newSemId) => {
+    setRows([])
+    setCanEdit(false)
+    setSelectedSemesterId(newSemId)
+  }
 
+  // 5. Load attendance entries for the selected class and semester with race guard
+  useEffect(() => {
+    if (!selectedClassId || !effectiveSemesterId) {
+      return undefined
+    }
+
+    const reqId = ++attReqIdRef.current
     let cancelled = false
+
     const timer = window.setTimeout(() => {
+      setRows([])
+      setCanEdit(false)
       setIsLoading(true)
       setError('')
+
       assessmentService.getAttendanceEntries({
         class_id: selectedClassId,
         semester_id: effectiveSemesterId,
         scope: 'class',
         date: new Date().toISOString().slice(0, 10),
       }).then((result) => {
-        if (cancelled) return
+        if (cancelled || reqId !== attReqIdRef.current) return
         if (!result.success) {
           setRows([])
           setCanEdit(false)
@@ -255,6 +278,12 @@ function LiveAttendanceView({ onNotify = () => {} }) {
           setRows(normalizeRows(result.data?.students))
           setCanEdit(Boolean(result.data?.can_edit))
         }
+        setIsLoading(false)
+      }).catch((err) => {
+        if (cancelled || reqId !== attReqIdRef.current) return
+        setRows([])
+        setCanEdit(false)
+        setError(err?.message || 'Gagal memuat data absensi.')
         setIsLoading(false)
       })
     }, 0)
@@ -414,7 +443,7 @@ function LiveAttendanceView({ onNotify = () => {} }) {
             <span>Semester</span>
             <select
               disabled={matchingSemesters.length === 0}
-              onChange={(event) => setSelectedSemesterId(event.target.value)}
+              onChange={(event) => handleSemesterChange(event.target.value)}
               value={effectiveSemesterId}
             >
               {matchingSemesters.map((semester) => (

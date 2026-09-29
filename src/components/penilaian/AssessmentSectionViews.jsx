@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import Button from '../common/Button.jsx'
 import Icon from '../common/Icon.jsx'
 import assessmentService from '../../services/assessmentService.js'
@@ -57,6 +57,7 @@ function NilaiPerMapelView({ onNotify }) {
   const [selectedCourseId, setSelectedCourseId] = useState(null)
   const [gradebook, setGradebook] = useState(null)
   const [loading, setLoading] = useState(false)
+  const gbReqIdRef = useRef(0)
 
   useEffect(() => {
     async function load() {
@@ -64,6 +65,10 @@ function NilaiPerMapelView({ onNotify }) {
       if (res.success && res.data?.assigned_courses?.length > 0) {
         setAssignedCourses(res.data.assigned_courses)
         setSelectedCourseId(res.data.assigned_courses[0].course_assignment_id)
+      } else {
+        setAssignedCourses([])
+        setSelectedCourseId(null)
+        setGradebook(null)
       }
     }
     load()
@@ -71,15 +76,29 @@ function NilaiPerMapelView({ onNotify }) {
 
   useEffect(() => {
     if (!selectedCourseId) return
-    async function loadGb() {
+
+    const reqId = ++gbReqIdRef.current
+    let cancelled = false
+
+    const timer = window.setTimeout(async () => {
+      setGradebook(null)
       setLoading(true)
+
       const res = await assessmentService.getGradebook(selectedCourseId)
+      if (cancelled || reqId !== gbReqIdRef.current) return
+
       if (res.success && res.data) {
         setGradebook(res.data)
+      } else {
+        setGradebook(null)
       }
       setLoading(false)
+    }, 0)
+
+    return () => {
+      cancelled = true
+      window.clearTimeout(timer)
     }
-    loadGb()
   }, [selectedCourseId])
 
   const students = gradebook?.students || []
@@ -194,6 +213,7 @@ function CapaianKompetensiView({ onNotify }) {
   const [loading, setLoading] = useState(false)
   const [showImport, setShowImport] = useState(false)
   const [refreshKey, setRefreshKey] = useState(0)
+  const compReqIdRef = useRef(0)
 
   useEffect(() => {
     async function load() {
@@ -201,6 +221,11 @@ function CapaianKompetensiView({ onNotify }) {
       if (res.success && res.data?.assigned_courses?.length > 0) {
         setAssignedCourses(res.data.assigned_courses)
         setSelectedCourseId(res.data.assigned_courses[0].course_assignment_id)
+      } else {
+        setAssignedCourses([])
+        setSelectedCourseId(null)
+        setStudents([])
+        setDescriptions({})
       }
     }
     load()
@@ -208,9 +233,18 @@ function CapaianKompetensiView({ onNotify }) {
 
   useEffect(() => {
     if (!selectedCourseId) return
-    async function loadGb() {
+
+    const reqId = ++compReqIdRef.current
+    let cancelled = false
+
+    const timer = window.setTimeout(async () => {
+      setStudents([])
+      setDescriptions({})
       setLoading(true)
+
       const res = await assessmentService.getGradebook(selectedCourseId)
+      if (cancelled || reqId !== compReqIdRef.current) return
+
       if (res.success && res.data) {
         setIsLocked(Boolean(res.data.is_locked))
         const loadedStudents = res.data.students || []
@@ -221,10 +255,17 @@ function CapaianKompetensiView({ onNotify }) {
           initialDesc[s.id] = s.final_grade?.highest_achievement || ''
         })
         setDescriptions(initialDesc)
+      } else {
+        setStudents([])
+        setDescriptions({})
       }
       setLoading(false)
+    }, 0)
+
+    return () => {
+      cancelled = true
+      window.clearTimeout(timer)
     }
-    loadGb()
   }, [selectedCourseId, refreshKey])
 
   const handleSaveDescriptions = async () => {
@@ -333,6 +374,7 @@ function RekapNilaiView({ onNotify }) {
   const [semesterId, setSemesterId] = useState(null)
   const [recapData, setRecapData] = useState(null)
   const [loading, setLoading] = useState(false)
+  const recapReqIdRef = useRef(0)
 
   useEffect(() => {
     async function loadClasses() {
@@ -353,6 +395,9 @@ function RekapNilaiView({ onNotify }) {
         setClasses(list)
         if (list.length > 0) {
           setSelectedClassId(list[0].class_id)
+        } else {
+          setSelectedClassId(null)
+          setRecapData(null)
         }
       }
     }
@@ -361,15 +406,29 @@ function RekapNilaiView({ onNotify }) {
 
   useEffect(() => {
     if (!selectedClassId || !semesterId) return
-    async function loadRecap() {
+
+    const reqId = ++recapReqIdRef.current
+    let cancelled = false
+
+    const timer = window.setTimeout(async () => {
+      setRecapData(null)
       setLoading(true)
+
       const res = await assessmentService.getClassRecap(selectedClassId, semesterId)
+      if (cancelled || reqId !== recapReqIdRef.current) return
+
       if (res.success && res.data) {
         setRecapData(res.data)
+      } else {
+        setRecapData(null)
       }
       setLoading(false)
+    }, 0)
+
+    return () => {
+      cancelled = true
+      window.clearTimeout(timer)
     }
-    loadRecap()
   }, [selectedClassId, semesterId])
 
   const subjects = recapData?.subjects || []
@@ -461,6 +520,7 @@ function ValidasiNilaiView({ onNotify }) {
   const [semesterId, setSemesterId] = useState(null)
   const [validationList, setValidationList] = useState([])
   const [loading, setLoading] = useState(false)
+  const valReqIdRef = useRef(0)
 
   useEffect(() => {
     async function load() {
@@ -481,6 +541,9 @@ function ValidasiNilaiView({ onNotify }) {
         setClasses(list)
         if (list.length > 0) {
           setSelectedClassId(list[0].class_id)
+        } else {
+          setSelectedClassId(null)
+          setValidationList([])
         }
       }
     }
@@ -489,19 +552,29 @@ function ValidasiNilaiView({ onNotify }) {
 
   useEffect(() => {
     if (!selectedClassId || !semesterId) return
-    let isMounted = true
 
-    async function fetchStatus() {
+    const reqId = ++valReqIdRef.current
+    let cancelled = false
+
+    const timer = window.setTimeout(async () => {
+      setValidationList([])
       setLoading(true)
-      const res = await assessmentService.getValidationStatus(selectedClassId, semesterId)
-      if (isMounted && res.success && Array.isArray(res.data)) {
-        setValidationList(res.data)
-      }
-      if (isMounted) setLoading(false)
-    }
 
-    fetchStatus()
-    return () => { isMounted = false }
+      const res = await assessmentService.getValidationStatus(selectedClassId, semesterId)
+      if (cancelled || reqId !== valReqIdRef.current) return
+
+      if (res.success && Array.isArray(res.data)) {
+        setValidationList(res.data)
+      } else {
+        setValidationList([])
+      }
+      setLoading(false)
+    }, 0)
+
+    return () => {
+      cancelled = true
+      window.clearTimeout(timer)
+    }
   }, [selectedClassId, semesterId])
 
   const handleValidate = async (item) => {

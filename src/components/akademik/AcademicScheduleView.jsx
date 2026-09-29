@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import Button from '../common/Button.jsx'
 import EmptyState from '../common/EmptyState.jsx'
 import Icon from '../common/Icon.jsx'
@@ -408,16 +408,16 @@ function ScheduleFormModal({ initialData = null, onClose, onSave, options = {} }
 
 function AcademicScheduleView({ onNotify }) {
   const {
-    academicYears,
     semesters,
-    activeAcademicYear,
-    activeSemester,
     selectedAcademicYearId,
     selectedSemesterId,
+    selectedAcademicYear,
+    selectedSemester,
+    setSelectedSemesterId,
   } = useAcademicContext()
 
-  const currentYearObj = academicYears?.find((y) => Number(y.id) === Number(selectedAcademicYearId)) || activeAcademicYear || academicYears?.[0]
-  const currentSemesterObj = semesters?.find((s) => Number(s.id) === Number(selectedSemesterId)) || activeSemester || semesters?.[0]
+  const currentYearObj = selectedAcademicYear
+  const currentSemesterObj = selectedSemester
 
   const [apiOptions, setApiOptions] = useState({
     academic_years: [],
@@ -432,20 +432,26 @@ function AcademicScheduleView({ onNotify }) {
   })
   const [apiSchedules, setApiSchedules] = useState([])
 
+  const schedReqIdRef = useRef(0)
+  const optionsReqIdRef = useRef(0)
+
   const classOptions = useMemo(() => {
-    return apiOptions.classes?.length ? apiOptions.classes.map((c) => c.name) : []
+    const list = apiOptions.classes?.length ? apiOptions.classes.map((c) => c.name) : []
+    return ['Semua Kelas', ...list]
   }, [apiOptions.classes])
 
   const gradeOptions = ['Semua Tingkat', 'X', 'XI', 'XII']
-  const semesterOptions = useMemo(() => {
-    return apiOptions.semesters?.length ? apiOptions.semesters.map((s) => s.name) : ['Ganjil', 'Genap']
-  }, [apiOptions.semesters])
+  const semesterSelectOptions = useMemo(() => {
+    if (!semesters || !semesters.length) {
+      return [{ label: 'Tidak ada semester', value: '' }]
+    }
+    return semesters.map((s) => ({ label: s.name, value: String(s.id) }))
+  }, [semesters])
 
   const dayOptions = ['Semua Hari', ...DEFAULT_DAYS]
 
-  const [selectedClass, setSelectedClass] = useState('')
+  const [selectedClass, setSelectedClass] = useState('Semua Kelas')
   const [selectedGrade, setSelectedGrade] = useState('Semua Tingkat')
-  const [selectedSemester, setSelectedSemester] = useState('Ganjil')
   const [selectedDay, setSelectedDay] = useState('Semua Hari')
   const [query, setQuery] = useState('')
   const [selectedSchedule, setSelectedSchedule] = useState(null)
@@ -457,53 +463,107 @@ function AcademicScheduleView({ onNotify }) {
     onNotify?.(message)
   }
 
-  // Fetch options from API
+  // Clear class & schedule rows immediately on year change
   useEffect(() => {
-    let isMounted = true
-    scheduleService
-      .getOptions({ academic_year_id: selectedAcademicYearId, semester_id: selectedSemesterId })
-      .then((res) => {
-        if (!isMounted) return
-        if (res.success && res.data) {
-          setApiOptions(res.data)
-          if (res.data.classes?.length && !selectedClass) {
-            setSelectedClass(res.data.classes[0].name)
+    const timer = window.setTimeout(() => {
+      setSelectedClass('Semua Kelas')
+      setSelectedGrade('Semua Tingkat')
+      setApiSchedules([])
+    }, 0)
+    return () => window.clearTimeout(timer)
+  }, [selectedAcademicYearId])
+
+  // Clear schedule rows immediately on semester change
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      setApiSchedules([])
+    }, 0)
+    return () => window.clearTimeout(timer)
+  }, [selectedSemesterId])
+
+  // Fetch options from API with race guard
+  useEffect(() => {
+    let cancelled = false
+    const reqId = ++optionsReqIdRef.current
+
+    const timer = window.setTimeout(() => {
+      if (!selectedAcademicYearId) {
+        setApiOptions({
+          academic_years: [],
+          semesters: [],
+          classes: [],
+          subjects: [],
+          teachers: [],
+          rooms: [],
+          course_assignments: [],
+          selectedYear: null,
+          selectedSemester: null,
+        })
+        return
+      }
+
+      scheduleService
+        .getOptions({ academic_year_id: selectedAcademicYearId, semester_id: selectedSemesterId })
+        .then((res) => {
+          if (cancelled || reqId !== optionsReqIdRef.current) return
+          if (res.success && res.data) {
+            setApiOptions(res.data)
+            const classNames = (res.data.classes || []).map((c) => c.name)
+            setSelectedClass((prev) => (prev && prev !== 'Semua Kelas' && !classNames.includes(prev) ? 'Semua Kelas' : prev))
           }
-          if (res.data.selectedSemester?.name) {
-            setSelectedSemester(res.data.selectedSemester.name)
-          }
-        }
-      })
-      .catch((err) => console.error('Failed to load schedule options:', err))
+        })
+        .catch((err) => {
+          if (cancelled || reqId !== optionsReqIdRef.current) return
+          console.error('Failed to load schedule options:', err)
+        })
+    }, 0)
 
     return () => {
-      isMounted = false
+      cancelled = true
+      window.clearTimeout(timer)
     }
-  }, [refreshTrigger, selectedClass, selectedAcademicYearId, selectedSemesterId])
+  }, [refreshTrigger, selectedAcademicYearId, selectedSemesterId])
 
-  // Fetch real schedules from API
+  // Fetch real schedules from API with race guard and immediate clear
   useEffect(() => {
-    let isMounted = true
-    const timeoutId = window.setTimeout(() => {
+    let cancelled = false
+    const reqId = ++schedReqIdRef.current
+
+    const timer = window.setTimeout(() => {
+      if (!selectedAcademicYearId || !selectedSemesterId) {
+        setApiSchedules([])
+        return
+      }
+
+      setApiSchedules([])
+
       scheduleService
         .getSchedules({ per_page: 100, academic_year_id: selectedAcademicYearId, semester_id: selectedSemesterId })
         .then((res) => {
-          if (!isMounted) return
+          if (cancelled || reqId !== schedReqIdRef.current) return
           if (res.success && Array.isArray(res.data)) {
             setApiSchedules(res.data)
           }
         })
-        .catch((err) => console.error('Failed to load schedules:', err))
+        .catch((err) => {
+          if (cancelled || reqId !== schedReqIdRef.current) return
+          console.error('Failed to load schedules:', err)
+          setApiSchedules([])
+        })
     }, 0)
 
     return () => {
-      isMounted = false
-      window.clearTimeout(timeoutId)
+      cancelled = true
+      window.clearTimeout(timer)
     }
   }, [refreshTrigger, selectedAcademicYearId, selectedSemesterId])
 
   const selectClass = (className) => {
     setSelectedClass(className)
+    if (!className || className === 'Semua Kelas') {
+      setSelectedGrade('Semua Tingkat')
+      return
+    }
     const gradePart = className.split(' ')[0]
     if (['X', 'XI', 'XII'].includes(gradePart)) {
       setSelectedGrade(gradePart)
@@ -513,8 +573,10 @@ function AcademicScheduleView({ onNotify }) {
   const selectGrade = (grade) => {
     setSelectedGrade(grade)
     if (grade !== 'Semua Tingkat') {
-      const matchingClass = classOptions.find((cName) => cName.startsWith(grade))
+      const matchingClass = classOptions.find((cName) => cName !== 'Semua Kelas' && cName.startsWith(grade))
       if (matchingClass) setSelectedClass(matchingClass)
+    } else {
+      setSelectedClass('Semua Kelas')
     }
   }
 
@@ -525,7 +587,7 @@ function AcademicScheduleView({ onNotify }) {
   const effectiveRows = useMemo(() => {
     const classSchedules = apiSchedules.filter((s) => {
       const clsName = s.school_class?.name || s.class_name || ''
-      return !selectedClass || clsName === selectedClass
+      return !selectedClass || selectedClass === 'Semua Kelas' || clsName === selectedClass
     })
 
     return BASE_SCHEDULE_SLOTS.map((slot, index) => {
@@ -697,7 +759,7 @@ function AcademicScheduleView({ onNotify }) {
           <div className="academic-filter-fields">
             <SelectField label="Kelas" onChange={selectClass} options={classOptions} value={selectedClass} />
             <SelectField label="Tingkat" onChange={selectGrade} options={gradeOptions} value={selectedGrade} />
-            <SelectField label="Semester" onChange={setSelectedSemester} options={semesterOptions} value={selectedSemester} />
+            <SelectField label="Semester" onChange={(val) => setSelectedSemesterId(val ? Number(val) : '')} options={semesterSelectOptions} value={selectedSemesterId ? String(selectedSemesterId) : ''} />
             <SelectField label="Hari" onChange={setSelectedDay} options={dayOptions} value={selectedDay} />
           </div>
 
@@ -727,7 +789,7 @@ function AcademicScheduleView({ onNotify }) {
           </Button>
           <Button className="academic-button secondary" onClick={() => excelService.download('schedules', 'export', {
             academic_year_id: selectedAcademicYearId, semester_id: selectedSemesterId,
-            class_id: apiOptions.classes.find((item) => item.name === selectedClass)?.id,
+            class_id: selectedClass && selectedClass !== 'Semua Kelas' ? apiOptions.classes?.find((item) => item.name === selectedClass)?.id : undefined,
             day_of_week: selectedDay === 'Semua Hari' ? '' : selectedDay,
             search: query,
           }).catch((error) => notify(error.message))}>
