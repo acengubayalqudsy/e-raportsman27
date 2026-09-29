@@ -28,10 +28,7 @@ class AcademicAuthorizationService
             return SchoolClass::pluck('id')->toArray();
         }
 
-        $teacher = $user->teacher ?? \App\Models\Teacher::where('user_id', $user->id)->first();
-        if (!$teacher && !empty($user->email)) {
-            $teacher = \App\Models\Teacher::where('email', $user->email)->first();
-        }
+        $teacher = $user->teacher;
         if (!$teacher) {
             return [];
         }
@@ -263,10 +260,7 @@ class AcademicAuthorizationService
             return true;
         }
 
-        $teacher = $user->teacher ?? \App\Models\Teacher::where('user_id', $user->id)->first();
-        if (!$teacher && !empty($user->email)) {
-            $teacher = \App\Models\Teacher::where('email', $user->email)->first();
-        }
+        $teacher = $user->teacher;
         if (!$teacher) {
             return false;
         }

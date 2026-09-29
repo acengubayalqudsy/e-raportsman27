@@ -46,10 +46,7 @@ class AssessmentService
                 ?? Semester::where('academic_year_id', $activeYear->id)->first();
         }
 
-        $teacher = $user->teacher ?? Teacher::where('user_id', $user->id)->first();
-        if (!$teacher && !empty($user->email)) {
-            $teacher = Teacher::where('email', $user->email)->first();
-        }
+        $teacher = $user->teacher;
 
         $assignedCourses = [];
         $homeroomClass = null;

@@ -495,4 +495,129 @@ class TeacherIntegrityAndAuthorizationTest extends TestCase
         $this->getJson('/api/v1/academic/rombel/members')->assertStatus(401);
         $this->getJson('/api/v1/academic/course-assignments')->assertStatus(401);
     }
+
+    public function test_email_collision_cannot_grant_authorization(): void
+    {
+        $authService = app(\App\Services\AcademicAuthorizationService::class);
+
+        // Teacher B has CourseAssignment in Class A, but user_id is NULL
+        $teacherB = Teacher::create([
+            'user_id' => null,
+            'name' => 'Guru Unlinked Shared Email',
+            'email' => 'shared_collision@sman27garut.local',
+            'gender' => 'L',
+            'status' => 'Aktif',
+            'nip' => '998877665544332211',
+        ]);
+
+        CourseAssignment::create([
+            'academic_year_id' => $this->academicYear->id,
+            'semester_id' => $this->semester->id,
+            'class_id' => $this->classA->id,
+            'subject_id' => $this->subject1->id,
+            'teacher_id' => $teacherB->id,
+            'weekly_hours' => 2,
+            'role' => 'Utama',
+            'status' => 'Aktif',
+        ]);
+
+        HomeroomAssignment::create([
+            'academic_year_id' => $this->academicYear->id,
+            'semester_id' => $this->semester->id,
+            'class_id' => $this->classA->id,
+            'teacher_id' => $teacherB->id,
+            'status' => 'Aktif',
+        ]);
+
+        // User A has role guru & walikelas, but teacher relation is NULL, and email matches Teacher B
+        $guruRole = Role::where('name', 'guru')->firstOrFail();
+        $walikelasRole = Role::where('name', 'walikelas')->firstOrFail();
+
+        $userA = User::create([
+            'username' => 'user_collision_attacker',
+            'name' => 'User Attacker',
+            'email' => 'shared_collision@sman27garut.local',
+            'password' => 'secret123',
+            'is_active' => true,
+        ]);
+        $userA->roles()->attach($guruRole->id, ['is_primary' => true]);
+        $userA->roles()->attach($walikelasRole->id, ['is_primary' => false]);
+
+        // Assert canonical relation is NULL
+        $this->assertNull($userA->teacher);
+
+        // Security assertion: User A must FAIL CLOSED on all checks
+        $this->assertEmpty($authService->getAllowedClassIds($userA, $this->semester->id));
+        $this->assertFalse($authService->isHomeroomTeacher($userA, $this->classA->id, $this->semester->id));
+        $this->assertFalse($authService->canAccessClass($userA, $this->classA->id, $this->semester->id));
+        $this->assertFalse($authService->canAccessStudent($userA, $this->studentA1, $this->semester->id));
+    }
+
+    public function test_canonical_teacher_relation_grants_authorization_correctly(): void
+    {
+        $authService = app(\App\Services\AcademicAuthorizationService::class);
+
+        // GuruUser1 has Teacher1 canonical relation
+        $this->assertEquals($this->teacher1->id, $this->guruUser1->teacher->id);
+
+        CourseAssignment::firstOrCreate([
+            'academic_year_id' => $this->academicYear->id,
+            'semester_id' => $this->semester->id,
+            'class_id' => $this->classA->id,
+            'subject_id' => $this->subject1->id,
+        ], [
+            'teacher_id' => $this->teacher1->id,
+            'weekly_hours' => 4,
+            'role' => 'Utama',
+            'status' => 'Aktif',
+        ]);
+
+        $allowed = $authService->getAllowedClassIds($this->guruUser1, $this->semester->id);
+        $this->assertContains($this->classA->id, $allowed);
+        $this->assertTrue($authService->canAccessClass($this->guruUser1, $this->classA->id, $this->semester->id));
+    }
+
+    public function test_canonical_homeroom_grants_homeroom_authorization(): void
+    {
+        $authService = app(\App\Services\AcademicAuthorizationService::class);
+
+        HomeroomAssignment::firstOrCreate([
+            'academic_year_id' => $this->academicYear->id,
+            'semester_id' => $this->semester->id,
+            'class_id' => $this->classA->id,
+        ], [
+            'teacher_id' => $this->teacher2->id,
+            'status' => 'Aktif',
+        ]);
+
+        // GuruUser2 is canonical owner of Teacher2
+        $this->assertEquals($this->teacher2->id, $this->guruUser2->teacher->id);
+        $this->assertTrue($authService->isHomeroomTeacher($this->guruUser2, $this->classA->id, $this->semester->id));
+
+        // GuruUser1 is NOT homeroom teacher of Class A
+        $this->assertFalse($authService->isHomeroomTeacher($this->guruUser1, $this->classA->id, $this->semester->id));
+    }
+
+    public function test_kepala_sekolah_and_admin_maintain_unrestricted_class_access(): void
+    {
+        $authService = app(\App\Services\AcademicAuthorizationService::class);
+
+        $kepsekRole = Role::firstOrCreate(['name' => 'kepala_sekolah'], ['display_name' => 'Kepala Sekolah']);
+        $kepsekUser = User::create([
+            'username' => 'test_kepsek_canonical',
+            'name' => 'Kepala Sekolah Test',
+            'email' => 'kepsek_test@local.dev',
+            'password' => 'secret123',
+            'is_active' => true,
+        ]);
+        $kepsekUser->roles()->attach($kepsekRole->id, ['is_primary' => true]);
+
+        // Admin & Kepsek get all classes
+        $allClassIds = SchoolClass::pluck('id')->toArray();
+        $this->assertEquals($allClassIds, $authService->getAllowedClassIds($this->adminUser));
+        $this->assertEquals($allClassIds, $authService->getAllowedClassIds($kepsekUser));
+
+        $this->assertTrue($authService->canAccessClass($this->adminUser, $this->classA->id));
+        $this->assertTrue($authService->canAccessClass($kepsekUser, $this->classA->id));
+    }
 }
