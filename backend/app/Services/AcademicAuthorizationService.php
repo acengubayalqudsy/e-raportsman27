@@ -271,24 +271,10 @@ class AcademicAuthorizationService
             return false;
         }
 
-        $isAssignedHomeroom = HomeroomAssignment::where('teacher_id', $teacher->id)
+        return HomeroomAssignment::where('teacher_id', $teacher->id)
             ->where('class_id', $classId)
             ->where('status', 'Aktif')
             ->when($semesterId, fn($q) => $q->where('semester_id', $semesterId))
-            ->exists();
-
-        if ($isAssignedHomeroom) {
-            return true;
-        }
-
-        // Allow walikelas role or teachers actively assigned to courses in this class
-        if ($user->hasRole('walikelas') && $this->canAccessClass($user, $classId, $semesterId)) {
-            return true;
-        }
-
-        return CourseAssignment::where('teacher_id', $teacher->id)
-            ->where('class_id', $classId)
-            ->where('status', 'Aktif')
             ->exists();
     }
 

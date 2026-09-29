@@ -773,4 +773,68 @@ class ReportCardSupplementaryApiTest extends TestCase
             'absent' => 1,
         ]);
     }
+
+    public function test_inactive_or_cross_semester_homeroom_assignment_denies_class_management(): void
+    {
+        // 1. Create a second class
+        $classB = SchoolClass::create([
+            'academic_year_id' => $this->year->id,
+            'name' => 'X-2',
+            'code' => 'X-2',
+            'grade' => '10',
+            'capacity' => 36,
+            'status' => 'Aktif',
+        ]);
+
+        // Walikelas of class A attempts to manage class B -> rejected
+        $this->actingAs($this->guruWalikelasUser)
+            ->getJson("/api/v1/assessment/attendance/entries?class_id={$classB->id}&semester_id={$this->semester->id}&scope=class")
+            ->assertStatus(422); // Pengguna tidak memiliki penugasan pada kelas dan semester yang dipilih
+
+        // 2. Create another semester and assign teacher as homeroom in other semester only
+        $semester2 = Semester::create([
+            'academic_year_id' => $this->year->id,
+            'name' => 'Genap',
+            'semester_type' => 'Genap',
+            'start_date' => '2026-01-05',
+            'end_date' => '2026-06-20',
+            'status' => 'Nonaktif',
+        ]);
+
+        $teacherUser = User::factory()->create();
+        $guruRole = \App\Models\Role::where('name', 'guru')->first();
+        $teacherUser->roles()->attach($guruRole->id, ['is_primary' => true]);
+        $teacher = Teacher::create([
+            'user_id' => $teacherUser->id,
+            'name' => 'Guru Semester Genap',
+            'gender' => 'L',
+            'status' => 'Aktif',
+        ]);
+
+        // Inactive homeroom assignment in semester 1
+        HomeroomAssignment::create([
+            'academic_year_id' => $this->year->id,
+            'semester_id' => $this->semester->id,
+            'class_id' => $this->class->id,
+            'teacher_id' => $teacher->id,
+            'status' => 'Nonaktif',
+        ]);
+
+        // Active homeroom assignment in semester 2
+        HomeroomAssignment::create([
+            'academic_year_id' => $this->year->id,
+            'semester_id' => $semester2->id,
+            'class_id' => $this->class->id,
+            'teacher_id' => $teacher->id,
+            'status' => 'Aktif',
+        ]);
+
+        $authService = app(\App\Services\AcademicAuthorizationService::class);
+
+        // For current active semester: inactive assignment cannot act as homeroom
+        $this->assertFalse($authService->isHomeroomTeacher($teacherUser, $this->class->id, $this->semester->id));
+
+        // For other semester: active assignment can act as homeroom
+        $this->assertTrue($authService->isHomeroomTeacher($teacherUser, $this->class->id, $semester2->id));
+    }
 }
