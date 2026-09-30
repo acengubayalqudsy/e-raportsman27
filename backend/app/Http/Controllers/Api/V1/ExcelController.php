@@ -50,20 +50,43 @@ class ExcelController extends Controller
         ]);
     }
 
-    public function template(Request $request, string $module): BinaryFileResponse
+    public function template(Request $request, string $module): BinaryFileResponse|JsonResponse
     {
         $this->transfer->authorize($module, $request->user(), $this->context($request), true);
-        return response()->download($this->workbook->write($this->transfer->headers($module), []), "template-{$module}.xlsx")
-            ->deleteFileAfterSend(true);
+        try {
+            $path = $this->workbook->write($this->transfer->headers($module), []);
+            return response()->download($path, "template-{$module}.xlsx", [
+                'Content-Type' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+            ])->deleteFileAfterSend(true);
+        } catch (\Throwable $e) {
+            if ($e instanceof ValidationException || $e instanceof \Symfony\Component\HttpKernel\Exception\HttpExceptionInterface) {
+                throw $e;
+            }
+            return response()->json([
+                'success' => false,
+                'message' => $e->getMessage() ?: 'Gagal membuat template Excel.',
+            ], 500);
+        }
     }
 
-    public function export(Request $request, string $module): BinaryFileResponse
+    public function export(Request $request, string $module): BinaryFileResponse|JsonResponse
     {
         $context = $this->context($request);
-        $rows = $this->transfer->export($module, $request->user(), $context);
-        $path = $this->workbook->write($this->transfer->headers($module), $rows);
-        return response()->download($path, "e-raport-{$module}-" . now()->format('Ymd-His') . '.xlsx')
-            ->deleteFileAfterSend(true);
+        try {
+            $rows = $this->transfer->export($module, $request->user(), $context);
+            $path = $this->workbook->write($this->transfer->headers($module), $rows);
+            return response()->download($path, "e-raport-{$module}-" . now()->format('Ymd-His') . '.xlsx', [
+                'Content-Type' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+            ])->deleteFileAfterSend(true);
+        } catch (\Throwable $e) {
+            if ($e instanceof ValidationException || $e instanceof \Symfony\Component\HttpKernel\Exception\HttpExceptionInterface) {
+                throw $e;
+            }
+            return response()->json([
+                'success' => false,
+                'message' => $e->getMessage() ?: 'Gagal mengekspor data Excel.',
+            ], 500);
+        }
     }
 
     public function preview(Request $request, string $module): JsonResponse

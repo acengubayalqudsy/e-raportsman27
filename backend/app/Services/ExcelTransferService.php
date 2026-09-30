@@ -398,6 +398,9 @@ class ExcelTransferService
             $position = array_search($normalize($label), $sourceHeaders, true);
             if ($position !== false) $columns[$field] = $position;
         }
+        if ($module === 'students' && (!isset($columns['name']) || (!isset($columns['nisn']) && !isset($columns['nis'])))) {
+            throw ValidationException::withMessages(['file' => 'Format file tidak sesuai template Import Siswa. Header wajib: NISN, NIS, Nama, JK, Tempat Lahir, Tanggal Lahir, Kelas, Agama, Status.']);
+        }
         foreach (match ($module) {
             'students' => ['name'], 'teachers' => ['name'], 'scores' => ['assessment_id', 'score'], 'attendance' => ['date', 'status'],
             'competencies' => ['highest_achievement', 'lowest_achievement'],

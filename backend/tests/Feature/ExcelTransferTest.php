@@ -164,4 +164,127 @@ class ExcelTransferTest extends TestCase
         $rows = app(ExcelTransferService::class)->export('students', $teacher, []);
         $this->assertNotContains($student->nisn, array_column($rows, 0));
     }
+
+    public function test_authenticated_admin_students_template_returns_200(): void
+    {
+        $admin = User::where('username', 'dev_admin')->firstOrFail();
+        $response = $this->actingAs($admin)->get('/api/v1/excel/students/template');
+        $response->assertOk();
+        $this->assertStringContainsString('spreadsheetml.sheet', (string) $response->headers->get('content-type'));
+    }
+
+    public function test_unauthenticated_request_students_template_returns_401(): void
+    {
+        $response = $this->get('/api/v1/excel/students/template', [
+            'Accept' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet, application/json',
+        ]);
+        $response->assertStatus(401);
+        $response->assertJson(['message' => 'Unauthenticated.']);
+    }
+
+    public function test_unauthenticated_request_without_json_accept_still_returns_401(): void
+    {
+        $response = $this->get('/api/v1/excel/students/template', [
+            'Accept' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        ]);
+        $response->assertStatus(401);
+    }
+
+    public function test_students_template_headers_exact_and_valid_xlsx(): void
+    {
+        $admin = User::where('username', 'dev_admin')->firstOrFail();
+        $response = $this->actingAs($admin)->get('/api/v1/excel/students/template');
+        $response->assertOk();
+
+        $content = $response->streamedContent();
+        $tempFile = tempnam(sys_get_temp_dir(), 'test_tpl_');
+        file_put_contents($tempFile, $content);
+        try {
+            $parsed = app(ExcelWorkbookService::class)->read($tempFile);
+            $this->assertSame('Data', $parsed['sheet']);
+            $this->assertSame(
+                ['NISN', 'NIS', 'Nama', 'JK', 'Tempat Lahir', 'Tanggal Lahir', 'Kelas', 'Agama', 'Status'],
+                $parsed['rows'][0]
+            );
+            $this->assertCount(1, $parsed['rows']); // Header row only, 0 data rows
+        } finally {
+            if (file_exists($tempFile)) unlink($tempFile);
+        }
+    }
+
+    public function test_other_templates_still_work(): void
+    {
+        $admin = User::where('username', 'dev_admin')->firstOrFail();
+        $this->actingAs($admin);
+        $this->get('/api/v1/excel/teachers/template')->assertOk();
+        $this->get('/api/v1/excel/classes/template')->assertOk();
+        $this->get('/api/v1/excel/subjects/template')->assertOk();
+    }
+
+    public function test_local_preview_is_read_only_and_does_not_mutate_database(): void
+    {
+        $admin = User::where('username', 'dev_admin')->firstOrFail();
+        $student = Student::firstOrFail();
+        $initialName = $student->name;
+        $studentCountBefore = Student::count();
+
+        $path = app(ExcelWorkbookService::class)->write(
+            ['NISN', 'NIS', 'Nama', 'JK', 'Tempat Lahir', 'Tanggal Lahir', 'Kelas', 'Agama', 'Status'],
+            [[$student->nisn, $student->nis, 'Nama Baru Belum Disimpan', $student->gender, 'Bandung', '2008-01-01', $student->current_class_name, 'Islam', 'Aktif']]
+        );
+
+        try {
+            $upload = new UploadedFile($path, 'siswa.xlsx', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', null, true);
+            $response = $this->actingAs($admin)->postJson('/api/v1/excel/students/preview', [
+                'source' => 'local',
+                'file' => $upload,
+            ]);
+
+            $response->assertOk();
+            $this->assertSame($studentCountBefore, Student::count(), 'Preview must not alter student count');
+            $this->assertSame($initialName, $student->fresh()->name, 'Preview must not mutate student data');
+        } finally {
+            if (file_exists($path)) unlink($path);
+        }
+    }
+
+    public function test_invalid_student_workbook_headers_returns_422_with_clear_message(): void
+    {
+        $admin = User::where('username', 'dev_admin')->firstOrFail();
+        // Simulate arbitrary workbook (e.g. Legger format with unrelated columns)
+        $path = app(ExcelWorkbookService::class)->write(
+            ['No', 'Nama Siswa', 'PAI', 'PPKn', 'BIN', 'MTK', 'Rata-rata'],
+            [['1', 'Siswa A', '85', '80', '90', '78', '83.25']]
+        );
+
+        try {
+            $upload = new UploadedFile($path, 'legger_incompatible.xlsx', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', null, true);
+            $response = $this->actingAs($admin)->postJson('/api/v1/excel/students/preview', [
+                'source' => 'local',
+                'file' => $upload,
+            ]);
+
+            $response->assertStatus(422);
+            $response->assertJsonValidationErrors(['file']);
+            $this->assertStringContainsString('Format file tidak sesuai template Import Siswa', $response->json('errors.file.0'));
+        } finally {
+            if (file_exists($path)) unlink($path);
+        }
+    }
+
+    public function test_unsupported_module_preview_returns_422(): void
+    {
+        $admin = User::where('username', 'dev_admin')->firstOrFail();
+        $path = app(ExcelWorkbookService::class)->write(['Col1'], [['Val1']]);
+        try {
+            $upload = new UploadedFile($path, 'dummy.xlsx', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', null, true);
+            $response = $this->actingAs($admin)->postJson('/api/v1/excel/unsupported_module/preview', [
+                'source' => 'local',
+                'file' => $upload,
+            ]);
+            $response->assertStatus(422);
+        } finally {
+            if (file_exists($path)) unlink($path);
+        }
+    }
 }

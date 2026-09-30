@@ -258,17 +258,21 @@ export function MasterImportModal({ entityLabel, module, context = {}, onClose, 
     setMicrosoft(status)
     if (status.connected) setCloudFiles(await excelService.microsoftFiles(folderId))
   })
-  const selectCloudFile = (item) => run(async () => {
-    if (item.folder) {
-      setFolderId(item.id)
-      setCloudFiles(await excelService.microsoftFiles(item.id))
-      return
-    }
-    setSelectedFile(item)
-    const available = await excelService.microsoftSheets(item.id)
-    setSheets(available)
-    setSheet(available[0]?.name || '')
-  })
+  const selectCloudFile = (item) => {
+    setError('')
+    setPreview(null)
+    return run(async () => {
+      if (item.folder) {
+        setFolderId(item.id)
+        setCloudFiles(await excelService.microsoftFiles(item.id))
+        return
+      }
+      setSelectedFile(item)
+      const available = await excelService.microsoftSheets(item.id)
+      setSheets(available)
+      setSheet(available[0]?.name || '')
+    })
+  }
   const buildPreview = () => run(async () => {
     const result = source === 'local'
       ? await excelService.previewLocal(module, file, context)
@@ -294,11 +298,11 @@ export function MasterImportModal({ entityLabel, module, context = {}, onClose, 
     <MasterModalFrame description="Periksa hasil pencocokan sebelum menyimpan perubahan." onClose={onClose} size="large" title={`Import Excel ${entityLabel}`}>
       <div className="master-import-body">
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 12 }}>
-          <Button className="master-button secondary" onClick={() => { setSource('local'); setPreview(null) }}>Import dari Perangkat</Button>
-          <Button className="master-button secondary" onClick={() => { setSource('onedrive'); setPreview(null); loadMicrosoft() }}>Import dari Microsoft 365</Button>
-          <button className="master-template-link" onClick={() => run(() => excelService.download(module, 'template', context))} type="button"><Icon name="download" />Download Template Excel</button>
+          <Button className="master-button secondary" onClick={() => { setError(''); setSource('local'); setPreview(null) }}>Import dari Perangkat</Button>
+          <Button className="master-button secondary" onClick={() => { setError(''); setSource('onedrive'); setPreview(null); loadMicrosoft() }}>Import dari Microsoft 365</Button>
+          <button className="master-template-link" onClick={() => { setError(''); run(() => excelService.download(module, 'template', context)) }} type="button"><Icon name="download" />Download Template Excel</button>
         </div>
-        {!preview && source === 'local' && <label className="master-file-drop"><Icon name="download" /><strong>{file?.name || 'Pilih file Excel'}</strong><span>Format .xlsx, maksimum 5 MB</span><input accept=".xlsx" onChange={(event) => setFile(event.target.files?.[0] || null)} type="file" /></label>}
+        {!preview && source === 'local' && <label className="master-file-drop"><Icon name="download" /><strong>{file?.name || 'Pilih file Excel'}</strong><span>Format .xlsx, maksimum 5 MB</span><input accept=".xlsx" onChange={(event) => { const newFile = event.target.files?.[0] || null; setError(''); setPreview(null); setFile(newFile) }} type="file" /></label>}
         {!preview && source === 'onedrive' && <div>
           {!microsoft?.configured && <p>Microsoft 365 belum dikonfigurasi oleh administrator.</p>}
           {microsoft?.configured && !microsoft.connected && <Button className="master-button secondary" onClick={() => excelService.connectMicrosoft()}>Login Microsoft</Button>}

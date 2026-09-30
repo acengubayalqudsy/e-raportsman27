@@ -11,6 +11,9 @@ class ExcelWorkbookService
 {
     public function read(string $path, ?string $sheetName = null): array
     {
+        if (!class_exists(ZipArchive::class)) {
+            throw new RuntimeException('Ekstensi PHP ZipArchive tidak tersedia di server.');
+        }
         $zip = new ZipArchive();
         if ($zip->open($path) !== true) {
             throw new RuntimeException('File bukan workbook .xlsx yang valid.');
@@ -104,7 +107,17 @@ class ExcelWorkbookService
 
     public function write(array $headers, array $rows): string
     {
-        $path = tempnam(sys_get_temp_dir(), 'eraport_xlsx_');
+        if (!class_exists(ZipArchive::class)) {
+            throw new RuntimeException('Ekstensi PHP ZipArchive tidak tersedia di server.');
+        }
+        $tempDir = sys_get_temp_dir();
+        if (!is_dir($tempDir) || !is_writable($tempDir)) {
+            throw new RuntimeException('Direktori temporary server tidak dapat ditulis.');
+        }
+        $path = tempnam($tempDir, 'eraport_xlsx_');
+        if ($path === false) {
+            throw new RuntimeException('Gagal membuat file temporary.');
+        }
         $zip = new ZipArchive();
         if ($zip->open($path, ZipArchive::CREATE | ZipArchive::OVERWRITE) !== true) {
             throw new RuntimeException('Gagal membuat file Excel.');

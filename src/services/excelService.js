@@ -1,38 +1,39 @@
-import { API_BASE_URL, getCsrfCookie } from './apiClient.js'
+import apiClient, { API_BASE_URL } from './apiClient.js'
 
 const base = `${API_BASE_URL}/api/v1/excel`
 
-function cookie(name) {
-  const item = document.cookie.split('; ').find((part) => part.startsWith(`${name}=`))
-  return item ? decodeURIComponent(item.slice(name.length + 1)) : ''
-}
-
 async function call(path, { method = 'GET', body } = {}) {
-  const headers = { Accept: 'application/json' }
-  if (method !== 'GET') {
-    await getCsrfCookie()
-    headers['X-XSRF-TOKEN'] = cookie('XSRF-TOKEN')
-    if (!(body instanceof FormData)) {
-      headers['Content-Type'] = 'application/json'
-      body = JSON.stringify(body)
-    }
+  const endpoint = `/api/v1/excel${path}`
+  const response = method === 'POST'
+    ? await apiClient.post(endpoint, body)
+    : await apiClient.get(endpoint)
+
+  if (!response.success) {
+    const detail = response.errors ? Object.values(response.errors).flat().join(' ') : ''
+    throw new Error(detail || response.message || `Permintaan Excel gagal (${response.status}).`)
   }
-  const response = await fetch(`${base}${path}`, { method, headers, body, credentials: 'include' })
-  const result = await response.json().catch(() => ({}))
-  if (!response.ok) {
-    const detail = Object.values(result.errors || {}).flat().join(' ')
-    throw new Error(detail || result.message || `Permintaan Excel gagal (${response.status}).`)
-  }
-  return result.data
+  return response.data
 }
 
 async function download(module, action, context = {}) {
   const url = new URL(`${base}/${module}/${action}`)
-  Object.entries(context).forEach(([key, value]) => { if (value !== undefined && value !== null && value !== '') url.searchParams.set(key, value) })
-  const response = await fetch(url, { credentials: 'include', headers: { Accept: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' } })
+  Object.entries(context).forEach(([key, value]) => {
+    if (value !== undefined && value !== null && value !== '') url.searchParams.set(key, value)
+  })
+  const response = await fetch(url, {
+    credentials: 'include',
+    headers: {
+      Accept: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet, application/json',
+    },
+  })
   if (!response.ok) {
+    if (response.status === 401 && typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('auth:session-expired'))
+      throw new Error('Sesi Anda telah berakhir atau belum terautentikasi. Silakan masuk kembali.')
+    }
     const result = await response.json().catch(() => ({}))
-    throw new Error(result.message || `Download gagal (${response.status}).`)
+    const detail = result.errors ? Object.values(result.errors).flat().join(' ') : ''
+    throw new Error(detail || result.message || `Download gagal (${response.status}).`)
   }
   const blobUrl = URL.createObjectURL(await response.blob())
   const link = document.createElement('a')
@@ -47,23 +48,37 @@ async function download(module, action, context = {}) {
 const excelService = {
   download,
   async downloadSavedReport(id) {
-    const response = await fetch(`${base.replace('/excel', '/reports')}/${id}/excel`, { credentials: 'include' })
+    const response = await fetch(`${API_BASE_URL}/api/v1/reports/${id}/excel`, {
+      credentials: 'include',
+      headers: {
+        Accept: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet, application/json',
+      },
+    })
     if (!response.ok) {
+      if (response.status === 401 && typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('auth:session-expired'))
+        throw new Error('Sesi Anda telah berakhir atau belum terautentikasi. Silakan masuk kembali.')
+      }
       const result = await response.json().catch(() => ({}))
-      throw new Error(result.message || `Download laporan gagal (${response.status}).`)
+      const detail = result.errors ? Object.values(result.errors).flat().join(' ') : ''
+      throw new Error(detail || result.message || `Download laporan gagal (${response.status}).`)
     }
     const url = URL.createObjectURL(await response.blob())
     const link = document.createElement('a')
     link.href = url
-    link.download = `laporan-${id}.xlsx`
+    link.download = response.headers.get('content-disposition')?.match(/filename="?([^";]+)"?/)?.[1] || `laporan-${id}.xlsx`
+    document.body.append(link)
     link.click()
+    link.remove()
     window.setTimeout(() => URL.revokeObjectURL(url), 1000)
   },
   previewLocal(module, file, context = {}) {
     const body = new FormData()
     body.append('source', 'local')
     body.append('file', file)
-    Object.entries(context).forEach(([key, value]) => { if (value !== undefined && value !== null && value !== '') body.append(key, value) })
+    Object.entries(context).forEach(([key, value]) => {
+      if (value !== undefined && value !== null && value !== '') body.append(key, value)
+    })
     return call(`/${module}/preview`, { method: 'POST', body })
   },
   previewOneDrive(module, fileId, sheet, fileName, context = {}) {
