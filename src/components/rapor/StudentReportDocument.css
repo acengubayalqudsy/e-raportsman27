@@ -1,0 +1,615 @@
+/* ==========================================================================
+   OFFICIAL SMAN 27 GARUT A4 REPORT CARD DOCUMENT
+   Physical dimensions: 210mm x 297mm portrait (ISO 216 A4)
+   Strict visual match against authentic school reference document
+   ========================================================================== */
+
+/* Universal border-box for report document */
+.student-report-document-container,
+.student-report-document-container *,
+.student-report-document-container *::before,
+.student-report-document-container *::after {
+  box-sizing: border-box;
+}
+
+.student-report-document-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: 100%;
+  min-width: 0;
+}
+
+/* Toolbar kontrol */
+.student-report-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  max-width: 820px;
+  padding: 8px 14px;
+  margin-bottom: 14px;
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+}
+
+.student-report-toolbar-info {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.student-report-toolbar-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: #1e293b;
+}
+
+.student-report-toolbar-badge {
+  font-size: 11px;
+  font-weight: 500;
+  padding: 2px 8px;
+  border-radius: 4px;
+  background: #f1f5f9;
+  color: #475569;
+}
+
+.student-report-toolbar-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.student-report-zoom-btn {
+  font-size: 11px;
+  font-weight: 500;
+  padding: 4px 10px;
+  border: 1px solid #cbd5e1;
+  background: #ffffff;
+  color: #334155;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.student-report-zoom-btn:hover {
+  background: #f8fafc;
+  border-color: #94a3b8;
+}
+
+.student-report-zoom-btn.active {
+  background: #0284c7;
+  border-color: #0284c7;
+  color: #ffffff;
+}
+
+/* Stack: Gray workspace containing centered A4 sheets */
+.report-document-stack,
+.student-report-document-stack {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 24px;
+  width: 100%;
+  min-width: 0;
+  padding: 24px 16px 36px;
+  background: #525659;
+  border-radius: 8px;
+  overflow-x: auto;
+  overflow-y: visible;
+}
+
+/* Frame per sheet */
+.report-page-frame,
+.student-report-page-frame {
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  width: 100%;
+  max-width: 100%;
+  overflow: visible;
+  flex: none;
+}
+
+.student-report-page-scaler {
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+}
+
+/* ==========================================================================
+   1. BOX MODEL A4 (EXACT 210mm x 297mm INCLUDING PADDING)
+   ========================================================================== */
+.report-document-page,
+.student-report-page {
+  width: 210mm;
+  min-width: 210mm;
+  max-width: 210mm;
+  min-height: 297mm;
+  box-sizing: border-box;
+  padding: 15mm 15mm 12mm;
+  margin: 0 auto;
+  overflow: hidden;
+  background: #ffffff;
+  color: #000000;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.28);
+  font-family: Arial, Helvetica, sans-serif;
+  font-size: 8pt;
+  line-height: 1.2;
+  display: block; /* NATURAL DOCUMENT FLOW - NO SPACE-BETWEEN STRETCH! */
+}
+
+/* ==========================================================================
+   2. CONTENT AREA (STRICTLY CONFINED WITHIN 180mm AVAILABLE WIDTH)
+   ========================================================================== */
+.student-report-content {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  display: block; /* NATURAL DOCUMENT FLOW */
+}
+
+.student-report-page > *,
+.student-report-content > * {
+  max-width: 100%;
+  min-width: 0;
+}
+
+/* ==========================================================================
+   3. IDENTITAS PESERTA DIDIK (COMPACT & PROPORTIONAL)
+   ========================================================================== */
+.student-report-identity {
+  width: 100%;
+  max-width: 100%;
+  display: grid;
+  grid-template-columns: minmax(0, 1.35fr) minmax(0, 1fr);
+  column-gap: 8mm;
+  margin: 0 0 3.5mm;
+  font-size: 8pt;
+  line-height: 1.15;
+  font-weight: 700;
+}
+
+.student-report-identity dl {
+  margin: 0;
+  min-width: 0;
+  width: 100%;
+}
+
+.student-report-identity dl > div {
+  display: grid;
+  grid-template-columns: 28mm 2mm minmax(0, 1fr);
+  gap: 1mm;
+  min-height: 3.8mm;
+  align-items: start;
+}
+
+.student-report-identity dl:last-child > div {
+  grid-template-columns: 20mm 2mm minmax(0, 1fr);
+}
+
+.student-report-identity dt,
+.student-report-identity dd {
+  margin: 0;
+  font-size: 8pt;
+}
+
+.student-report-identity dd {
+  white-space: normal;
+  overflow-wrap: break-word;
+  word-break: normal;
+}
+
+/* ==========================================================================
+   4. TABEL AKADEMIK (COLGROUP 8% + 31% + 13% + 48% = 100%)
+   ========================================================================== */
+.student-report-table {
+  width: 100%;
+  max-width: 100%;
+  table-layout: fixed;
+  border-collapse: collapse;
+  margin: 0;
+  color: #000000;
+  background: #ffffff;
+}
+
+.student-report-table th,
+.student-report-table td {
+  border: 0.35mm solid #000000;
+  color: #000000;
+  background: #ffffff;
+  overflow-wrap: break-word;
+  word-break: normal;
+  white-space: normal;
+}
+
+.student-report-table th {
+  font-weight: 700;
+  height: 8.5mm;
+  font-size: 7.5pt;
+  text-align: center;
+  vertical-align: middle;
+  padding: 1.2mm 1mm;
+}
+
+.student-report-grades {
+  width: 100%;
+}
+
+/* Page 1 & Page 2 standard row height */
+.student-report-grades tbody tr {
+  min-height: 12mm;
+  break-inside: avoid;
+  page-break-inside: avoid;
+}
+
+.student-report-grades td {
+  padding: 2.2mm 2mm;
+  font-size: 7.5pt;
+  line-height: 1.2;
+}
+
+/* Page 3 compact academic table for subject 11+ */
+.student-report-academic-table-compact {
+  margin-bottom: 0;
+}
+
+.student-report-academic-table-compact th {
+  padding: 1.5mm 1mm;
+  font-size: 8pt;
+  height: auto;
+}
+
+.student-report-academic-table-compact tbody tr {
+  min-height: 0;
+  height: auto;
+}
+
+.student-report-academic-table-compact td {
+  padding: 1.5mm 1mm;
+  font-size: 7.5pt;
+  line-height: 1.15;
+  height: auto;
+  min-height: 0;
+}
+
+/* Nomor dan Nilai Akhir: Center */
+.student-report-table td.col-no,
+.student-report-table td.col-nilai,
+.student-report-grades td:first-child,
+.student-report-grades td:nth-child(3) {
+  text-align: center;
+  vertical-align: middle;
+  font-weight: 700;
+}
+
+/* Mata Pelajaran: Bold, Left, Top */
+.student-report-table td.col-mapel,
+.student-report-grades td:nth-child(2) {
+  text-align: left;
+  vertical-align: top;
+  font-weight: 700;
+}
+
+/* Capaian Kompetensi: Regular, Left, Top */
+.student-report-table td.col-capaian,
+.student-report-grades td:last-child {
+  text-align: left;
+  vertical-align: top;
+  font-weight: 400;
+  line-height: 1.2;
+}
+
+/* ==========================================================================
+   5. DATA PELENGKAP HALAMAN 3 (RAPAT & TEPAT MENGIKUTI REFERENSI)
+   ========================================================================== */
+.student-report-supplementary {
+  display: block; /* NATURAL VERTICAL FLOW */
+  width: 100%;
+  max-width: 100%;
+}
+
+/* 3. Kokurikuler */
+.student-report-cocurricular-section {
+  margin-top: 2.5mm;
+  width: 100%;
+  break-inside: avoid;
+  page-break-inside: avoid;
+}
+
+.student-report-cocurricular-title {
+  font-size: 7.5pt;
+  font-weight: 700;
+  text-align: center;
+  padding: 1.2mm 1mm;
+  margin: 0;
+  border: 0.35mm solid #000000;
+  border-bottom: 0;
+  background: #ffffff;
+}
+
+.student-report-cocurricular-box {
+  width: 100%;
+  min-height: 10mm;
+  padding: 1.5mm 2mm;
+  border: 0.35mm solid #000000;
+  font-size: 7pt;
+  line-height: 1.2;
+  white-space: pre-wrap;
+  overflow-wrap: break-word;
+  word-break: normal;
+  background: #ffffff;
+}
+
+/* 4. Ekstrakurikuler (4 Baris Kompak) */
+.student-report-extracurricular-section {
+  margin-top: 2.5mm;
+  width: 100%;
+  break-inside: avoid;
+  page-break-inside: avoid;
+}
+
+.student-report-small-table {
+  width: 100% !important;
+  max-width: 100% !important;
+  font-size: 7pt;
+  border-collapse: collapse !important;
+  table-layout: fixed !important;
+  background: #ffffff !important;
+  color: #000000 !important;
+}
+
+.student-report-small-table th,
+.student-report-small-table td {
+  border: 0.35mm solid #000000 !important;
+  color: #000000 !important;
+  background: #ffffff !important;
+  padding: 1mm 1.2mm;
+  line-height: 1.15;
+  height: auto;
+  min-height: 0;
+  text-transform: none !important;
+}
+
+.student-report-small-table th {
+  font-weight: 700;
+  text-align: center;
+  font-size: 7pt;
+}
+
+.student-report-extracurricular-table td:first-child,
+.student-report-extracurricular-table td:nth-child(3) {
+  text-align: center;
+}
+
+/* Global report table reset against App.css min-width: 760px */
+.student-report-document-container table,
+.student-report-page table {
+  min-width: 0 !important;
+}
+
+/* 5. Ketidakhadiran (Tabel Kecil di Sisi Kiri) */
+.student-report-attendance-section {
+  width: 48mm !important;
+  max-width: 48mm !important;
+  min-width: 0 !important;
+  margin-top: 2.5mm;
+  margin-left: 0 !important;
+  margin-right: auto !important;
+  display: block !important;
+  break-inside: avoid;
+  page-break-inside: avoid;
+}
+
+.student-report-attendance-table {
+  width: 48mm !important;
+  max-width: 48mm !important;
+  min-width: 0 !important;
+  font-size: 7pt;
+  border-collapse: collapse !important;
+  table-layout: fixed !important;
+  background: #ffffff !important;
+  color: #000000 !important;
+  margin: 0 !important;
+}
+
+.student-report-attendance-table th,
+.student-report-attendance-table td {
+  border: 0.35mm solid #000000 !important;
+  color: #000000 !important;
+  background: #ffffff !important;
+  padding: 0.8mm 1.2mm;
+  line-height: 1.2;
+  height: auto;
+  text-transform: none !important;
+  vertical-align: middle;
+}
+
+.student-report-attendance-table th {
+  text-align: center;
+  font-weight: 700;
+  font-size: 7pt;
+}
+
+.student-report-attendance-table td:first-child {
+  text-align: left;
+  white-space: nowrap;
+}
+
+.student-report-attendance-table td.col-val,
+.student-report-attendance-table td.col-unit {
+  text-align: center;
+  white-space: nowrap;
+}
+
+/* 6. Catatan Wali Kelas */
+.student-report-note-section {
+  margin-top: 2.5mm;
+  width: 100%;
+  break-inside: avoid;
+  page-break-inside: avoid;
+}
+
+.student-report-note-title {
+  font-size: 7.5pt;
+  font-weight: 700;
+  text-align: left;
+  margin: 0 0 1mm;
+}
+
+.student-report-note-box {
+  width: 100%;
+  min-height: 12mm;
+  padding: 1.5mm 2mm;
+  border: 0.35mm solid #000000;
+  font-size: 7pt;
+  line-height: 1.2;
+  white-space: pre-wrap;
+  overflow-wrap: break-word;
+  word-break: normal;
+  background: #ffffff;
+}
+
+/* ==========================================================================
+   6. TANDA TANGAN (RAPAT LANGSUNG SETELAH CATATAN WALI KELAS)
+   ========================================================================== */
+.student-report-signatures {
+  margin-top: 4mm;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  column-gap: 25mm;
+  row-gap: 3mm;
+  width: 100%;
+  max-width: 100%;
+  font-size: 7.5pt;
+  line-height: 1.2;
+  text-align: center;
+  break-inside: avoid;
+  page-break-inside: avoid;
+}
+
+.student-report-signatures > div {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  min-height: 25mm;
+}
+
+.student-report-sig-line {
+  margin-top: 15mm;
+  font-weight: 700;
+  letter-spacing: 1px;
+}
+
+.student-report-signatures strong {
+  margin-top: 15mm;
+  font-weight: 700;
+  display: block;
+}
+
+.student-report-principal {
+  grid-column: 1 / -1;
+  width: 45%;
+  justify-self: center;
+  margin-top: -1mm;
+  text-align: center;
+}
+
+.student-report-principal strong {
+  margin-top: 13mm;
+}
+
+/* ==========================================================================
+   7. PRINT ENGINE (EXACT A4 READY-TO-PRINT)
+   ========================================================================== */
+@media print {
+  @page {
+    size: A4 portrait;
+    margin: 0;
+  }
+
+  /* Sembunyikan chrome dan kontrol UI */
+  .student-report-toolbar,
+  .report-preview-toolbar,
+  .report-secondary-workspace > header,
+  .report-secondary-workspace > div:not(.student-report-document-container),
+  .report-secondary-workspace > p {
+    display: none !important;
+  }
+
+  .student-report-document-container {
+    display: block !important;
+    width: 210mm !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    background: transparent !important;
+  }
+
+  .report-document-stack,
+  .student-report-document-stack {
+    display: block !important;
+    width: 210mm !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    overflow: visible !important;
+    background: transparent !important;
+    gap: 0 !important;
+    border-radius: 0 !important;
+  }
+
+  .report-page-frame,
+  .student-report-page-frame {
+    display: block !important;
+    position: static !important;
+    width: 210mm !important;
+    height: 297mm !important;
+    overflow: visible !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    break-after: page !important;
+    page-break-after: always !important;
+  }
+
+  .report-page-frame:last-child,
+  .student-report-page-frame:last-child {
+    break-after: auto !important;
+    page-break-after: auto !important;
+  }
+
+  .student-report-page-scaler {
+    display: block !important;
+    position: static !important;
+    width: 210mm !important;
+    height: 297mm !important;
+    transform: none !important;
+  }
+
+  .report-document-page,
+  .student-report-page {
+    transform: none !important;
+    scale: none !important;
+    width: 210mm !important;
+    min-width: 210mm !important;
+    max-width: 210mm !important;
+    min-height: 297mm !important;
+    height: 297mm !important;
+    box-sizing: border-box !important;
+    margin: 0 !important;
+    padding: 15mm 15mm 12mm !important;
+    box-shadow: none !important;
+    border: 0 !important;
+    background: #ffffff !important;
+    color: #000000 !important;
+    page-break-after: always !important;
+    break-after: page !important;
+    display: block !important;
+  }
+
+  .student-report-page:last-child,
+  .report-document-page:last-child {
+    page-break-after: auto !important;
+    break-after: auto !important;
+  }
+}

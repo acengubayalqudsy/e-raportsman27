@@ -1,3 +1,8 @@
+/* Desktop safety: hide mobile summary section header on desktop */
+.master-summary-header {
+  display: none;
+}
+
 .master-page {
   display: flex;
   min-width: 0;
@@ -777,33 +782,1550 @@
   .master-filter-grid.student-filters { grid-template-columns: repeat(2, minmax(150px, 1fr)); }
 }
 
-@media (max-width: 720px) {
-  .master-page { gap: 15px; }
-  .master-header { align-items: flex-start; flex-direction: column; }
-  .master-header h2 { font-size: 22px; }
-  .master-breadcrumb { max-width: 100%; overflow-x: auto; }
-  .master-page .master-summary-grid { grid-template-columns: 1fr; gap: 11px; }
-  .master-data-actions { align-items: flex-start; flex-direction: column; }
-  .master-data-actions > div:last-child { width: 100%; margin-left: 0; flex-wrap: wrap; }
-  .master-data-actions .master-button { flex: 1; }
-  .master-bulk-toolbar { align-items: flex-start; flex-direction: column; }
-  .master-pagination { align-items: flex-start; flex-direction: column; }
-  .master-pagination-controls { max-width: 100%; flex-wrap: wrap; }
-  .master-detail-sections { grid-template-columns: 1fr; }
-  .master-toast { right: 16px; bottom: 16px; }
+/* ==============================================================
+   PHASE UI-3: Mobile / Desktop Component Visibility
+   ============================================================== */
+.master-mobile-module-grid-wrapper,
+.master-mobile-toolbar-wrapper,
+.master-mobile-record-container,
+.master-mobile-pagination {
+  display: none;
 }
 
-@media (max-width: 520px) {
-  .master-filter-grid,
-  .master-filter-grid.student-filters { grid-template-columns: 1fr; }
-  .master-data-actions > div:last-child,
+@media (min-width: 768px) {
+  .master-mobile-module-grid-wrapper,
+  .master-mobile-toolbar-wrapper,
+  .master-mobile-record-container,
+  .master-mobile-pagination {
+    display: none !important;
+  }
+}
+
+.master-desktop-toolbar-container,
+.master-desktop-table-container {
+  display: block;
+}
+
+.master-desktop-pagination {
+  display: flex;
+}
+
+
+/* ==============================================================
+   PHASE UI-3: MOBILE MASTER DATA (<=767px)
+   Edlink-Inspired Adaptive Layout
+   ============================================================== */
+@media (max-width: 767px) {
+  /* 1. Page Shell & Spacing */
+  .master-page {
+    padding: 10px 12px 80px;
+    gap: 8px;
+  }
+
+  .master-header {
+    margin-bottom: 2px;
+    padding-bottom: 0;
+  }
+
+  /* 2. Hide Desktop Breadcrumb, Title & Desktop Elements */
+  .master-breadcrumb,
+  .master-desktop-title,
+  .master-desktop-tabs-wrapper,
+  .master-desktop-toolbar-container,
+  .master-desktop-table-container,
+  .master-desktop-pagination,
+  .master-bulk-toolbar {
+    display: none !important;
+  }
+
+  /* 3. Show Mobile Presentation Elements */
+
+  .master-mobile-toolbar-wrapper {
+    display: block;
+    margin-bottom: 12px;
+  }
+
+  .master-mobile-record-container {
+    display: block;
+  }
+
+  .master-mobile-pagination {
+    display: flex;
+  }
+
+  /* 4. Edlink-Style Module Section Card (Consistent with Dashboard Menu Utama) */
+  .master-mobile-module-grid-wrapper {
+    display: block;
+    background: #FFFFFF;
+    border-radius: 18px;
+    padding: 18px 16px 20px;
+    border: 1px solid rgba(0, 0, 0, 0.05);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.025);
+    margin-bottom: 12px;
+  }
+
+  .master-mobile-grid-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: 16px;
+    padding: 0;
+  }
+
+  .master-mobile-grid-header-copy {
+    display: flex;
+    flex-direction: column;
+  }
+
+  .master-mobile-grid-title {
+    font-size: 16px;
+    font-weight: 700;
+    color: #0F172A;
+    margin: 0;
+    letter-spacing: -0.01em;
+  }
+
+  .master-mobile-grid-desc {
+    font-size: 11.5px;
+    color: #64748B;
+    margin-top: 2px;
+    display: block;
+  }
+
+  .master-mobile-grid-toggle {
+    background: transparent;
+    border: none;
+    font-size: 12px;
+    font-weight: 600;
+    color: #008520;
+    padding: 2px 8px;
+    cursor: pointer;
+    border-radius: 6px;
+    white-space: nowrap;
+    transition: background-color 0.15s ease;
+  }
+
+  .master-mobile-grid-toggle:hover {
+    background: #E7F7EC;
+  }
+
+  .master-mobile-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 16px 6px;
+    justify-items: center;
+    align-items: start;
+  }
+
+  .master-mobile-grid-item {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-decoration: none;
+    gap: 7px;
+    width: 100%;
+    min-width: 0;
+    cursor: pointer;
+    background: transparent !important;
+    border: none !important;
+    box-shadow: none !important;
+    border-radius: 0 !important;
+    padding: 0 !important;
+    -webkit-tap-highlight-color: transparent;
+    transition: transform 0.15s ease;
+  }
+
+  .master-mobile-grid-item:active {
+    transform: scale(0.94);
+  }
+
+  .master-mobile-grid-item.last-item-balanced {
+    grid-column: 2 / 3;
+  }
+
+  .master-mobile-icon-box {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 50px;
+    height: 50px;
+    border-radius: 14px;
+    transition: transform 0.18s ease;
+    flex-shrink: 0;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.03);
+  }
+
+  .master-mobile-icon-box .ui-icon {
+    width: 24px;
+    height: 24px;
+  }
+
+  .master-mobile-grid-item.active .master-mobile-icon-box {
+    background: #008520 !important;
+    color: #FFFFFF !important;
+    box-shadow: 0 4px 12px rgba(0, 133, 32, 0.25) !important;
+  }
+
+  .master-mobile-grid-item.active .master-mobile-icon-box .ui-icon {
+    color: #FFFFFF !important;
+  }
+
+  .master-mobile-item-label {
+    font-size: 11.5px;
+    font-weight: 600;
+    color: #1E293B;
+    text-align: center;
+    line-height: 1.25;
+    letter-spacing: -0.01em;
+    overflow: hidden;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    max-height: 2.6em;
+  }
+
+  .master-mobile-grid-item.active .master-mobile-item-label {
+    color: #008520;
+    font-weight: 700;
+  }
+
+  /* 5. Compact Summary Section Card (Consistent with Pilih Data) */
+  .master-mobile-summary-section,
+  .master-summary-wrapper {
+    display: block;
+    background: #FFFFFF;
+    border-radius: 18px;
+    padding: 18px 16px 20px;
+    border: 1px solid rgba(0, 0, 0, 0.05);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.025);
+    margin-bottom: 12px;
+  }
+
+  .master-summary-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: 14px;
+    padding: 0;
+  }
+
+  .master-summary-header-copy {
+    display: flex;
+    flex-direction: column;
+  }
+
+  .master-summary-title {
+    font-size: 16px;
+    font-weight: 700;
+    color: #0F172A;
+    margin: 0;
+    letter-spacing: -0.01em;
+  }
+
+  .master-summary-desc {
+    font-size: 11.5px;
+    color: #64748B;
+    margin-top: 2px;
+    display: block;
+  }
+
+  .master-page .master-summary-grid,
+  .master-room-view .master-summary-grid,
+  .master-summary-grid {
+    display: grid !important;
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    gap: 8px !important;
+    margin-bottom: 0 !important;
+  }
+
+  .master-summary-grid > *:last-child:nth-child(odd) {
+    grid-column: 1 / -1 !important;
+  }
+
+  .master-page .master-summary-card {
+    background: #F8FAFC !important;
+    border: 1px solid #E2E8F0 !important;
+    box-shadow: none !important;
+    min-height: 70px !important;
+    height: auto !important;
+    padding: 10px 12px !important;
+    gap: 10px !important;
+    border-radius: 12px !important;
+    display: flex !important;
+    align-items: center !important;
+    transition: background 0.15s ease;
+  }
+
+  .master-page .master-summary-card:hover,
+  .master-page .master-summary-card:active {
+    background: #F1F5F9 !important;
+  }
+
+  .master-page .master-summary-icon {
+    width: 38px !important;
+    height: 38px !important;
+    flex: 0 0 38px !important;
+    border-radius: 10px !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+  }
+
+  .master-page .master-summary-icon .ui-icon {
+    width: 19px !important;
+    height: 19px !important;
+  }
+
+  .master-page .master-summary-copy {
+    display: flex !important;
+    flex-direction: column !important;
+    min-width: 0 !important;
+  }
+
+  .master-page .master-summary-copy > small {
+    font-size: 10px !important;
+    font-weight: 600 !important;
+    color: #64748B !important;
+    line-height: 1.2 !important;
+    white-space: nowrap !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+  }
+
+  .master-page .master-summary-copy > strong {
+    font-size: 17px !important;
+    font-weight: 700 !important;
+    color: #0F172A !important;
+    margin: 1px 0 !important;
+    line-height: 1.2 !important;
+  }
+
+  .master-page .master-summary-caption {
+    font-size: 8.5px !important;
+    color: #64748B !important;
+    gap: 3px !important;
+    white-space: nowrap !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+  }
+
+  .master-page .master-summary-caption.positive {
+    color: #07895A !important;
+  }
+
+  .master-summary-sparkline {
+    display: none !important;
+  }
+
+  /* 6. Mobile Master Data Toolbar (UI-3D: Search + Filter & Wide Primary CTA + Overflow) */
+  .master-mobile-toolbar-wrapper {
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 8px !important;
+    margin-bottom: 16px !important;
+    width: 100% !important;
+  }
+
+  /* ROW 1: Unified Search & Filter */
+  .master-mobile-search-row {
+    width: 100% !important;
+    margin: 0 !important;
+  }
+
+  .master-mobile-search-container {
+    display: flex !important;
+    align-items: center !important;
+    gap: 8px !important;
+    width: 100% !important;
+  }
+
+  .master-mobile-search-input-wrap {
+    flex: 1 !important;
+    min-width: 0 !important;
+    position: relative !important;
+    display: flex !important;
+    align-items: center !important;
+    height: 48px !important;
+    background: #FFFFFF !important;
+    border: 1px solid #CBD5E1 !important;
+    border-radius: 12px !important;
+    box-sizing: border-box !important;
+    transition: border-color 0.15s ease, box-shadow 0.15s ease !important;
+  }
+
+  .master-mobile-search-input-wrap:focus-within {
+    border-color: #008520 !important;
+    box-shadow: 0 0 0 3px rgba(0, 133, 32, 0.12) !important;
+  }
+
+  .master-mobile-search-input-wrap input,
+  .master-mobile-search-field {
+    width: 100% !important;
+    height: 100% !important;
+    border: none !important;
+    background: transparent !important;
+    padding: 0 40px 0 14px !important;
+    font-size: 13.5px !important;
+    font-weight: 500 !important;
+    color: #0F172A !important;
+    outline: none !important;
+    box-sizing: border-box !important;
+  }
+
+  .master-mobile-search-input-wrap input::placeholder {
+    color: #94A3B8 !important;
+  }
+
+  .master-mobile-search-icon {
+    position: absolute !important;
+    right: 14px !important;
+    top: 50% !important;
+    transform: translateY(-50%) !important;
+    width: 18px !important;
+    height: 18px !important;
+    color: #64748B !important;
+    pointer-events: none !important;
+  }
+
+  /* Compact Filter Button (Square, Same Height as Search) */
+  .master-mobile-filter-btn {
+    width: 48px !important;
+    height: 48px !important;
+    min-width: 48px !important;
+    min-height: 48px !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    position: relative !important;
+    background: #FFFFFF !important;
+    border: 1px solid #CBD5E1 !important;
+    border-radius: 12px !important;
+    color: #475569 !important;
+    cursor: pointer !important;
+    flex-shrink: 0 !important;
+    transition: background-color 0.15s ease, border-color 0.15s ease, color 0.15s ease, transform 0.15s ease !important;
+    -webkit-tap-highlight-color: transparent !important;
+  }
+
+  .master-mobile-filter-btn:active {
+    transform: scale(0.96) !important;
+    background: #F1F5F9 !important;
+  }
+
+  .master-mobile-filter-btn .ui-icon {
+    width: 18px !important;
+    height: 18px !important;
+  }
+
+  .master-mobile-filter-btn.active {
+    background: #F0FDF4 !important;
+    border-color: #008520 !important;
+    color: #008520 !important;
+  }
+
+  .master-mobile-filter-badge {
+    position: absolute !important;
+    top: -4px !important;
+    right: -4px !important;
+    min-width: 18px !important;
+    height: 18px !important;
+    padding: 0 4px !important;
+    border-radius: 9px !important;
+    background: #008520 !important;
+    color: #FFFFFF !important;
+    font-size: 10px !important;
+    font-weight: 700 !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    box-shadow: 0 1px 4px rgba(0, 133, 32, 0.4) !important;
+  }
+
+  /* ROW 2: Primary CTA + Overflow Button */
+  .master-mobile-cta-row {
+    display: flex !important;
+    align-items: center !important;
+    gap: 8px !important;
+    width: 100% !important;
+  }
+
+  .master-mobile-primary-cta {
+    flex: 1 !important;
+    min-width: 0 !important;
+    height: 48px !important;
+    min-height: 48px !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    gap: 8px !important;
+    background: #008520 !important;
+    border: none !important;
+    border-radius: 12px !important;
+    color: #FFFFFF !important;
+    font-size: 14px !important;
+    font-weight: 700 !important;
+    cursor: pointer !important;
+    box-shadow: 0 2px 6px rgba(0, 133, 32, 0.2) !important;
+    transition: background-color 0.15s ease, transform 0.15s ease !important;
+    -webkit-tap-highlight-color: transparent !important;
+    white-space: nowrap !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+    padding: 0 16px !important;
+  }
+
+  .master-mobile-primary-cta:active {
+    background: #006E1B !important;
+    transform: scale(0.98) !important;
+  }
+
+  .master-mobile-primary-cta .ui-icon {
+    width: 18px !important;
+    height: 18px !important;
+    flex-shrink: 0 !important;
+  }
+
+  /* Overflow Button ⋮ */
+  .master-mobile-overflow-wrap {
+    position: relative !important;
+    flex-shrink: 0 !important;
+  }
+
+  .master-mobile-overflow-btn {
+    width: 48px !important;
+    height: 48px !important;
+    min-width: 48px !important;
+    min-height: 48px !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    background: #008520 !important;
+    border: none !important;
+    border-radius: 12px !important;
+    color: #FFFFFF !important;
+    cursor: pointer !important;
+    box-shadow: 0 2px 6px rgba(0, 133, 32, 0.2) !important;
+    transition: background-color 0.15s ease, transform 0.15s ease !important;
+    -webkit-tap-highlight-color: transparent !important;
+  }
+
+  .master-mobile-overflow-btn:active,
+  .master-mobile-overflow-btn.active {
+    background: #006E1B !important;
+    transform: scale(0.96) !important;
+  }
+
+  .master-mobile-overflow-btn .ui-icon {
+    width: 20px !important;
+    height: 20px !important;
+  }
+
+  /* Compact Floating Overflow Menu Popup */
+  .master-mobile-overflow-menu {
+    position: absolute !important;
+    top: calc(100% + 6px) !important;
+    right: 0 !important;
+    min-width: 170px !important;
+    background: #FFFFFF !important;
+    border: 1px solid #E2E8F0 !important;
+    border-radius: 14px !important;
+    box-shadow: 0 10px 25px -5px rgba(15, 23, 42, 0.14), 0 8px 10px -6px rgba(15, 23, 42, 0.08) !important;
+    padding: 6px !important;
+    z-index: 100 !important;
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 3px !important;
+    animation: mobileFadeIn 0.15s cubic-bezier(0.16, 1, 0.3, 1) !important;
+  }
+
+  .master-mobile-overflow-menu.align-left,
+  .master-mobile-cta-row.has-only-overflow .master-mobile-overflow-menu,
+  .master-mobile-cta-row > .master-mobile-overflow-wrap:first-child .master-mobile-overflow-menu {
+    left: 0 !important;
+    right: auto !important;
+  }
+
+  .master-mobile-overflow-menu.align-right {
+    right: 0 !important;
+    left: auto !important;
+  }
+
+  .master-mobile-overflow-item {
+    display: flex !important;
+    align-items: center !important;
+    gap: 10px !important;
+    width: 100% !important;
+    height: 44px !important;
+    min-height: 44px !important;
+    padding: 0 12px !important;
+    background: transparent !important;
+    border: none !important;
+    border-radius: 10px !important;
+    color: #1E293B !important;
+    font-size: 13.5px !important;
+    font-weight: 600 !important;
+    text-align: left !important;
+    cursor: pointer !important;
+    transition: background-color 0.15s ease, color 0.15s ease !important;
+    -webkit-tap-highlight-color: transparent !important;
+    box-sizing: border-box !important;
+  }
+
+  .master-mobile-overflow-item:active,
+  .master-mobile-overflow-item:hover {
+    background: #F1F5F9 !important;
+    color: #008520 !important;
+  }
+
+  .master-mobile-overflow-item .ui-icon {
+    width: 18px !important;
+    height: 18px !important;
+    color: #64748B !important;
+    flex-shrink: 0 !important;
+    transition: color 0.15s ease !important;
+  }
+
+  .master-mobile-overflow-item:active .ui-icon,
+  .master-mobile-overflow-item:hover .ui-icon {
+    color: #008520 !important;
+  }
+
+  .master-mobile-overflow-item:disabled {
+    opacity: 0.45 !important;
+    cursor: not-allowed !important;
+    background: transparent !important;
+    color: #94A3B8 !important;
+  }
+
+  /* List Header Below Toolbar (Daftar Siswa ... 16 data) */
+  .master-mobile-list-header {
+    display: flex !important;
+    justify-content: space-between !important;
+    align-items: center !important;
+    margin-bottom: 12px !important;
+    padding: 0 2px !important;
+  }
+
+  .master-mobile-list-title {
+    font-size: 15px !important;
+    font-weight: 700 !important;
+    color: #0F172A !important;
+    letter-spacing: -0.01em !important;
+    margin: 0 !important;
+  }
+
+  .master-mobile-list-count {
+    font-size: 12.5px !important;
+    font-weight: 600 !important;
+    color: #64748B !important;
+    background: #F1F5F9 !important;
+    padding: 3px 8px !important;
+    border-radius: 6px !important;
+  }
+
+  /* 7. Mobile Record Cards & List */
+  .master-data-workspace {
+    padding: 10px;
+    background: #ffffff;
+    border-radius: 14px;
+    border: 1px solid #eef2f6;
+  }
+
+  .master-mobile-list-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 10px;
+    padding: 0 2px;
+  }
+
+  .master-mobile-list-title {
+    font-size: 12.5px;
+    font-weight: 700;
+    color: #0f172a;
+    margin: 0;
+  }
+
+  .master-mobile-list-count {
+    font-size: 11px;
+    color: #64748b;
+    font-weight: 500;
+  }
+
+  .master-mobile-record-card {
+    background: #ffffff;
+    border: 1px solid #e2e8f0;
+    border-radius: 12px;
+    padding: 11px 13px;
+    margin-bottom: 8px;
+    box-shadow: 0 1px 3px rgba(15, 23, 42, 0.03);
+    display: flex;
+    flex-direction: column;
+    gap: 7px;
+    transition: border-color 0.15s ease;
+  }
+
+  .master-mobile-record-card:active {
+    background: #fafbfc;
+  }
+
+  .master-mobile-card-top {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 8px;
+  }
+
+  .master-mobile-card-title-group {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0;
+    flex: 1;
+  }
+
+  .master-mobile-card-name {
+    font-size: 12.5px;
+    font-weight: 700;
+    color: #0f172a;
+    line-height: 1.3;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .master-mobile-btn-more {
+    width: 32px;
+    height: 32px;
+    display: grid;
+    place-items: center;
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
+    border-radius: 7px;
+    color: #64748b;
+    cursor: pointer;
+    flex-shrink: 0;
+  }
+
+  .master-mobile-btn-more .ui-icon {
+    width: 14px;
+    height: 14px;
+  }
+
+  .master-mobile-card-code-row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px;
+    font-size: 10.5px;
+    color: #64748b;
+  }
+
+  .master-mobile-card-details {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 5px 8px;
+    font-size: 10.5px;
+    color: #475569;
+  }
+
+  .master-mobile-detail-tag {
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+    background: #f8fafc;
+    border: 1px solid #edf2f7;
+    padding: 2px 7px;
+    border-radius: 5px;
+    font-size: 10px;
+  }
+
+  .master-mobile-card-bottom {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-top: 2px;
+    padding-top: 4px;
+    border-top: 1px dashed #f1f5f9;
+  }
+
+  .master-mobile-badge-chip {
+    display: inline-flex;
+    align-items: center;
+    padding: 2px 8px;
+    border-radius: 5px;
+    font-size: 9.5px;
+    font-weight: 700;
+    text-transform: capitalize;
+  }
+
+  .master-mobile-badge-chip.aktif {
+    background: #ecfdf5;
+    color: #065f46;
+  }
+
+  .master-mobile-badge-chip.tidak-aktif,
+  .master-mobile-badge-chip.nonaktif {
+    background: #fef2f2;
+    color: #991b1b;
+  }
+
+  .master-mobile-badge-chip.selesai {
+    background: #f1f5f9;
+    color: #475569;
+  }
+
+  .master-mobile-badge-chip.akan-datang {
+    background: #eff6ff;
+    color: #1e40af;
+  }
+
+  /* 8. Compact Mobile Pagination */
+  .master-mobile-pagination {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 10px 2px;
+    margin-top: 6px;
+    gap: 8px;
+  }
+
+  .master-mobile-pag-info {
+    font-size: 11px;
+    color: #64748b;
+    font-weight: 500;
+  }
+
+  .master-mobile-pag-buttons {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .master-mobile-pag-btn {
+    width: 32px;
+    height: 32px;
+    display: grid;
+    place-items: center;
+    background: #ffffff;
+    border: 1px solid #d1d5db;
+    border-radius: 7px;
+    color: #1e293b;
+    cursor: pointer;
+  }
+
+  .master-mobile-pag-btn:disabled {
+    opacity: 0.35;
+    cursor: not-allowed;
+  }
+
+  .master-mobile-pag-current {
+    font-size: 11px;
+    font-weight: 600;
+    color: #1e293b;
+    white-space: nowrap;
+    padding: 0 4px;
+  }
+
+  /* 9. Mobile Bottom Sheets (Filter & Row Actions) */
+  .master-mobile-sheet-backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 10000;
+    background: rgba(15, 23, 42, 0.45);
+    backdrop-filter: blur(4px);
+    -webkit-backdrop-filter: blur(4px);
+    display: flex;
+    align-items: flex-end;
+    justify-content: center;
+    animation: mobileFadeIn 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  }
+
+  .master-mobile-sheet-container {
+    width: 100%;
+    max-width: 500px;
+    background: #ffffff;
+    border-radius: 20px 20px 0 0;
+    padding: 14px 18px max(24px, calc(16px + env(safe-area-inset-bottom, 16px)));
+    max-height: 85vh;
+    overflow-y: auto;
+    box-shadow: 0 -8px 30px rgba(15, 23, 42, 0.16);
+    box-sizing: border-box;
+    animation: mobileSlideUp 0.24s cubic-bezier(0.16, 1, 0.3, 1);
+  }
+
+  .master-mobile-sheet-handle {
+    width: 36px;
+    height: 4px;
+    background: #cbd5e1;
+    border-radius: 2px;
+    margin: 0 auto 10px;
+  }
+
+  .master-mobile-sheet-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 12px;
+    padding-bottom: 8px;
+    border-bottom: 1px solid #f1f5f9;
+  }
+
+  .master-mobile-sheet-title {
+    font-size: 14px;
+    font-weight: 700;
+    color: #0f172a;
+    margin: 0;
+  }
+
+  .master-mobile-sheet-close {
+    background: #f1f5f9;
+    border: none;
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    display: grid;
+    place-items: center;
+    color: #64748b;
+    font-size: 16px;
+    cursor: pointer;
+  }
+
+  .master-mobile-sheet-action-list {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+
+  .master-mobile-sheet-destructive-section {
+    margin-top: 4px;
+    padding-top: 6px;
+    border-top: 1px solid #f1f5f9;
+  }
+
+  .master-mobile-action-btn {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    width: 100%;
+    padding: 11px 12px;
+    background: #f8fafc;
+    border: 1px solid #eef2f6;
+    border-radius: 10px;
+    color: #1e293b;
+    font-size: 12.5px;
+    font-weight: 600;
+    cursor: pointer;
+    text-align: left;
+    transition: background 0.15s ease;
+  }
+
+  .master-mobile-action-btn:hover {
+    background: #edf9f4;
+    color: #008520;
+  }
+
+  .master-mobile-action-btn .ui-icon {
+    width: 18px;
+    height: 18px;
+    color: #64748B;
+    flex-shrink: 0;
+    transition: color 0.15s ease;
+  }
+
+  .master-mobile-action-btn:hover .ui-icon,
+  .master-mobile-action-btn:active .ui-icon {
+    color: #008520;
+  }
+
+  .master-mobile-action-btn.danger {
+    color: #dc2626 !important;
+    background: #fef2f2;
+    border-color: #fee2e2;
+  }
+
+  .master-mobile-action-btn.danger:hover,
+  .master-mobile-action-btn.danger:active {
+    background: #fee2e2;
+    color: #b91c1c !important;
+  }
+
+
+  /* Filter Sheet Container & Elements */
+  .master-mobile-filter-sheet-container {
+    display: flex;
+    flex-direction: column;
+    max-height: 85vh;
+    border-radius: 20px 20px 0 0;
+    padding: 16px 20px 20px;
+    overflow: hidden;
+  }
+
+  .master-mobile-sheet-subtitle {
+    font-size: 11.5px;
+    color: #64748b;
+    margin: 3px 0 0;
+  }
+
+  .master-mobile-filter-form {
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    flex: 1;
+    overflow: hidden;
+  }
+
+  .master-mobile-filter-body {
+    display: flex;
+    flex-direction: column;
+    gap: 13px;
+    overflow-y: auto;
+    flex: 1;
+    min-height: 0;
+    padding: 6px 2px 14px;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .master-mobile-filter-field {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    width: 100%;
+  }
+
+  .master-mobile-filter-label {
+    font-size: 12.5px;
+    font-weight: 600;
+    color: #334155;
+    line-height: 1.3;
+  }
+
+  /* Filter Select (Identical to Tambah Siswa Form from Image 2) */
+  .master-mobile-filter-sheet-container .master-form-select-wrap,
+  .master-mobile-select-box {
+    position: relative !important;
+    display: flex !important;
+    align-items: center !important;
+    width: 100% !important;
+  }
+
+  .master-mobile-filter-sheet-container .master-form-select,
+  .master-mobile-select-box select {
+    width: 100% !important;
+    min-height: 48px !important;
+    height: 48px !important;
+    padding: 12px 40px 12px 14px !important;
+    background: #F8FAFC !important;
+    border: 1px solid #CBD5E1 !important;
+    border-radius: 12px !important;
+    font-size: 14px !important;
+    font-weight: 500 !important;
+    color: #0F172A !important;
+    outline: none !important;
+    appearance: none !important;
+    -webkit-appearance: none !important;
+    cursor: pointer !important;
+    box-sizing: border-box !important;
+    transition: border-color 0.15s ease, box-shadow 0.15s ease, background 0.15s ease !important;
+  }
+
+  .master-mobile-filter-sheet-container .master-form-select:focus,
+  .master-mobile-select-box select:focus {
+    border-color: #008520 !important;
+    background: #FFFFFF !important;
+    box-shadow: 0 0 0 3px rgba(0, 133, 32, 0.12) !important;
+    outline: none !important;
+  }
+
+  .master-mobile-filter-sheet-container .master-select-chevron {
+    position: absolute !important;
+    right: 14px !important;
+    top: 50% !important;
+    transform: translateY(-50%) !important;
+    width: 18px !important;
+    height: 18px !important;
+    color: #64748B !important;
+    pointer-events: none !important;
+  }
+
+  .master-mobile-select-arrow {
+    display: none !important;
+  }
+
+  .master-mobile-filter-footer {
+    display: flex !important;
+    gap: 10px !important;
+    padding: 14px 0 max(12px, env(safe-area-inset-bottom, 12px)) !important;
+    border-top: 1px solid #F1F5F9 !important;
+    background: #FFFFFF !important;
+    margin-top: auto !important;
+    flex-shrink: 0 !important;
+  }
+
+  .master-mobile-filter-reset-btn {
+    flex: 1 !important;
+    height: 48px !important;
+    min-height: 48px !important;
+    border-radius: 12px !important;
+    background: #F8FAFC !important;
+    border: 1px solid #CBD5E1 !important;
+    color: #475569 !important;
+    font-size: 14px !important;
+    font-weight: 600 !important;
+    cursor: pointer !important;
+    transition: background 0.15s ease !important;
+  }
+
+  .master-mobile-filter-reset-btn:active {
+    background: #E2E8F0 !important;
+  }
+
+  .master-mobile-filter-apply-btn {
+    flex: 2 !important;
+    height: 48px !important;
+    min-height: 48px !important;
+    border-radius: 12px !important;
+    background: #008520 !important;
+    border: none !important;
+    color: #FFFFFF !important;
+    font-size: 14px !important;
+    font-weight: 700 !important;
+    cursor: pointer !important;
+    box-shadow: 0 2px 6px rgba(0, 133, 32, 0.2) !important;
+    transition: background 0.15s ease, transform 0.15s ease !important;
+  }
+
+  .master-mobile-filter-apply-btn:active {
+    background: #006E1B !important;
+    transform: scale(0.98) !important;
+  }
+
+  .master-mobile-loading-card,
+  .master-mobile-empty-card {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 30px 16px;
+    text-align: center;
+    background: #f8fafc;
+    border-radius: 12px;
+    border: 1px dashed #cbd5e1;
+    margin: 8px 0;
+  }
+
+  .master-mobile-loading-card p,
+  .master-mobile-empty-card span {
+    font-size: 11px;
+    color: #64748b;
+    margin-top: 6px;
+  }
+
+  .master-mobile-empty-card strong {
+    font-size: 13px;
+    color: #1e293b;
+    margin-top: 6px;
+  }
+
+  .master-mobile-empty-card .ui-icon {
+    width: 24px;
+    height: 24px;
+    color: #94a3b8;
+  }
+
+  /* 10. Master Modals on Mobile: Shared iOS Bottom Sheet System (Reference: Tahun Pelajaran & Semester) */
+  .master-modal-backdrop {
+    position: fixed !important;
+    inset: 0 !important;
+    z-index: 1100 !important;
+    display: flex !important;
+    flex-direction: column !important;
+    justify-content: flex-end !important;
+    padding: 0 !important;
+    background: rgba(15, 23, 42, 0.45) !important;
+    backdrop-filter: blur(6px) !important;
+    -webkit-backdrop-filter: blur(6px) !important;
+    animation: mobileFadeIn 0.2s cubic-bezier(0.16, 1, 0.3, 1) !important;
+  }
+
+  .master-modal {
+    position: relative !important;
+    width: 100% !important;
+    max-width: 600px !important;
+    margin: 0 auto !important;
+    max-height: 88dvh !important;
+    background: #FFFFFF !important;
+    border-top-left-radius: 24px !important;
+    border-top-right-radius: 24px !important;
+    border-bottom-left-radius: 0 !important;
+    border-bottom-right-radius: 0 !important;
+    border: none !important;
+    box-shadow: 0 -10px 35px rgba(15, 23, 42, 0.16) !important;
+    display: flex !important;
+    flex-direction: column !important;
+    overflow: hidden !important;
+    animation: mobileSlideUp 0.24s cubic-bezier(0.16, 1, 0.3, 1) !important;
+    box-sizing: border-box !important;
+  }
+
+  .master-modal.large {
+    width: 100% !important;
+    max-width: 600px !important;
+  }
+
+  /* Sheet Drag Handle */
+  .master-mobile-sheet-handle-wrapper {
+    display: flex !important;
+    justify-content: center !important;
+    padding: 10px 0 6px !important;
+    flex-shrink: 0 !important;
+  }
+
+  .master-mobile-sheet-handle {
+    width: 42px !important;
+    height: 5px !important;
+    border-radius: 3px !important;
+    background: #CBD5E1 !important;
+  }
+
+  /* Modal / Sheet Header */
+  .master-modal > header {
+    display: flex !important;
+    align-items: center !important;
+    justify-content: space-between !important;
+    padding: 6px 18px 14px !important;
+    border-bottom: 1px solid #F1F5F9 !important;
+    gap: 12px !important;
+    flex-shrink: 0 !important;
+  }
+
+  .master-modal > header h3 {
+    margin: 0 !important;
+    font-size: 20px !important;
+    font-weight: 700 !important;
+    color: #0F172A !important;
+    letter-spacing: -0.01em !important;
+    line-height: 1.25 !important;
+  }
+
+  .master-modal > header p {
+    margin: 3px 0 0 !important;
+    font-size: 12.5px !important;
+    color: #64748B !important;
+    font-weight: 500 !important;
+    line-height: 1.35 !important;
+  }
+
+  .master-modal > header > button,
+  .master-modal-close-btn {
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    width: 36px !important;
+    height: 36px !important;
+    min-width: 36px !important;
+    min-height: 36px !important;
+    border-radius: 50% !important;
+    background: #F1F5F9 !important;
+    border: none !important;
+    color: #475569 !important;
+    font-size: 20px !important;
+    cursor: pointer !important;
+    transition: background 0.15s ease, transform 0.15s ease !important;
+    flex-shrink: 0 !important;
+  }
+
+  .master-modal > header > button:active,
+  .master-modal-close-btn:active {
+    background: #E2E8F0 !important;
+    transform: scale(0.94) !important;
+  }
+
+  /* Form Scrollable Area & Spacing Rhythm */
+  .master-entity-form {
+    display: flex !important;
+    flex-direction: column !important;
+    min-height: 0 !important;
+    flex: 1 1 auto !important;
+    overflow: hidden !important;
+  }
+
+  .master-form-scroll {
+    min-height: 0 !important;
+    flex: 1 1 auto !important;
+    padding: 16px 18px !important;
+    overflow-y: auto !important;
+    -webkit-overflow-scrolling: touch !important;
+    box-sizing: border-box !important;
+  }
+
+  /* Section Headings (contract: 14–15px, font-weight 700) */
+  .master-entity-form fieldset {
+    margin: 0 0 20px !important;
+    padding: 0 !important;
+    border: 0 !important;
+  }
+
+  .master-entity-form fieldset:last-child {
+    margin-bottom: 8px !important;
+  }
+
+  .master-entity-form legend {
+    display: block !important;
+    width: 100% !important;
+    margin: 0 0 12px !important;
+    padding-bottom: 8px !important;
+    color: #0F172A !important;
+    border-bottom: 1px solid #F1F5F9 !important;
+    font-size: 14.5px !important;
+    font-weight: 700 !important;
+    letter-spacing: -0.01em !important;
+  }
+
+  /* Mobile Form Grid & Form Groups */
+  .master-form-grid {
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 14px !important;
+    width: 100% !important;
+  }
+
+  .master-form-group,
+  .master-form-grid label {
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 5px !important;
+    width: 100% !important;
+    min-width: 0 !important;
+    box-sizing: border-box !important;
+  }
+
+  .master-form-grid label.full-width,
+  .master-form-group.full-width {
+    grid-column: auto !important;
+    width: 100% !important;
+  }
+
+  /* Labels (contract: 12–13px, font-weight 600) */
+  .master-field-label,
+  .master-form-grid label > span:first-child {
+    font-size: 12.5px !important;
+    font-weight: 600 !important;
+    color: #334155 !important;
+    line-height: 1.3 !important;
+  }
+
+  .master-field-label b,
+  .master-form-grid label span b {
+    color: #DC2626 !important;
+    margin-left: 3px !important;
+    font-weight: 700 !important;
+  }
+
+  /* All Mobile Form Inputs Contract (Reference: Academic Sheet min-height 48px, radius 12px) */
+  .master-form-input,
+  .master-form-select,
+  .master-form-textarea,
+  .master-form-grid input,
+  .master-form-grid select,
+  .master-form-grid textarea {
+    width: 100% !important;
+    min-width: 0 !important;
+    min-height: 48px !important;
+    padding: 12px 14px !important;
+    background: #F8FAFC !important;
+    border: 1px solid #CBD5E1 !important;
+    border-radius: 12px !important;
+    font-size: 14px !important;
+    font-weight: 500 !important;
+    color: #0F172A !important;
+    box-sizing: border-box !important;
+    outline: none !important;
+    transition: border-color 0.15s ease, box-shadow 0.15s ease, background 0.15s ease !important;
+    -webkit-appearance: none !important;
+  }
+
+  .master-form-input:focus,
+  .master-form-select:focus,
+  .master-form-textarea:focus,
+  .master-form-grid input:focus,
+  .master-form-grid select:focus,
+  .master-form-grid textarea:focus {
+    border-color: #008520 !important;
+    background: #FFFFFF !important;
+    box-shadow: 0 0 0 3px rgba(0, 133, 32, 0.12) !important;
+    outline: none !important;
+  }
+
+  .master-form-input:disabled,
+  .master-form-select:disabled,
+  .master-form-grid input:disabled,
+  .master-form-grid select:disabled {
+    background: #F1F5F9 !important;
+    color: #94A3B8 !important;
+    cursor: not-allowed !important;
+  }
+
+  /* Select Chevron Standardization (contract: position absolute right 14px, top 50%, no overlap) */
+  .master-form-select-wrap {
+    position: relative !important;
+    display: flex !important;
+    align-items: center !important;
+    width: 100% !important;
+    min-width: 0 !important;
+  }
+
+  .master-form-select-wrap .master-form-select,
+  .master-form-grid select {
+    appearance: none !important;
+    -webkit-appearance: none !important;
+    padding-right: 40px !important;
+    cursor: pointer !important;
+    font-weight: 600 !important;
+  }
+
+  .master-select-chevron {
+    position: absolute !important;
+    right: 14px !important;
+    top: 50% !important;
+    transform: translateY(-50%) !important;
+    width: 18px !important;
+    height: 18px !important;
+    color: #64748B !important;
+    pointer-events: none !important;
+  }
+
+  /* Textarea */
+  .master-form-textarea,
+  .master-form-grid textarea {
+    min-height: 84px !important;
+    resize: vertical !important;
+    line-height: 1.5 !important;
+    font-family: inherit !important;
+  }
+
+  /* Password field */
+  .master-password-field {
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 5px !important;
+    width: 100% !important;
+  }
+
+  .master-password-input {
+    position: relative !important;
+    width: 100% !important;
+  }
+
+  .master-password-input input {
+    padding-right: 46px !important;
+  }
+
+  .master-password-input button {
+    position: absolute !important;
+    right: 6px !important;
+    top: 50% !important;
+    transform: translateY(-50%) !important;
+    width: 38px !important;
+    height: 38px !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    background: transparent !important;
+    border: none !important;
+    border-radius: 8px !important;
+    color: #64748B !important;
+    cursor: pointer !important;
+  }
+
+  /* Multiselect Checkbox */
+  .master-form-multiselect {
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 8px !important;
+    width: 100% !important;
+  }
+
+  .master-checkbox-options {
+    display: grid !important;
+    grid-template-columns: repeat(2, 1fr) !important;
+    gap: 8px !important;
+  }
+
+  @media (max-width: 360px) {
+    .master-checkbox-options {
+      grid-template-columns: 1fr !important;
+    }
+  }
+
+  .master-checkbox-options label {
+    align-items: center !important;
+    background: #F8FAFC !important;
+    border: 1px solid #CBD5E1 !important;
+    border-radius: 10px !important;
+    display: flex !important;
+    flex-direction: row !important;
+    font-size: 13px !important;
+    gap: 8px !important;
+    padding: 10px 12px !important;
+    min-height: 44px !important;
+  }
+
+  .master-checkbox-options input[type="checkbox"] {
+    width: 18px !important;
+    height: 18px !important;
+    min-height: 18px !important;
+    flex-shrink: 0 !important;
+  }
+
+  /* Sticky Bottom Actions inside the Sheet (contract: safe-area aware, reachable, never covered) */
   .master-entity-form > footer,
-  .master-modal-footer { flex-direction: column; }
-  .master-data-actions .master-button,
-  .master-entity-form > footer .master-button,
-  .master-modal-footer .master-button { width: 100%; }
-  .master-pagination-controls label { width: 100%; justify-content: space-between; }
-  .master-form-grid { grid-template-columns: 1fr; }
-  .master-form-grid label.full-width { grid-column: auto; }
-  .master-detail-sections dl div { grid-template-columns: 1fr; gap: 2px; }
+  .master-modal-footer {
+    position: sticky !important;
+    bottom: 0 !important;
+    z-index: 10 !important;
+    background: #FFFFFF !important;
+    border-top: 1px solid #F1F5F9 !important;
+    padding: 12px 18px max(16px, env(safe-area-inset-bottom, 16px)) !important;
+    display: flex !important;
+    gap: 10px !important;
+    margin: 0 !important;
+    width: 100% !important;
+    box-sizing: border-box !important;
+    flex-shrink: 0 !important;
+  }
+
+  .master-entity-form > footer button,
+  .master-modal-footer button {
+    flex: 1 !important;
+    min-height: 48px !important;
+    border-radius: 12px !important;
+    font-size: 14px !important;
+    font-weight: 700 !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    gap: 8px !important;
+    cursor: pointer !important;
+  }
+
+  /* Detail Modal */
+  .master-detail-body {
+    padding: 16px 18px !important;
+  }
+
+  .master-detail-sections {
+    grid-template-columns: 1fr !important;
+    gap: 12px !important;
+  }
+
+  .master-detail-sections dl div {
+    grid-template-columns: 1fr !important;
+    gap: 2px !important;
+  }
+
+  .master-toast {
+    right: 12px !important;
+    bottom: 74px !important;
+    width: calc(100vw - 24px) !important;
+  }
 }

@@ -2,7 +2,9 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import Button from '../common/Button.jsx'
 import EmptyState from '../common/EmptyState.jsx'
 import Icon from '../common/Icon.jsx'
-import Pagination from '../common/Pagination.jsx'
+import MasterPagination from '../master-data/MasterPagination.jsx'
+import MasterSummary from '../master-data/MasterSummary.jsx'
+import MasterMobileToolbar from '../master-data/MasterMobileToolbar.jsx'
 import assessmentService from '../../services/assessmentService.js'
 import excelService from '../../services/excelService.js'
 import { activityOptions } from '../../data/kegiatanSiswa.js'
@@ -21,75 +23,6 @@ function getRowStatus(row) {
   return getNote(row).trim() ? 'Terisi' : 'Belum Terisi'
 }
 
-function getPageItems(currentPage, totalPages) {
-  if (totalPages <= 7) {
-    return Array.from({ length: totalPages }, (_, index) => index + 1)
-  }
-
-  if (currentPage <= 4) return [1, 2, 3, 4, 5, 'end', totalPages]
-  if (currentPage >= totalPages - 3) return [1, 'start', totalPages - 4, totalPages - 3, totalPages - 2, totalPages - 1, totalPages]
-
-  return [1, 'start', currentPage - 1, currentPage, currentPage + 1, 'end', totalPages]
-}
-
-function NotesPagination({ currentPage, rowsPerPage, totalItems, onPageChange, onRowsPerPageChange }) {
-  const totalPages = Math.max(1, Math.ceil(totalItems / rowsPerPage))
-  const firstItem = totalItems === 0 ? 0 : (currentPage - 1) * rowsPerPage + 1
-  const lastItem = Math.min(currentPage * rowsPerPage, totalItems)
-  const pageItems = getPageItems(currentPage, totalPages)
-
-  return (
-    <Pagination className="activity-pagination">
-      <p>Menampilkan {firstItem} - {lastItem} dari {totalItems.toLocaleString('id-ID')} siswa</p>
-
-      <div className="activity-pagination-controls">
-        <label className="activity-pagination-size">
-          <span>Rows per page:</span>
-          <select value={rowsPerPage} onChange={(event) => onRowsPerPageChange(Number(event.target.value))}>
-            {(activityOptions.rowsPerPageOptions || [8, 16, 24]).map((option) => (
-              <option key={option} value={option}>{option}</option>
-            ))}
-          </select>
-        </label>
-
-        <button
-          aria-label="Halaman sebelumnya"
-          disabled={currentPage === 1 || totalItems === 0}
-          onClick={() => onPageChange(Math.max(1, currentPage - 1))}
-          type="button"
-        >
-          <Icon name="chevron" />
-        </button>
-
-        {pageItems.map((item) => (
-          typeof item === 'number' ? (
-            <button
-              aria-current={currentPage === item ? 'page' : undefined}
-              className={currentPage === item ? 'is-active' : ''}
-              key={item}
-              onClick={() => onPageChange(item)}
-              type="button"
-            >
-              {item}
-            </button>
-          ) : (
-            <span aria-hidden="true" className="activity-pagination-ellipsis" key={item}>...</span>
-          )
-        ))}
-
-        <button
-          aria-label="Halaman berikutnya"
-          className="activity-pagination-next"
-          disabled={currentPage >= totalPages || totalItems === 0}
-          onClick={() => onPageChange(Math.min(totalPages, currentPage + 1))}
-          type="button"
-        >
-          <Icon name="chevron" />
-        </button>
-      </div>
-    </Pagination>
-  )
-}
 
 function NoteState({ row }) {
   const status = getRowStatus(row)
@@ -281,7 +214,14 @@ function NotesErrorState({ message }) {
   )
 }
 
-function StudentNotesView({ type, classId: requestedClassId, semesterId: requestedSemesterId, onNotify }) {
+function StudentNotesView({
+  type,
+  classId: requestedClassId,
+  semesterId: requestedSemesterId,
+  classes = [],
+  onClassChange,
+  onNotify,
+}) {
   const isHomeroom = type === 'homeroom'
   const noteLabel = isHomeroom ? 'Catatan Wali Kelas' : 'Catatan Kokurikuler'
   const [notes, setNotes] = useState([])
@@ -568,11 +508,164 @@ function StudentNotesView({ type, classId: requestedClassId, semesterId: request
     }
   }
 
+  const [isAddProjectModalOpen, setIsAddProjectModalOpen] = useState(false)
+
+  useEffect(() => {
+    const isMobileViewport = typeof window !== 'undefined' && window.innerWidth < 768
+    if (isAddProjectModalOpen && isMobileViewport) {
+      document.body.classList.add('mobile-sheet-open')
+    } else {
+      document.body.classList.remove('mobile-sheet-open')
+    }
+    return () => {
+      document.body.classList.remove('mobile-sheet-open')
+    }
+  }, [isAddProjectModalOpen])
+
+  const summaryItems = useMemo(() => [
+    {
+      title: isHomeroom ? 'Total Siswa' : 'Total Projek',
+      value: String(notes.length),
+      caption: isHomeroom ? 'Siswa rombel' : 'Projek terdaftar',
+      icon: 'users',
+      tone: 'green',
+    },
+    {
+      title: 'Catatan Terisi',
+      value: String(notes.filter((r) => r.note && r.note.trim()).length),
+      caption: 'Sudah dicatat',
+      icon: 'checkCircle',
+      tone: 'blue',
+    },
+    {
+      title: 'Belum Terisi',
+      value: String(notes.filter((r) => !r.note || !r.note.trim()).length),
+      caption: 'Perlu dilengkapi',
+      icon: 'clock',
+      tone: 'orange',
+    },
+    {
+      title: 'Belum Disimpan',
+      value: String(dirtyCount),
+      caption: dirtyCount > 0 ? 'Perlu disimpan' : 'Semua tersimpan',
+      icon: 'save',
+      tone: dirtyCount > 0 ? 'orange' : 'teal',
+    },
+  ], [dirtyCount, isHomeroom, notes])
+
+  const mobileFilterFields = useMemo(() => {
+    const fields = []
+    if (!isHomeroom && classes && classes.length > 0) {
+      fields.push({
+        name: 'classId',
+        label: 'Kelas',
+        type: 'select',
+        options: classes.map((c) => ({ value: String(c.id), label: c.name })),
+      })
+    }
+    if (!isHomeroom) {
+      fields.push(
+        {
+          name: 'academicYear',
+          label: 'Tahun Ajaran',
+          type: 'select',
+          options: [
+            { value: 'Semua Tahun', label: 'Semua Tahun' },
+            ...filterOptions.academicYears.map((opt) => ({ value: opt, label: opt })),
+          ],
+        },
+        {
+          name: 'semester',
+          label: 'Semester',
+          type: 'select',
+          options: [
+            { value: 'Semua Semester', label: 'Semua Semester' },
+            ...filterOptions.semesters.map((opt) => ({ value: opt, label: opt })),
+          ],
+        },
+      )
+    }
+    fields.push({
+      name: 'status',
+      label: 'Status Catatan',
+      type: 'select',
+      options: ['Semua Status', 'Terisi', 'Belum Terisi'].map((opt) => ({ value: opt, label: opt })),
+    })
+    return fields
+  }, [classes, filterOptions, isHomeroom])
+
+  const handleMobileFilterChange = (key, value) => {
+    if (key === 'classId') {
+      onClassChange?.(value)
+    } else {
+      updateFilter(key, value)
+    }
+  }
+
+  const handleMobileFilterReset = () => {
+    setFilters({
+      className: 'Semua Kelas',
+      academicYear: 'Semua Tahun',
+      semester: 'Semua Semester',
+      status: 'Semua Status',
+      searchQuery: '',
+    })
+    setCurrentPage(1)
+  }
+
+  const activeMobileFilterCount = useMemo(() => {
+    let count = 0
+    if (!isHomeroom && filters.className !== 'Semua Kelas') count++
+    if (!isHomeroom && filters.academicYear !== 'Semua Tahun') count++
+    if (!isHomeroom && filters.semester !== 'Semua Semester') count++
+    if (filters.status !== 'Semua Status') count++
+    return count
+  }, [filters, isHomeroom])
+
   return (
     <section className="activity-notes-view">
+      <MasterSummary items={summaryItems} title="Ringkasan Data" subtitle="Statistik terkini kegiatan siswa" />
+
       {isHomeroom ? <HomeroomContextCard context={context} supplementary={supplementary} /> : null}
 
-      <div className="activity-notes-toolbar">
+      <div className="activity-mobile-toolbar-section">
+        <MasterMobileToolbar
+          searchQuery={filters.searchQuery}
+          onSearchChange={(value) => updateFilter('searchQuery', value)}
+          searchPlaceholder="Cari siswa (NIS/Nama)..."
+          filterFields={mobileFilterFields}
+          filters={{
+            classId: String(classId || ''),
+            ...filters,
+          }}
+          onFilterChange={handleMobileFilterChange}
+          onFilterReset={handleMobileFilterReset}
+          activeFilterCount={activeMobileFilterCount}
+          primaryAction={
+            <button
+              type="button"
+              className="master-mobile-primary-cta"
+              disabled={isSaving || dirtyCount === 0}
+              onClick={saveAll}
+            >
+              <Icon name="save" />
+              <span>Simpan Semua Catatan{dirtyCount > 0 ? ` (${dirtyCount})` : ''}</span>
+            </button>
+          }
+          extraActions={!isHomeroom ? [
+            {
+              label: 'Tambah Projek',
+              icon: 'plus',
+              onClick: () => setIsAddProjectModalOpen(true),
+            },
+          ] : []}
+          onExport={() => excelService.download(isHomeroom ? 'homeroom_notes' : 'cocurriculars', 'export', { class_id: classId, semester_id: semesterId, search: filters.searchQuery, status: filters.status === 'Semua Status' ? '' : filters.status }).catch((error) => onNotify?.(error.message))}
+          exportLabel="Export Excel"
+          exportDisabled={!classId || !semesterId || isLoading}
+        />
+      </div>
+
+      <div className="activity-notes-toolbar activity-desktop-notes-toolbar">
         <NotesFilters
           filters={filters}
           isHomeroom={isHomeroom}
@@ -605,7 +698,7 @@ function StudentNotesView({ type, classId: requestedClassId, semesterId: request
             <h2>{noteLabel}</h2>
             <p>{isHomeroom ? 'Catatan perkembangan siswa dari wali kelas untuk semester aktif.' : 'Catat perkembangan siswa pada kegiatan penguatan pembelajaran.'}</p>
           </div>
-          <span className="activity-notes-total">{filteredNotes.length} {isHomeroom ? 'siswa' : 'projek'}</span>
+          <span className="master-record-count-badge activity-notes-total">{filteredNotes.length} {isHomeroom ? 'siswa' : 'projek'}</span>
         </div>
 
         {loadError ? (
@@ -629,8 +722,9 @@ function StudentNotesView({ type, classId: requestedClassId, semesterId: request
           <EmptyNotesState label={noteLabel} />
         )}
 
-        <NotesPagination
+        <MasterPagination
           currentPage={safeCurrentPage}
+          itemLabel={isHomeroom ? 'siswa' : 'projek'}
           onPageChange={setCurrentPage}
           onRowsPerPageChange={(value) => {
             setRowsPerPage(value)
@@ -638,16 +732,81 @@ function StudentNotesView({ type, classId: requestedClassId, semesterId: request
           }}
           rowsPerPage={rowsPerPage}
           totalItems={filteredNotes.length}
+          totalPages={totalPages}
         />
       </section>
+
+      {isAddProjectModalOpen && (
+        <div className="activity-modal-backdrop" onClick={() => setIsAddProjectModalOpen(false)}>
+          <div className="activity-modal" onClick={(e) => e.stopPropagation()}>
+            <header className="activity-modal-header">
+              <div>
+                <h3>Tambah Projek Kokurikuler</h3>
+                <p>Pilih siswa untuk menambahkan baris projek kokurikuler baru</p>
+              </div>
+              <button type="button" onClick={() => setIsAddProjectModalOpen(false)}>&times;</button>
+            </header>
+            <div className="activity-form-grid">
+              <label className="activity-field">
+                <span>Pilih Siswa <b>*</b></span>
+                <select
+                  aria-label="Pilih siswa"
+                  value={newProjectStudentId}
+                  onChange={(e) => setNewProjectStudentId(e.target.value)}
+                >
+                  <option value="">-- Pilih Siswa --</option>
+                  {(supplementary?.students || []).map((student) => (
+                    <option key={student.student_id} value={student.student_id}>
+                      {student.nis} - {student.name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            </div>
+            <footer className="activity-modal-actions">
+              <Button className="activity-button activity-button-secondary" onClick={() => setIsAddProjectModalOpen(false)}>
+                Batal
+              </Button>
+              <Button
+                className="activity-button activity-button-primary"
+                disabled={!newProjectStudentId}
+                onClick={() => {
+                  addProject();
+                  setIsAddProjectModalOpen(false);
+                }}
+              >
+                <Icon name="plus" />Tambah Projek
+              </Button>
+            </footer>
+          </div>
+        </div>
+      )}
     </section>
   )
 }
 
-export function CocurricularNotesView({ classId, semesterId, onNotify }) {
-  return <StudentNotesView classId={classId} semesterId={semesterId} onNotify={onNotify} type="cocurricular" />
+export function CocurricularNotesView({ classId, semesterId, classes, onClassChange, onNotify }) {
+  return (
+    <StudentNotesView
+      classId={classId}
+      semesterId={semesterId}
+      classes={classes}
+      onClassChange={onClassChange}
+      onNotify={onNotify}
+      type="cocurricular"
+    />
+  )
 }
 
-export function HomeroomNotesView({ classId, semesterId, onNotify }) {
-  return <StudentNotesView classId={classId} semesterId={semesterId} onNotify={onNotify} type="homeroom" />
+export function HomeroomNotesView({ classId, semesterId, classes, onClassChange, onNotify }) {
+  return (
+    <StudentNotesView
+      classId={classId}
+      semesterId={semesterId}
+      classes={classes}
+      onClassChange={onClassChange}
+      onNotify={onNotify}
+      type="homeroom"
+    />
+  )
 }

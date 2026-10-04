@@ -13,6 +13,7 @@ import MasterData from '../pages/MasterData/MasterData.jsx'
 import Pengaturan from '../pages/Pengaturan/Pengaturan.jsx'
 import Penilaian from '../pages/Penilaian/Penilaian.jsx'
 import RaporLeger from '../pages/RaporLeger/RaporLeger.jsx'
+import Jelajah from '../pages/Jelajah/Jelajah.jsx'
 import AuthPage from '../pages/Auth/AuthPage.jsx'
 
 function AppEntry() {
@@ -47,6 +48,7 @@ function AppRoutes() {
       <Route element={<ProtectedRoute />}>
         <Route element={<AppLayout />}>
         <Route path="/dashboard" element={<Dashboard />} />
+        <Route path="/jelajah" element={<Jelajah />} />
         <Route path="/master-data" element={<Navigate to="/master-data/siswa" replace />} />
         <Route path="/master-data/siswa" element={<MasterData />} />
         <Route path="/master-data/guru" element={<MasterData />} />

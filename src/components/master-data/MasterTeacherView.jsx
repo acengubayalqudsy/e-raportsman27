@@ -18,6 +18,8 @@ import {
 } from './MasterModals.jsx'
 import MasterPagination from './MasterPagination.jsx'
 import MasterSummary from './MasterSummary.jsx'
+import MasterMobileToolbar from './MasterMobileToolbar.jsx'
+import MasterMobileRecordList from './MasterMobileRecordList.jsx'
 
 const summarySparklines = [
   'M0 27 C7 23 11 14 17 18 C24 22 29 7 36 10 C43 13 47 5 52 8',
@@ -221,6 +223,15 @@ function MasterTeacherView({ onNotify }) {
     })
   }, [stats])
 
+  const activeFilterCount = useMemo(() => {
+    let count = 0
+    if (filters.status && filters.status !== 'Semua Status') count++
+    if (filters.gender && filters.gender !== 'Semua') count++
+    if (filters.employmentStatus && filters.employmentStatus !== 'Semua Kepegawaian') count++
+    if (filters.subject && filters.subject !== 'Semua Mata Pelajaran') count++
+    return count
+  }, [filters])
+
   const updateFilter = (key, value) => {
     setFilters((current) => ({ ...current, [key]: value }))
     setCurrentPage(1)
@@ -323,6 +334,7 @@ function MasterTeacherView({ onNotify }) {
       <MasterSummary items={summaryItems} />
 
       <section className="master-data-workspace">
+        <div className="master-desktop-toolbar-container">
         <div className="master-data-toolbar">
           <div className="master-filter-grid teacher-filters">
             {activeTeacherFilterFields.map((field) => (
@@ -382,6 +394,37 @@ function MasterTeacherView({ onNotify }) {
             </Button>
           </div>
         </div>
+        </div>
+
+        <MasterMobileToolbar
+          activeFilterCount={activeFilterCount}
+          addLabel="Tambah Guru"
+          exportDisabled={teachers.length === 0}
+          exportLabel="Export"
+          filterFields={activeTeacherFilterFields}
+          filters={filters}
+          importLabel="Import"
+          onAdd={() => setModal({ type: 'add' })}
+          onExport={() => excelService.download('teachers', 'export', {
+            search: searchQuery,
+            status: filters.status === 'Semua Status' ? '' : filters.status,
+            gender: filters.gender === 'Laki-laki' ? 'L' : filters.gender === 'Perempuan' ? 'P' : '',
+            employment_status: filters.employmentStatus === 'Semua Kepegawaian' ? '' : filters.employmentStatus,
+            subject: filters.subject === 'Semua Mata Pelajaran' ? '' : filters.subject,
+          }).catch((error) => onNotify(error.message))}
+          onFilterChange={updateFilter}
+          onFilterReset={() => {
+            setFilters(initialFilters)
+            setCurrentPage(1)
+          }}
+          onImport={() => setModal({ type: 'import' })}
+          onSearchChange={(value) => {
+            setSearchQuery(value)
+            setCurrentPage(1)
+          }}
+          searchPlaceholder="Cari nama / NIP guru..."
+          searchQuery={searchQuery}
+        />
 
         {selectedRows.size > 0 && (
           <div className="master-bulk-toolbar">
@@ -416,6 +459,7 @@ function MasterTeacherView({ onNotify }) {
           </div>
         )}
 
+        <div className="master-desktop-table-container">
         <div className="master-table-heading">
           <h3>Daftar Guru ({meta.total} Total)</h3>
         </div>
@@ -543,6 +587,23 @@ function MasterTeacherView({ onNotify }) {
               )}
             </tbody>
           </table>
+        </div>
+        </div>
+
+        <div className="master-mobile-record-container">
+          <MasterMobileRecordList
+            canToggleStatus={true}
+            fetchError={fetchError}
+            isLoading={isLoading}
+            moduleKey="guru"
+            onDelete={openDelete}
+            onEdit={openEdit}
+            onRetry={() => setRefreshTrigger((k) => k + 1)}
+            onToggleStatus={toggleTeacherStatus}
+            onViewDetail={openDetail}
+            records={teachers}
+            totalCount={meta.total}
+          />
         </div>
 
         <MasterPagination

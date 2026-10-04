@@ -8,6 +8,7 @@ import {
   AcademicRoomAllocationView,
   AcademicTeacherAssignmentView,
 } from '../../components/akademik/AcademicDataViews.jsx'
+import AcademicMobileModuleGrid from '../../components/akademik/AcademicMobileModuleGrid.jsx'
 import AcademicScheduleView from '../../components/akademik/AcademicScheduleView.jsx'
 import AcademicTabs from '../../components/akademik/AcademicTabs.jsx'
 import { academicTabs } from '../../data/akademik.js'
@@ -31,13 +32,21 @@ function Akademik() {
   return (
     <section className="academic-page">
       <header className="academic-header">
-        <div><h2>Akademik</h2><p>Kelola kegiatan akademik sekolah</p></div>
+        <div className="academic-desktop-title">
+          <h2>Akademik</h2>
+          <p>Kelola kegiatan akademik sekolah</p>
+        </div>
         <div className="academic-breadcrumb">
           <Breadcrumb items={['Dashboard', 'Akademik', activeTab.label]} />
         </div>
       </header>
 
-      <AcademicTabs activeKey={activeTab.key} />
+      <div className="academic-desktop-tabs-wrapper">
+        <AcademicTabs activeKey={activeTab.key} />
+      </div>
+
+      <AcademicMobileModuleGrid activeKey={activeTab.key} />
+
       {views[activeTab.key]}
 
       {notice && (

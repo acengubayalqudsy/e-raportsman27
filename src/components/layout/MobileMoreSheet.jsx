@@ -14,6 +14,20 @@ const moreMenuItems = [
     desc: 'Siswa, Guru, Kelas, Mapel',
   },
   {
+    key: 'akademik',
+    label: 'Akademik',
+    icon: 'academic',
+    route: '/akademik/jadwal-pelajaran',
+    desc: 'Rombel, Penugasan & Jadwal',
+  },
+  {
+    key: 'penilaian',
+    label: 'Penilaian',
+    icon: 'grade',
+    route: '/penilaian/input-nilai',
+    desc: 'Input Nilai & Validasi',
+  },
+  {
     key: 'rapor-leger',
     label: 'Rapor & Leger',
     icon: 'report',
@@ -26,6 +40,13 @@ const moreMenuItems = [
     icon: 'cap',
     route: '/kegiatan-siswa/keikutsertaan-ekstrakurikuler',
     desc: 'Ekstrakurikuler & Prestasi',
+  },
+  {
+    key: 'absensi',
+    label: 'Absensi',
+    icon: 'clipboardCheck',
+    route: '/absensi/rekap',
+    desc: 'Rekap Presensi & Kehadiran',
   },
   {
     key: 'jurnal-mengajar',
@@ -48,6 +69,13 @@ const moreMenuItems = [
     route: '/pengaturan/identitas-sekolah',
     desc: 'Konfigurasi & Profil Sistem',
   },
+  {
+    key: 'jelajah',
+    label: 'Jelajah Berita',
+    icon: 'rocket',
+    route: '/jelajah',
+    desc: 'Informasi & Berita Pendidikan',
+  },
 ]
 
 function MobileMoreSheet({ isOpen, onClose, roles = [] }) {
@@ -55,8 +83,8 @@ function MobileMoreSheet({ isOpen, onClose, roles = [] }) {
   const { user, logout } = useAuth()
   const { selectedYear, selectedSemester, activeAcademicYear, activeSemester } = useAcademicContext()
 
-  const yearDisplay = selectedYear?.name || activeAcademicYear?.name || '2026/2027'
-  const semDisplay = selectedSemester?.name || activeSemester?.name || 'Ganjil'
+  const yearDisplay = selectedYear?.name || activeAcademicYear?.name || '2024/2025'
+  const semDisplay = selectedSemester?.name || activeSemester?.name || 'Genap'
 
   useEffect(() => {
     if (!isOpen) return undefined
@@ -84,13 +112,13 @@ function MobileMoreSheet({ isOpen, onClose, roles = [] }) {
   const accessibleItems = moreMenuItems.filter((item) => canAccessModule(roles, item.key))
 
   return (
-    <div className="mobile-sheet-overlay" onClick={onClose}>
+    <div className="mobile-sheet-overlay" onClick={onClose} role="presentation">
       <div
         className="mobile-sheet-panel"
         onClick={(e) => e.stopPropagation()}
         role="dialog"
         aria-modal="true"
-        aria-label="Menu Lainnya"
+        aria-label="Jelajah Modul E-Raport"
       >
         <div className="mobile-sheet-handle-wrapper">
           <div className="mobile-sheet-handle" />
@@ -98,16 +126,16 @@ function MobileMoreSheet({ isOpen, onClose, roles = [] }) {
 
         <div className="mobile-sheet-header">
           <div>
-            <h3 className="mobile-sheet-title">Menu Lainnya</h3>
+            <h2 className="mobile-sheet-title">Jelajah E-Raport</h2>
             <p className="mobile-sheet-subtitle">
-              {yearDisplay} • {semDisplay.toLowerCase().startsWith('semester') ? semDisplay : `Semester ${semDisplay}`}
+              Tahun Ajaran {yearDisplay} • Semester {semDisplay.toLowerCase().startsWith('semester') ? semDisplay.replace(/^semester\s*/i, '') : semDisplay}
             </p>
           </div>
           <button
             type="button"
             className="mobile-sheet-close-btn"
             onClick={onClose}
-            aria-label="Tutup menu"
+            aria-label="Tutup jelajah"
           >
             <Icon name="close" />
           </button>

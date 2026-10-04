@@ -1,30 +1,43 @@
 import { useState } from 'react'
 import { useLocation } from 'react-router-dom'
+import { useBreakpoint } from '../../hooks/useBreakpoint.js'
 import Icon from '../../components/common/Icon.jsx'
 import Breadcrumb from '../../components/layout/Breadcrumb.jsx'
 import JournalWorkspaceView from '../../components/jurnal-mengajar/JournalWorkspaceView.jsx'
 import JournalTabs from '../../components/jurnal-mengajar/JournalTabs.jsx'
+import JournalMobileModuleGrid from '../../components/jurnal-mengajar/JournalMobileModuleGrid.jsx'
 import { journalTabs } from '../../config/journalTabs.js'
 import './JurnalMengajar.css'
 
 function JurnalMengajar() {
   const location = useLocation()
+  const breakpoint = useBreakpoint()
+  const isMobile = breakpoint.isMobile
   const [notice, setNotice] = useState('')
   const activeTab = journalTabs.find((tab) => tab.route === location.pathname) ?? journalTabs[0]
 
   return (
     <section className="teaching-journal-page">
-      <header className="teaching-journal-header">
-        <div>
-          <h2>Jurnal Mengajar</h2>
-          <p>Catat aktivitas pembelajaran setiap pertemuan secara lengkap dan terstruktur</p>
-        </div>
-        <div className="teaching-journal-breadcrumb">
-          <Breadcrumb items={['Dashboard', 'Jurnal Mengajar', activeTab.label]} />
-        </div>
-      </header>
+      {!isMobile && (
+        <>
+          <header className="teaching-journal-header">
+            <div>
+              <h2>Jurnal Mengajar</h2>
+              <p>Catat aktivitas pembelajaran setiap pertemuan secara lengkap dan terstruktur</p>
+            </div>
+            <div className="teaching-journal-breadcrumb">
+              <Breadcrumb items={['Dashboard', 'Jurnal Mengajar', activeTab.label]} />
+            </div>
+          </header>
 
-      <JournalTabs activeKey={activeTab.key} />
+          <JournalTabs activeKey={activeTab.key} />
+        </>
+      )}
+
+      {isMobile && (
+        <JournalMobileModuleGrid activeKey={activeTab.key} />
+      )}
+
       <JournalWorkspaceView key={activeTab.key} mode={activeTab.key} onNotify={setNotice} />
 
       {notice && (

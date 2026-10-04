@@ -8,6 +8,7 @@ export const ROLES = {
 
 export const MODULE_ROLES = {
   dashboard: Object.values(ROLES),
+  jelajah: Object.values(ROLES),
   'master-data': [ROLES.admin],
   akademik: [ROLES.admin],
   penilaian: [ROLES.admin, ROLES.teacher],
@@ -22,6 +23,19 @@ export const MODULE_ROLES = {
 export function canAccessModule(roles = [], moduleKey) {
   const allowed = MODULE_ROLES[moduleKey] || []
   return roles.some((role) => allowed.includes(typeof role === 'string' ? role : role.name))
+}
+
+export function hasRole(roles = [], roleName) {
+  return roles.some((role) => (typeof role === 'string' ? role : role.name) === roleName)
+}
+
+export function getPrimaryRole(roles = []) {
+  if (hasRole(roles, ROLES.admin)) return ROLES.admin
+  if (hasRole(roles, ROLES.teacher)) return ROLES.teacher
+  if (hasRole(roles, ROLES.homeroom)) return ROLES.homeroom
+  if (hasRole(roles, ROLES.principal)) return ROLES.principal
+  if (hasRole(roles, ROLES.student)) return ROLES.student
+  return ROLES.admin
 }
 
 export function moduleFromPath(pathname) {

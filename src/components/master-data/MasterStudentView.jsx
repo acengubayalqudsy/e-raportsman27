@@ -14,6 +14,8 @@ import { useAcademicContext } from '../../context/AcademicContext.jsx'
 import { MasterDeleteModal, MasterDetailModal, MasterEntityModal, MasterImportModal } from './MasterModals.jsx'
 import MasterPagination from './MasterPagination.jsx'
 import MasterSummary from './MasterSummary.jsx'
+import MasterMobileToolbar from './MasterMobileToolbar.jsx'
+import MasterMobileRecordList from './MasterMobileRecordList.jsx'
 
 const summarySparklines = [
   'M0 28 C8 25 10 15 18 19 C26 23 29 5 38 7 C45 8 46 20 52 13',
@@ -240,6 +242,16 @@ function MasterStudentView({ onNotify }) {
     }))
   }, [summaryCards])
 
+  const activeFilterCount = useMemo(() => {
+    let count = 0
+    if (filters.className && filters.className !== 'Semua Kelas') count++
+    if (filters.grade && filters.grade !== 'Semua Tingkat') count++
+    if (filters.studyGroup && filters.studyGroup !== 'Semua Rombel') count++
+    if (filters.status && filters.status !== 'Siswa Aktif' && filters.status !== 'Semua Status') count++
+    if (filters.gender && filters.gender !== 'Semua') count++
+    return count
+  }, [filters])
+
   const updateFilter = (key, value) => {
     setFilters((current) => ({ ...current, [key]: value }))
     setCurrentPage(1)
@@ -320,9 +332,16 @@ function MasterStudentView({ onNotify }) {
 
   return (
     <>
-      {summaryItems.length > 0 && <MasterSummary items={summaryItems} />}
+      {summaryItems.length > 0 && (
+        <MasterSummary
+          items={summaryItems}
+          title="Ringkasan Data"
+          subtitle="Statistik terkini data siswa"
+        />
+      )}
 
       <section className="master-data-workspace">
+        <div className="master-desktop-toolbar-container">
         <div className="master-data-toolbar">
           <div className="master-filter-grid student-filters">
             {activeStudentFilterFields.map((field) => (
@@ -374,7 +393,40 @@ function MasterStudentView({ onNotify }) {
             </Button>
           </div>
         </div>
+        </div>
 
+        <MasterMobileToolbar
+          activeFilterCount={activeFilterCount}
+          addLabel="Tambah Siswa"
+          exportDisabled={students.length === 0}
+          exportLabel="Export"
+          filterFields={activeStudentFilterFields}
+          filters={filters}
+          importLabel="Import"
+          onAdd={() => setModal({ type: 'add' })}
+          onExport={() => excelService.download('students', 'export', {
+            search: searchQuery,
+            class_name: filters.className === 'Semua Kelas' ? '' : filters.className,
+            status: filters.status === 'Semua Status' ? '' : filters.status,
+            gender: filters.gender === 'Laki-laki' ? 'L' : filters.gender === 'Perempuan' ? 'P' : '',
+            grade: ['X', 'XI', 'XII'].includes(filters.grade) ? filters.grade : '',
+            study_group: filters.studyGroup === 'Semua Rombel' ? '' : filters.studyGroup,
+          }).catch((error) => onNotify(error.message))}
+          onFilterChange={updateFilter}
+          onFilterReset={() => {
+            setFilters(initialFilters)
+            setCurrentPage(1)
+          }}
+          onImport={() => setModal({ type: 'import' })}
+          onSearchChange={(value) => {
+            setSearchQuery(value)
+            setCurrentPage(1)
+          }}
+          searchPlaceholder="Cari NIS / Nama siswa..."
+          searchQuery={searchQuery}
+        />
+
+        <div className="master-desktop-table-container">
         <div className="master-table-heading">
           <h3>Daftar Siswa</h3>
           {isLoading && <span style={{ fontSize: '11px', color: '#0aa66a', fontWeight: 600 }}>Memuat data...</span>}
@@ -534,6 +586,23 @@ function MasterStudentView({ onNotify }) {
               )}
             </tbody>
           </table>
+        </div>
+        </div>
+
+        <div className="master-mobile-record-container">
+          <MasterMobileRecordList
+            canToggleStatus={true}
+            fetchError={fetchError}
+            isLoading={isLoading}
+            moduleKey="siswa"
+            onDelete={(student) => setModal({ type: 'delete', student })}
+            onEdit={(student) => setModal({ type: 'edit', student })}
+            onRetry={() => setRefreshTrigger((k) => k + 1)}
+            onToggleStatus={(student) => archiveStudent(student)}
+            onViewDetail={(student) => setModal({ type: 'detail', student })}
+            records={students}
+            totalCount={meta.total}
+          />
         </div>
 
         <MasterPagination

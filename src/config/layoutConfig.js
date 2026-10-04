@@ -12,5 +12,5 @@ export const BREAKPOINTS = {
   desktop: 1280,
 }
 
-export const ADAPTIVE_DESKTOP_MIN_WIDTH = 1280
-export const STRICT_LAYOUT_MIN_WIDTH = 1280
+export const ADAPTIVE_DESKTOP_MIN_WIDTH = 1024
+export const STRICT_LAYOUT_MIN_WIDTH = 1024

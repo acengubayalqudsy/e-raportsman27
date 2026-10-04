@@ -31,55 +31,86 @@ function MasterPagination({
   const pageItems = getPageItems(currentPage, totalPages)
 
   return (
-    <Pagination className="master-pagination">
-      <p>Menampilkan {firstItem} - {lastItem} dari {totalItems.toLocaleString('id-ID')} {itemLabel}</p>
+    <>
+      <Pagination className="master-pagination master-desktop-pagination">
+        <p>Menampilkan {firstItem} - {lastItem} dari {totalItems.toLocaleString('id-ID')} {itemLabel}</p>
 
-      <div className="master-pagination-controls">
-        <label>
-          <span>Rows per page:</span>
-          <select value={rowsPerPage} onChange={(event) => onRowsPerPageChange(Number(event.target.value))}>
-            <option value={8}>8</option>
-            <option value={12}>12</option>
-            <option value={18}>18</option>
-          </select>
-        </label>
+        <div className="master-pagination-controls">
+          <label>
+            <span>Rows per page:</span>
+            <select value={rowsPerPage} onChange={(event) => onRowsPerPageChange(Number(event.target.value))}>
+              <option value={8}>8</option>
+              <option value={12}>12</option>
+              <option value={18}>18</option>
+            </select>
+          </label>
 
-        <button
-          aria-label="Halaman sebelumnya"
-          disabled={currentPage === 1}
-          onClick={() => onPageChange(currentPage - 1)}
-          type="button"
-        >
-          <Icon name="chevron" />
-        </button>
+          <button
+            aria-label="Halaman sebelumnya"
+            disabled={currentPage === 1}
+            onClick={() => onPageChange(currentPage - 1)}
+            type="button"
+          >
+            <Icon name="chevron" />
+          </button>
 
-        {pageItems.map((item) => (
-          typeof item === 'number' ? (
-            <button
-              aria-current={currentPage === item ? 'page' : undefined}
-              className={currentPage === item ? 'active' : ''}
-              key={item}
-              onClick={() => onPageChange(item)}
-              type="button"
-            >
-              {item}
-            </button>
-          ) : (
-            <span aria-hidden="true" className="master-pagination-ellipsis" key={item}>...</span>
-          )
-        ))}
+          {pageItems.map((item) => (
+            typeof item === 'number' ? (
+              <button
+                aria-current={currentPage === item ? 'page' : undefined}
+                className={currentPage === item ? 'active' : ''}
+                key={item}
+                onClick={() => onPageChange(item)}
+                type="button"
+              >
+                {item}
+              </button>
+            ) : (
+              <span aria-hidden="true" className="master-pagination-ellipsis" key={item}>...</span>
+            )
+          ))}
 
-        <button
-          aria-label="Halaman berikutnya"
-          className="next"
-          disabled={currentPage === totalPages || totalPages === 0}
-          onClick={() => onPageChange(currentPage + 1)}
-          type="button"
-        >
-          <Icon name="chevron" />
-        </button>
+          <button
+            aria-label="Halaman berikutnya"
+            className="next"
+            disabled={currentPage === totalPages || totalPages === 0}
+            onClick={() => onPageChange(currentPage + 1)}
+            type="button"
+          >
+            <Icon name="chevron" />
+          </button>
+        </div>
+      </Pagination>
+
+      <div className="master-mobile-pagination">
+        <span className="master-mobile-pag-info">
+          {firstItem}–{lastItem} dari {totalItems.toLocaleString('id-ID')}
+        </span>
+        <div className="master-mobile-pag-buttons">
+          <button
+            type="button"
+            className="master-mobile-pag-btn"
+            disabled={currentPage === 1}
+            onClick={() => onPageChange(currentPage - 1)}
+            aria-label="Halaman sebelumnya"
+          >
+            <Icon name="chevron" style={{ transform: 'rotate(90deg)', width: '13px', height: '13px' }} />
+          </button>
+          <span className="master-mobile-pag-current">
+            Hal {currentPage} / {totalPages || 1}
+          </span>
+          <button
+            type="button"
+            className="master-mobile-pag-btn"
+            disabled={currentPage === totalPages || totalPages === 0}
+            onClick={() => onPageChange(currentPage + 1)}
+            aria-label="Halaman berikutnya"
+          >
+            <Icon name="chevron" style={{ transform: 'rotate(-90deg)', width: '13px', height: '13px' }} />
+          </button>
+        </div>
       </div>
-    </Pagination>
+    </>
   )
 }
 

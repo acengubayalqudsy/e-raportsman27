@@ -9,6 +9,9 @@ import excelService from '../../services/excelService.js'
 import { useAuth } from '../../auth/AuthContext.jsx'
 import { MasterImportModal } from '../master-data/MasterModals.jsx'
 import { extracurricularService } from '../../services/extracurricularService.js'
+import MasterSummary from '../master-data/MasterSummary.jsx'
+import MasterMobileToolbar from '../master-data/MasterMobileToolbar.jsx'
+import MasterMobileRecordCard from '../master-data/MasterMobileRecordCard.jsx'
 
 function ActivityModal({ children, description, onClose, title, wide = false }) {
   const dialogRef = useRef(null)
@@ -16,7 +19,14 @@ function ActivityModal({ children, description, onClose, title, wide = false }) 
   useEffect(() => {
     const previousFocus = document.activeElement
     dialogRef.current?.focus()
-    return () => previousFocus?.focus?.()
+    const isMobileViewport = typeof window !== 'undefined' && window.innerWidth < 768
+    if (isMobileViewport) {
+      document.body.classList.add('mobile-sheet-open')
+    }
+    return () => {
+      document.body.classList.remove('mobile-sheet-open')
+      previousFocus?.focus?.()
+    }
   }, [])
 
   const handleKeyDown = (event) => {
@@ -273,7 +283,13 @@ function ParticipationDetailModal({ onClose, onEdit, participation, studentParti
   )
 }
 
-function StudentParticipationView({ classId: requestedClassId, semesterId: requestedSemesterId, onNotify = () => {} }) {
+function StudentParticipationView({
+  classId: requestedClassId,
+  semesterId: requestedSemesterId,
+  classes = [],
+  onClassChange,
+  onNotify = () => {},
+}) {
   const { roles } = useAuth()
   const canImportExcel = roles.some((role) => ['admin', 'walikelas'].includes(role.name))
   const [participations, setParticipations] = useState([])
@@ -595,6 +611,115 @@ function StudentParticipationView({ classId: requestedClassId, semesterId: reque
     }))
   }, [availableExtracurriculars])
 
+  const summaryItems = useMemo(() => [
+    {
+      title: 'Keikutsertaan Ekskul',
+      value: String(populatedParticipations.length),
+      caption: 'Siswa terdaftar',
+      icon: 'users',
+      tone: 'green',
+    },
+    {
+      title: 'Ekskul Aktif',
+      value: String(availableExtracurriculars.length),
+      caption: 'Kegiatan ekskul',
+      icon: 'award',
+      tone: 'blue',
+    },
+    {
+      title: 'Sudah Dinilai',
+      value: String(populatedParticipations.filter((p) => Boolean(p.predicate)).length),
+      caption: 'Memiliki predikat',
+      icon: 'checkCircle',
+      tone: 'purple',
+    },
+    {
+      title: 'Belum Dinilai',
+      value: String(populatedParticipations.filter((p) => !p.predicate).length),
+      caption: 'Perlu dinilai',
+      icon: 'clock',
+      tone: 'orange',
+    },
+  ], [populatedParticipations, availableExtracurriculars])
+
+  const mobileFilterFields = useMemo(() => {
+    const fields = []
+    if (classes && classes.length > 0) {
+      fields.push({
+        name: 'classId',
+        label: 'Kelas',
+        type: 'select',
+        options: classes.map((c) => ({ value: String(c.id), label: c.name })),
+      })
+    }
+    fields.push(
+      {
+        name: 'academicYear',
+        label: 'Tahun Ajaran',
+        type: 'select',
+        options: [
+          { value: 'Semua Tahun', label: 'Semua Tahun' },
+          ...(activeYearName ? [{ value: activeYearName, label: activeYearName }] : []),
+        ],
+      },
+      {
+        name: 'semester',
+        label: 'Semester',
+        type: 'select',
+        options: [
+          { value: 'Semua Semester', label: 'Semua Semester' },
+          ...(activeSemesterName ? [{ value: activeSemesterName, label: activeSemesterName }] : []),
+        ],
+      },
+      {
+        name: 'extracurricular',
+        label: 'Ekstrakurikuler',
+        type: 'select',
+        options: filterExtracurricularOptions.map((opt) => ({ value: opt, label: opt })),
+      },
+      {
+        name: 'status',
+        label: 'Status',
+        type: 'select',
+        options: [
+          { value: 'Semua Status', label: 'Semua Status' },
+          { value: 'Aktif', label: 'Aktif' },
+          { value: 'Tidak Aktif', label: 'Tidak Aktif' },
+        ],
+      },
+    )
+    return fields
+  }, [classes, activeYearName, activeSemesterName, filterExtracurricularOptions])
+
+  const handleMobileFilterChange = (key, value) => {
+    if (key === 'classId') {
+      onClassChange?.(value)
+    } else {
+      updateFilter(key, value)
+    }
+  }
+
+  const handleMobileFilterReset = () => {
+    setFilters({
+      className: 'Semua Kelas',
+      academicYear: 'Semua Tahun',
+      semester: 'Semua Semester',
+      extracurricular: 'Semua Ekskul',
+      status: 'Semua Status',
+    })
+    setCurrentPage(1)
+  }
+
+  const activeMobileFilterCount = useMemo(() => {
+    let count = 0
+    if (filters.className !== 'Semua Kelas') count++
+    if (filters.academicYear !== 'Semua Tahun') count++
+    if (filters.semester !== 'Semua Semester') count++
+    if (filters.extracurricular !== 'Semua Ekskul') count++
+    if (filters.status !== 'Semua Status') count++
+    return count
+  }, [filters])
+
   const filterFields = [
     { key: 'className', label: 'Kelas', options: filterClassOptions },
     { key: 'academicYear', label: 'Tahun Ajaran', options: ['Semua Tahun', activeYearName] },
@@ -605,7 +730,38 @@ function StudentParticipationView({ classId: requestedClassId, semesterId: reque
 
   return (
     <>
-      <section className="activity-filter-card">
+      <MasterSummary items={summaryItems} title="Ringkasan Data" subtitle="Statistik terkini kegiatan siswa" />
+
+      <div className="activity-mobile-toolbar-section">
+        <MasterMobileToolbar
+          searchQuery={searchQuery}
+          onSearchChange={(value) => {
+            setSearchQuery(value)
+            setCurrentPage(1)
+            setOpenMenuId(null)
+          }}
+          searchPlaceholder="Cari siswa (NIS/Nama/Ekskul)..."
+          filterFields={mobileFilterFields}
+          filters={{
+            classId: String(classId || ''),
+            ...filters,
+          }}
+          onFilterChange={handleMobileFilterChange}
+          onFilterReset={handleMobileFilterReset}
+          activeFilterCount={activeMobileFilterCount}
+          onAdd={() => setModal({ type: 'add' })}
+          addLabel="Tambah Keikutsertaan"
+          onImport={canImportExcel ? () => setShowImport(true) : undefined}
+          importLabel="Import Excel"
+          onExport={() => excelService.download('participations', 'export', {
+            class_id: classId, semester_id: semesterId, search: searchQuery,
+            activity_name: filters.extracurricular === 'Semua Ekskul' ? '' : filters.extracurricular,
+          }).catch((error) => onNotify(error.message))}
+          exportLabel="Ekspor Data"
+        />
+      </div>
+
+      <section className="activity-filter-card activity-desktop-filter-card">
         <div className="activity-toolbar">
           <div className="activity-filter-grid activity-participation-filters">
             {filterFields.map((field) => (
@@ -673,12 +829,15 @@ function StudentParticipationView({ classId: requestedClassId, semesterId: reque
                   : `${filteredParticipations.length.toLocaleString('id-ID')} data keikutsertaan terdaftar`}
               </p>
             </div>
+            <span className="master-record-count-badge activity-table-count">
+              {filteredParticipations.length.toLocaleString('id-ID')} data
+            </span>
             {fetchError && (
               <span style={{ color: '#ef4444', fontSize: '0.85rem' }}>{fetchError}</span>
             )}
           </div>
 
-          <div className="activity-table-scroll">
+          <div className="activity-table-scroll activity-desktop-table-scroll">
             <table className="activity-table activity-participation-table">
               <thead>
                 <tr>
@@ -773,6 +932,34 @@ function StudentParticipationView({ classId: requestedClassId, semesterId: reque
             </table>
           </div>
 
+          <div className="activity-mobile-records-wrapper">
+            {isLoading ? (
+              <div style={{ textAlign: 'center', padding: '24px', color: '#64748b' }}>
+                <div style={{ width: '24px', height: '24px', border: '3px solid #e2e8f0', borderTopColor: '#0284c7', borderRadius: '50%', animation: 'spin 0.8s linear infinite', margin: '0 auto 8px' }} />
+                <span>Memuat data keikutsertaan...</span>
+              </div>
+            ) : visibleParticipations.length === 0 ? (
+              <EmptyState className="activity-empty-state">
+                <Icon name="search" />
+                <strong>Data keikutsertaan belum ada</strong>
+                <span>Klik tombol &quot;Tambah Keikutsertaan&quot; untuk mendaftarkan siswa ke ekstrakurikuler.</span>
+              </EmptyState>
+            ) : (
+              <div className="master-mobile-record-list">
+                {visibleParticipations.map((item) => (
+                  <MasterMobileRecordCard
+                    key={item.id}
+                    moduleKey="keikutsertaan"
+                    record={item}
+                    onViewDetail={() => showDetail(item)}
+                    onEdit={() => setModal({ type: 'edit', participation: item })}
+                    onDelete={() => handleDeleteParticipation(item)}
+                  />
+                ))}
+              </div>
+            )}
+          </div>
+
           <MasterPagination
             currentPage={safePage}
             itemLabel="data"
@@ -791,7 +978,7 @@ function StudentParticipationView({ classId: requestedClassId, semesterId: reque
           />
         </section>
 
-        <aside className="activity-participation-sidebar">
+        <aside className="activity-participation-sidebar activity-desktop-sidebar">
           <section className="activity-side-card">
             <header>
               <h3>Ekstrakurikuler Aktif</h3>

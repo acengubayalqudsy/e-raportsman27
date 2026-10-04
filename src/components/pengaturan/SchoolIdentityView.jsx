@@ -26,12 +26,10 @@ function SettingsAside({ onBackup }) {
       <section className="settings-side-card settings-system-information">
         <header><Icon name="info" /><h3>Informasi Sistem</h3></header>
         <dl>
-          <div><dt>Versi Aplikasi</dt><dd>v1.0.0</dd></div>
-          <div><dt>Environment</dt><dd>Frontend Prototype</dd></div>
-          <div><dt>Framework</dt><dd>React</dd></div>
-          <div><dt>Data</dt><dd>Mock / Local State</dd></div>
-          <div><dt>Backend</dt><dd>Belum terintegrasi</dd></div>
-          <div><dt>Database</dt><dd>Belum terintegrasi</dd></div>
+          <div><dt>Aplikasi</dt><dd>e-Raport SMAN 27 Garut</dd></div>
+          <div><dt>Versi</dt><dd>v1.0.0</dd></div>
+          <div><dt>Modul</dt><dd>Pengaturan Sekolah</dd></div>
+          <div><dt>Status Data</dt><dd>Tersinkronisasi</dd></div>
         </dl>
       </section>
 
@@ -206,7 +204,7 @@ function SchoolIdentityView({ initialValue, onDirtyChange, onNotify, onOpenBacku
         <div className="settings-modal-backdrop" onMouseDown={(event) => { if (event.target === event.currentTarget) setShowRemoveConfirmation(false) }} role="presentation">
           <section aria-labelledby="remove-logo-title" aria-modal="true" className="settings-confirm-modal" role="dialog">
             <header><span><Icon name="trash" /></span><div><h3 id="remove-logo-title">Hapus logo sekolah?</h3><p>Konfirmasi perubahan logo</p></div></header>
-            <p>Logo hanya akan dihapus dari simulasi frontend. Anda dapat memilih logo baru sebelum menyimpan.</p>
+            <p>Logo akan dihapus dari pratinjau. Klik Simpan Perubahan untuk memperbarui logo sekolah.</p>
             <footer><button autoFocus className="settings-button secondary" onClick={() => setShowRemoveConfirmation(false)} type="button">Batal</button><button className="settings-button danger solid" onClick={() => { setLogoPreview(''); setShowRemoveConfirmation(false) }} type="button">Hapus Logo</button></footer>
           </section>
         </div>

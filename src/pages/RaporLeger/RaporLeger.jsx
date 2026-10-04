@@ -16,7 +16,7 @@ function RaporLeger() {
   return (
     <section className="report-page">
       <header className="report-header">
-        <div>
+        <div className="report-desktop-title">
           <h2>Rapor &amp; Leger</h2>
           <p>Kelola rapor, leger, dan dokumen akademik siswa</p>
         </div>

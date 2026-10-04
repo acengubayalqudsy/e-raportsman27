@@ -1,10 +1,12 @@
-import { useMemo } from 'react'
+import { useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import Icon from '../../components/common/Icon.jsx'
-import { activities, announcements, attendanceData, scheduleRows, stats } from '../../data/dashboard.js'
+import { activities, announcements, attendanceData, scheduleRows, stats, getRoleDashboardConfig } from '../../data/dashboard.js'
 import { useAuth } from '../../auth/AuthContext.jsx'
+import { useAcademicContext } from '../../context/AcademicContext.jsx'
 import { canAccessModule } from '../../constants/roles.js'
 import { useBreakpoint } from '../../hooks/useBreakpoint.js'
+import MobileAcademicSheet from '../../components/layout/MobileAcademicSheet.jsx'
 
 function formatDate(date) {
   const formatted = new Intl.DateTimeFormat('id-ID', {
@@ -17,36 +19,102 @@ function formatDate(date) {
   return formatted.charAt(0).toUpperCase() + formatted.slice(1)
 }
 
-function MobileMenuGrid({ roles = [] }) {
-  const allItems = [
-    { key: 'absensi', label: 'Absensi', icon: 'clipboardCheck', route: '/absensi/rekap', tone: 'green' },
-    { key: 'penilaian', label: 'Nilai', icon: 'grade', route: '/penilaian', tone: 'green' },
-    { key: 'rapor-leger', label: 'Rapor', icon: 'report', route: '/rapor-leger', tone: 'green' },
-    { key: 'master-data', label: 'Siswa', icon: 'layers', route: '/master-data/siswa', tone: 'teal' },
-    { key: 'kegiatan-siswa', label: 'Kegiatan', icon: 'cap', route: '/kegiatan-siswa/keikutsertaan-ekstrakurikuler', tone: 'amber' },
-    { key: 'jurnal-mengajar', label: 'Jurnal', icon: 'journal', route: '/jurnal-mengajar/jurnal', tone: 'blue' },
-    { key: 'laporan', label: 'Laporan', icon: 'document', route: '/laporan', tone: 'purple' },
-    { key: 'pengaturan', label: 'Pengaturan', icon: 'settings', route: '/pengaturan/identitas-sekolah', tone: 'gray' },
-  ]
+/* ==========================================================================
+   MOBILE MENU UTAMA (Canonical Modules for All Roles, Role-Filtered)
+   Inspired by Edlink "MyAcademic" Lightweight Icon-Grid Pattern
+   ========================================================================== */
+const CANONICAL_ADMIN_MODULES = [
+  {
+    key: 'master-data',
+    label: 'Master Data',
+    icon: 'layers',
+    route: '/master-data/siswa',
+    tone: 'teal',
+  },
+  {
+    key: 'akademik',
+    label: 'Akademik',
+    icon: 'academic',
+    route: '/akademik/jadwal-pelajaran',
+    tone: 'blue',
+  },
+  {
+    key: 'penilaian',
+    label: 'Penilaian',
+    icon: 'grade',
+    route: '/penilaian/input-nilai',
+    tone: 'green',
+  },
+  {
+    key: 'rapor-leger',
+    label: 'Rapor & Leger',
+    icon: 'report',
+    route: '/rapor-leger',
+    tone: 'emerald',
+  },
+  {
+    key: 'kegiatan-siswa',
+    label: 'Kegiatan Siswa',
+    icon: 'cap',
+    route: '/kegiatan-siswa/keikutsertaan-ekstrakurikuler',
+    tone: 'amber',
+  },
+  {
+    key: 'absensi',
+    label: 'Absensi',
+    icon: 'clipboardCheck',
+    route: '/absensi/rekap',
+    tone: 'orange',
+  },
+  {
+    key: 'jurnal-mengajar',
+    label: 'Jurnal Mengajar',
+    icon: 'journal',
+    route: '/jurnal-mengajar/jurnal',
+    tone: 'indigo',
+  },
+  {
+    key: 'laporan',
+    label: 'Laporan',
+    icon: 'document',
+    route: '/laporan',
+    tone: 'purple',
+  },
+  {
+    key: 'pengaturan',
+    label: 'Pengaturan',
+    icon: 'settings',
+    route: '/pengaturan/identitas-sekolah',
+    tone: 'gray',
+  },
+  {
+    key: 'jelajah',
+    label: 'Jelajah Berita',
+    icon: 'rocket',
+    route: '/jelajah',
+    tone: 'teal',
+  },
+]
 
-  const items = allItems.filter((item) => canAccessModule(roles, item.key))
+function MobileMenuGrid({ roles = [] }) {
+  const items = CANONICAL_ADMIN_MODULES.filter((item) => canAccessModule(roles, item.key))
 
   if (items.length === 0) return null
 
   return (
-    <section className="mobile-menu-section" aria-label="Menu Utama">
-      <div className="mobile-section-header">
-        <h3 className="mobile-section-title">Menu Utama</h3>
-        <span className="mobile-section-desc">Akses cepat fitur akademik</span>
+    <section className="edlink-menu-section" aria-label="Menu Utama">
+      <div className="edlink-section-header">
+        <h3 className="edlink-section-title">Menu Utama</h3>
+        <span className="edlink-section-desc">Akses cepat fitur E-Raport</span>
       </div>
 
-      <div className="mobile-menu-grid">
+      <div className="edlink-menu-grid">
         {items.map((item) => (
-          <Link key={item.key} to={item.route} className="mobile-menu-item">
-            <div className={`mobile-menu-icon-box tone-${item.tone}`}>
+          <Link key={item.key} to={item.route} className="edlink-menu-tile">
+            <div className={`edlink-icon-tile tone-${item.tone}`}>
               <Icon name={item.icon} />
             </div>
-            <span className="mobile-menu-label">{item.label}</span>
+            <span className="edlink-tile-label">{item.label}</span>
           </Link>
         ))}
       </div>
@@ -54,12 +122,82 @@ function MobileMenuGrid({ roles = [] }) {
   )
 }
 
-function DashboardHeader({ date, userName }) {
+/* ==========================================================================
+   MOBILE GREETING & CONTEXT SECTION
+   Lightweight, no heavy cards, with compact date and academic chip
+   ========================================================================== */
+function MobileGreetingContext({ date, onOpenAcademic }) {
+  const { selectedYear, selectedSemester, activeAcademicYear, activeSemester, isLoading } =
+    useAcademicContext()
+
+  const rawYear = selectedYear?.name || activeAcademicYear?.name || (isLoading ? '...' : '2024/2025')
+  const rawSem = selectedSemester?.name || activeSemester?.name || (isLoading ? '...' : 'Genap')
+  const cleanSem = rawSem.replace(/^semester\s*/i, '')
+  const semDisplay = `Semester ${cleanSem}`
+
+  return (
+    <section className="mobile-greeting-section" aria-label="Informasi Konteks">
+      <div className="mobile-context-pills-row">
+        <div className="mobile-context-pill date-pill-mobile">
+          <Icon name="calendar" className="mobile-context-icon" />
+          <span>{date}</span>
+        </div>
+
+        <button
+          type="button"
+          className="mobile-context-pill academic-pill-mobile"
+          onClick={onOpenAcademic}
+          aria-label={`Tahun Ajaran ${rawYear} ${semDisplay}. Tekan untuk mengubah.`}
+          title="Ubah Tahun Ajaran dan Semester"
+        >
+          <Icon name="calendar" className="mobile-context-icon green" />
+          <span className="mobile-context-academic-text">{rawYear} • {semDisplay}</span>
+          <Icon name="chevron" className="mobile-context-chevron" />
+        </button>
+      </div>
+    </section>
+  )
+}
+
+/* ==========================================================================
+   MOBILE SECONDARY STATS (Placed AFTER Menu Utama, 2 Columns, No Fake Trends)
+   ========================================================================== */
+function MobileStatsGrid({ stats = [] }) {
+  if (!stats || stats.length === 0) return null
+
+  return (
+    <section className="mobile-stats-section" aria-label="Ringkasan Data">
+      <div className="edlink-section-header">
+        <h3 className="edlink-section-title">Ringkasan Data</h3>
+        <span className="edlink-section-desc">Statistik terkini tahun ajaran aktif</span>
+      </div>
+
+      <div className="mobile-stats-grid">
+        {stats.map((stat) => (
+          <div key={stat.title} className="mobile-stat-card">
+            <div className={`mobile-stat-icon tone-${stat.tone}`}>
+              <Icon name={stat.icon} />
+            </div>
+            <div className="mobile-stat-data">
+              <strong className="mobile-stat-value">{stat.value}</strong>
+              <span className="mobile-stat-title">{stat.title}</span>
+            </div>
+          </div>
+        ))}
+      </div>
+    </section>
+  )
+}
+
+/* ==========================================================================
+   DESKTOP COMPONENTS (Role-Tailored using Admin Design System)
+   ========================================================================== */
+function DashboardHeader({ date, userName, subtitle }) {
   return (
     <section className="dashboard-header">
       <div>
         <h2>Selamat datang, {userName} <span aria-hidden="true">{'\u{1F44B}'}</span></h2>
-        <p>Kelola data akademik dengan mudah dan terintegrasi</p>
+        <p>{subtitle || 'Kelola data akademik dengan mudah dan terintegrasi'}</p>
       </div>
       <div className="date-pill">
         <Icon name="calendar" />
@@ -98,10 +236,10 @@ function Panel({ title, icon, actionText, href, children }) {
           <Icon name={icon} />
           <h3>{title}</h3>
         </div>
-        {actionText && (
-          <a className="panel-action" href={href}>
+        {actionText && href && (
+          <Link className="panel-action" to={href}>
             {actionText}
-          </a>
+          </Link>
         )}
       </div>
       <div className="panel-body">{children}</div>
@@ -109,9 +247,13 @@ function Panel({ title, icon, actionText, href, children }) {
   )
 }
 
-function TodaySchedule() {
+function TodaySchedule({ config }) {
+  const title = config?.scheduleTitle || 'Jadwal Hari Ini'
+  const actionText = config?.scheduleActionText || null
+  const href = config?.scheduleActionHref || null
+
   return (
-    <Panel title="Jadwal Hari Ini" icon="calendar" actionText="Lihat Semua" href="/akademik/jadwal">
+    <Panel title={title} icon="calendar" actionText={actionText} href={href}>
       <div className="schedule-list">
         {scheduleRows.map((row) => (
           <article className="schedule-row" key={`${row.time}-${row.subject}`}>
@@ -133,7 +275,11 @@ function TodaySchedule() {
   )
 }
 
-function AttendanceOverview() {
+function AttendanceOverview({ config }) {
+  const title = config?.attendanceTitle || 'Absensi Siswa Hari Ini'
+  const actionText = config?.attendanceActionText || null
+  const href = config?.attendanceActionHref || null
+
   const total = attendanceData.reduce((sum, item) => sum + item.value, 0)
   const gradient = useMemo(() => {
     return attendanceData
@@ -153,7 +299,7 @@ function AttendanceOverview() {
   }, [total])
 
   return (
-    <Panel title="Absensi Siswa Hari Ini" icon="grade" actionText="Lihat Detail" href="/absensi">
+    <Panel title={title} icon="grade" actionText={actionText} href={href}>
       <div className="attendance-content">
         <div className="donut" style={{ '--donut-gradient': gradient }}>
           <div>
@@ -227,27 +373,58 @@ function SchoolAnnouncements() {
   )
 }
 
+/* ==========================================================================
+   MAIN DASHBOARD EXPORT
+   Adaptive branching: Mobile (<= 767px) vs Desktop/Tablet (>= 768px)
+   ========================================================================== */
 function Dashboard() {
   const currentDate = useMemo(() => formatDate(new Date()), [])
   const { user, roles } = useAuth()
   const userName = user?.name ? user.name.split(' ')[0] : 'Pengguna'
+  const primaryRole = user?.primaryRole || ''
+  const roleConfig = useMemo(() => getRoleDashboardConfig(roles, primaryRole), [roles, primaryRole])
   const breakpoint = useBreakpoint()
+  const [isAcademicOpen, setIsAcademicOpen] = useState(false)
 
+  // Mobile Dashboard View (Reference-Driven Edlink Structure)
+  if (breakpoint.isMobile) {
+    return (
+      <div className="mobile-dashboard-container">
+        {/* 1. Lightweight Context Section (Date & Academic Context Chip) */}
+        <MobileGreetingContext
+          date={currentDate}
+          onOpenAcademic={() => setIsAcademicOpen(true)}
+        />
+
+        {/* 2. Menu Utama (Canonical Modules Filtered by Role) */}
+        <MobileMenuGrid roles={roles} />
+
+        {/* 3. Secondary Statistics (2 Columns, Clean, Role-Tailored) */}
+        <MobileStatsGrid stats={roleConfig.mobileStats} />
+
+        {/* Interactive Academic Context Switcher Sheet */}
+        <MobileAcademicSheet
+          isOpen={isAcademicOpen}
+          onClose={() => setIsAcademicOpen(false)}
+        />
+      </div>
+    )
+  }
+
+  // Desktop / Tablet Dashboard (Role-Tailored using Admin Design System)
   return (
     <>
-      <DashboardHeader date={currentDate} userName={userName} />
-
-      {breakpoint.isMobile && <MobileMenuGrid roles={roles} />}
+      <DashboardHeader date={currentDate} userName={userName} subtitle={roleConfig.subtitle} />
 
       <section className="stats-grid" aria-label="Ringkasan dashboard">
-        {stats.map((stat) => (
+        {(roleConfig?.desktopStats || stats).map((stat) => (
           <StatCard key={stat.title} stat={stat} />
         ))}
       </section>
 
       <div className="dashboard-grid">
-        <TodaySchedule />
-        <AttendanceOverview />
+        <TodaySchedule config={roleConfig} />
+        <AttendanceOverview config={roleConfig} />
       </div>
 
       <div className="dashboard-grid bottom-grid">

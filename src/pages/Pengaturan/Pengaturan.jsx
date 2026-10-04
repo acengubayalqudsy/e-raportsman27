@@ -4,6 +4,7 @@ import Icon from '../../components/common/Icon.jsx'
 import Breadcrumb from '../../components/layout/Breadcrumb.jsx'
 import SchoolIdentityView from '../../components/pengaturan/SchoolIdentityView.jsx'
 import SettingsCategoryCards from '../../components/pengaturan/SettingsCategoryCards.jsx'
+import SettingsMobileModuleGrid from '../../components/pengaturan/SettingsMobileModuleGrid.jsx'
 import {
   AcademicSettingsView,
   ActivityLogView,
@@ -12,11 +13,14 @@ import {
   SystemSettingsView,
 } from '../../components/pengaturan/SettingsViews.jsx'
 import { initialSchoolIdentity, settingsTabs } from '../../data/pengaturan.js'
+import { useBreakpoint } from '../../hooks/useBreakpoint.js'
 import './Pengaturan.css'
 
 function Pengaturan() {
   const location = useLocation()
   const navigate = useNavigate()
+  const breakpoint = useBreakpoint()
+  const isMobile = breakpoint.isMobile
   const [notice, setNotice] = useState('')
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false)
   const [pendingNavigation, setPendingNavigation] = useState('')
@@ -95,12 +99,27 @@ function Pengaturan() {
 
   return (
     <section className="settings-page">
-      <header className="settings-page-header">
-        <div><h2>Pengaturan</h2><p>Kelola konfigurasi aplikasi e-Raport sesuai kebutuhan sekolah</p></div>
-        <div className="settings-breadcrumb"><Breadcrumb items={['Dashboard', 'Pengaturan', activeTab.label]} /></div>
-      </header>
+      {/* Desktop Header & Breadcrumb */}
+      {!isMobile && (
+        <header className="settings-page-header settings-desktop-only">
+          <div><h2>Pengaturan</h2><p>Kelola konfigurasi aplikasi e-Raport sesuai kebutuhan sekolah</p></div>
+          <div className="settings-breadcrumb"><Breadcrumb items={['Dashboard', 'Pengaturan', activeTab.label]} /></div>
+        </header>
+      )}
 
-      <SettingsCategoryCards activeKey={activeTab.key} items={settingsTabs} />
+      {/* Desktop Category Cards */}
+      {!isMobile && (
+        <div className="settings-desktop-only">
+          <SettingsCategoryCards activeKey={activeTab.key} items={settingsTabs} />
+        </div>
+      )}
+
+      {/* Mobile 3x2 Module Grid */}
+      {isMobile && (
+        <SettingsMobileModuleGrid onItemClick={requestNavigation} />
+      )}
+
+      {/* Active Settings View */}
       {activeView}
 
       {notice && (

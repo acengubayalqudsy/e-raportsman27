@@ -554,7 +554,17 @@
 .submenu-item.settings-submenu-item.active { background: #e5f6ef; color: #07895a; font-weight: 700; }
 .submenu-item.settings-submenu-item.active::before { display: none; }
 
-@media (max-width: 1180px) {
+/* ========================================================
+   DESKTOP RESPONSIVE BREAKPOINTS (>=768px)
+   ======================================================== */
+@media (min-width: 768px) {
+  .settings-mobile-module-grid-wrapper,
+  .settings-mobile-record-list {
+    display: none !important;
+  }
+}
+
+@media (min-width: 768px) and (max-width: 1180px) {
   .settings-category-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
   .settings-category-card { min-height: 168px; padding: 18px; }
   .settings-identity-layout { grid-template-columns: 1fr; }
@@ -564,7 +574,7 @@
   .settings-filter-bar { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 }
 
-@media (max-width: 840px) {
+@media (min-width: 768px) and (max-width: 840px) {
   .settings-page-header { align-items: flex-start; flex-direction: column; }
   .settings-breadcrumb { max-width: 100%; overflow-x: auto; }
   .settings-category-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
@@ -576,21 +586,1018 @@
   .settings-filter-panel .settings-search { grid-column: span 2; }
 }
 
-@media (max-width: 560px) {
+/* ========================================================
+   EDLINK-INSPIRED MOBILE DESIGN SYSTEM — PENGATURAN (<=767px)
+   ======================================================== */
+@media (max-width: 767px) {
+  /* 1. Page Container & Reset */
+  .settings-page {
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 0 !important;
+    width: 100% !important;
+    padding: 0 !important;
+  }
+
+  /* 2. Hide Desktop Header, Breadcrumb, Desktop Category Cards, and Desktop Table */
+  .settings-page-header,
+  .settings-breadcrumb,
   .settings-category-grid,
+  .settings-desktop-only,
+  .settings-desktop-table-wrap {
+    display: none !important;
+  }
+
+  /* 3. Section 1: Mobile Module Grid (Pilih Data 3x2 Grid) */
+  .settings-mobile-module-grid-wrapper {
+    display: block !important;
+    background: #FFFFFF !important;
+    border-radius: 18px !important;
+    padding: 18px 16px 20px !important;
+    border: 1px solid rgba(0, 0, 0, 0.05) !important;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.025) !important;
+    box-sizing: border-box !important;
+    width: 100% !important;
+    margin: 0 0 18px 0 !important;
+  }
+
+  .settings-mobile-module-grid-wrapper .master-mobile-grid-header {
+    display: flex !important;
+    justify-content: space-between !important;
+    align-items: flex-start !important;
+    margin-bottom: 16px !important;
+    padding: 0 !important;
+    border-bottom: none !important;
+  }
+
+  .settings-mobile-module-grid-wrapper .master-mobile-grid-header-copy {
+    display: flex !important;
+    flex-direction: column !important;
+    min-width: 0 !important;
+    flex: 1 1 auto !important;
+  }
+
+  .settings-mobile-module-grid-wrapper .master-mobile-grid-title {
+    font-size: 16px !important;
+    font-weight: 700 !important;
+    color: #0F172A !important;
+    margin: 0 !important;
+    letter-spacing: -0.01em !important;
+  }
+
+  .settings-mobile-module-grid-wrapper .master-mobile-grid-desc {
+    font-size: 11.5px !important;
+    color: #64748B !important;
+    margin-top: 2px !important;
+    display: block !important;
+  }
+
+  .settings-mobile-grid-3col {
+    display: grid !important;
+    grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+    gap: 16px 6px !important;
+    justify-items: center !important;
+    align-items: start !important;
+  }
+
+  .settings-mobile-module-grid-wrapper .master-mobile-grid-item {
+    display: flex !important;
+    flex-direction: column !important;
+    align-items: center !important;
+    text-align: center !important;
+    text-decoration: none !important;
+    gap: 7px !important;
+    padding: 0 !important;
+    border-radius: 0 !important;
+    transition: transform 0.15s ease !important;
+    border: none !important;
+    background: transparent !important;
+    box-shadow: none !important;
+    min-width: 0 !important;
+    width: 100% !important;
+    box-sizing: border-box !important;
+    -webkit-tap-highlight-color: transparent !important;
+  }
+
+  .settings-mobile-module-grid-wrapper .master-mobile-grid-item:active {
+    transform: scale(0.94) !important;
+  }
+
+  .settings-mobile-module-grid-wrapper .master-mobile-icon-box {
+    width: 50px !important;
+    height: 50px !important;
+    min-width: 50px !important;
+    min-height: 50px !important;
+    border-radius: 14px !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    font-size: 20px !important;
+    transition: transform 0.18s ease !important;
+    flex-shrink: 0 !important;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.03) !important;
+  }
+
+  .settings-mobile-module-grid-wrapper .master-mobile-icon-box .ui-icon {
+    width: 24px !important;
+    height: 24px !important;
+  }
+
+  .settings-mobile-module-grid-wrapper .master-mobile-item-label {
+    font-size: 11px !important;
+    font-weight: 600 !important;
+    color: #334155 !important;
+    line-height: 1.2 !important;
+    max-width: 100% !important;
+    width: 100% !important;
+    text-align: center !important;
+    word-break: normal !important;
+    overflow-wrap: break-word !important;
+    hyphens: auto !important;
+    display: -webkit-box !important;
+    -webkit-line-clamp: 2 !important;
+    -webkit-box-orient: vertical !important;
+    overflow: hidden !important;
+  }
+
+  .settings-mobile-module-grid-wrapper .master-mobile-grid-item.active .master-mobile-item-label {
+    color: #008520 !important;
+    font-weight: 700 !important;
+  }
+
+  /* 4. Layout & White Section Card styling for active content */
+  .settings-identity-layout,
+  .settings-form-view,
+  .settings-data-view {
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 18px !important;
+    width: 100% !important;
+  }
+
+  .settings-form-card,
+  .settings-panel,
+  .settings-backup-summary,
+  .settings-table-panel,
+  .settings-filter-panel {
+    background: #FFFFFF !important;
+    border-radius: 18px !important;
+    padding: 16px 14px !important;
+    border: 1px solid rgba(0, 0, 0, 0.06) !important;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.025) !important;
+    box-sizing: border-box !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    margin: 0 !important;
+  }
+
+  .settings-card-heading,
+  .settings-panel-heading {
+    display: flex !important;
+    flex-direction: column !important;
+    align-items: flex-start !important;
+    gap: 4px !important;
+    margin: 0 0 16px 0 !important;
+    padding: 0 0 12px 0 !important;
+    border-bottom: 1px solid #F1F5F9 !important;
+    min-height: auto !important;
+    width: 100% !important;
+    box-sizing: border-box !important;
+  }
+
+  .settings-card-heading h3,
+  .settings-panel-heading h2 {
+    font-size: 15px !important;
+    font-weight: 700 !important;
+    color: #0F172A !important;
+    margin: 0 !important;
+    line-height: 1.3 !important;
+  }
+
+  .settings-card-heading p,
+  .settings-panel-heading p {
+    font-size: 11.5px !important;
+    color: #64748B !important;
+    margin: 2px 0 0 0 !important;
+    line-height: 1.4 !important;
+  }
+
+  .settings-panel-heading .settings-context-chip {
+    margin-top: 6px !important;
+    align-self: flex-start !important;
+  }
+
+  .settings-card-heading em {
+    margin: 6px 0 0 0 !important;
+    align-self: flex-start !important;
+  }
+
+  /* Section cards inside views (FormSection) */
+  .settings-section {
+    background: #F8FAFC !important;
+    border: 1px solid #E2E8F0 !important;
+    border-radius: 14px !important;
+    padding: 12px 14px 14px !important;
+    margin-bottom: 18px !important;
+    box-sizing: border-box !important;
+    width: 100% !important;
+    max-width: 100% !important;
+  }
+
+  .settings-section:last-of-type {
+    margin-bottom: 0 !important;
+  }
+
+  .settings-section-header {
+    display: flex !important;
+    align-items: flex-start !important;
+    gap: 10px !important;
+    margin-bottom: 14px !important;
+    padding-bottom: 10px !important;
+    border-bottom: 1px solid #E2E8F0 !important;
+    width: 100% !important;
+    box-sizing: border-box !important;
+  }
+
+  .settings-section-header > div {
+    flex: 1 1 auto !important;
+    min-width: 0 !important;
+  }
+
+  .settings-section-header h3 {
+    font-size: 13.5px !important;
+    font-weight: 700 !important;
+    color: #0F172A !important;
+    margin: 0 !important;
+    line-height: 1.3 !important;
+  }
+
+  .settings-section-header p {
+    font-size: 11px !important;
+    color: #64748B !important;
+    margin: 2px 0 0 0 !important;
+    line-height: 1.4 !important;
+  }
+
+  .settings-section-icon {
+    width: 32px !important;
+    height: 32px !important;
+    min-width: 32px !important;
+    min-height: 32px !important;
+    border-radius: 8px !important;
+    background: #E8F5E9 !important;
+    color: #008520 !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    flex-shrink: 0 !important;
+    margin-top: 1px !important;
+  }
+
+  .settings-section-icon .ui-icon {
+    width: 17px !important;
+    height: 17px !important;
+  }
+
+  /* 5. Form Fields: 1-Column Layout & Consistent 48px Height */
   .settings-identity-fields,
   .settings-form-grid,
-  .settings-summary-grid,
-  .settings-filter-bar { grid-template-columns: 1fr; }
-  .settings-form-grid-three,
-  .settings-toggle-grid,
-  .settings-component-grid,
-  .settings-filter-panel .settings-filter-bar { grid-template-columns: 1fr; }
-  .settings-filter-panel .settings-search { grid-column: auto; }
-  .settings-category-card { min-height: 158px; }
-  .settings-card-heading { align-items: flex-start; padding-bottom: 12px; padding-top: 12px; }
-  .settings-card-heading em { margin-left: 0; }
-  .settings-logo-content { align-items: flex-start; }
-  .settings-page .master-pagination { align-items: flex-start; flex-direction: column; gap: 9px; }
-  .settings-page .master-pagination-controls { flex-wrap: wrap; }
+  .settings-form-grid-three {
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 14px !important;
+    width: 100% !important;
+    min-width: 0 !important;
+    box-sizing: border-box !important;
+  }
+
+  .settings-field {
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 6px !important;
+    width: 100% !important;
+    min-width: 0 !important;
+    max-width: 100% !important;
+    box-sizing: border-box !important;
+  }
+
+  .settings-field > span {
+    font-size: 12.5px !important;
+    font-weight: 600 !important;
+    color: #334155 !important;
+    line-height: 1.3 !important;
+  }
+
+  .settings-field input,
+  .settings-field select {
+    min-height: 48px !important;
+    height: 48px !important;
+    max-height: 48px !important;
+    line-height: 46px !important;
+    background: #FFFFFF !important;
+    border: 1px solid #CBD5E1 !important;
+    border-radius: 12px !important;
+    padding: 0 14px !important;
+    font-size: 13.5px !important;
+    font-weight: 500 !important;
+    color: #0F172A !important;
+    box-sizing: border-box !important;
+    outline: none !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    min-width: 0 !important;
+    transition: border-color 0.15s ease, box-shadow 0.15s ease !important;
+  }
+
+  .settings-field select {
+    appearance: none !important;
+    -webkit-appearance: none !important;
+    -moz-appearance: none !important;
+    background-color: #FFFFFF !important;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='18' height='18' viewBox='0 0 24 24' fill='none' stroke='%2364748B' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E") !important;
+    background-repeat: no-repeat !important;
+    background-position: right 14px center !important;
+    background-size: 18px 18px !important;
+    padding-right: 42px !important;
+    cursor: pointer !important;
+    font-weight: 600 !important;
+  }
+
+  .settings-field select::-ms-expand {
+    display: none !important;
+  }
+
+  /* Date inputs normalization */
+  .settings-field input[type="date"] {
+    appearance: none !important;
+    -webkit-appearance: none !important;
+    display: flex !important;
+    align-items: center !important;
+    padding: 0 14px !important;
+  }
+
+  .settings-field input[type="date"]::-webkit-date-and-time-value {
+    text-align: left !important;
+    min-height: 1.25em !important;
+    line-height: 46px !important;
+    height: 46px !important;
+    display: flex !important;
+    align-items: center !important;
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+
+  .settings-field input[type="date"]::-webkit-calendar-picker-indicator {
+    cursor: pointer !important;
+    opacity: 0.6 !important;
+    padding: 0 !important;
+    margin: 0 !important;
+  }
+
+  .settings-field textarea {
+    min-height: 80px !important;
+    height: auto !important;
+    resize: vertical !important;
+    background: #FFFFFF !important;
+    border: 1px solid #CBD5E1 !important;
+    border-radius: 12px !important;
+    padding: 12px 14px !important;
+    font-size: 13.5px !important;
+    font-weight: 500 !important;
+    color: #0F172A !important;
+    box-sizing: border-box !important;
+    outline: none !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    min-width: 0 !important;
+    transition: border-color 0.15s ease, box-shadow 0.15s ease !important;
+  }
+
+  .settings-field input:focus,
+  .settings-field select:focus,
+  .settings-field textarea:focus {
+    border-color: #008520 !important;
+    box-shadow: 0 0 0 3px rgba(0, 133, 32, 0.12) !important;
+  }
+
+  .settings-field input:disabled,
+  .settings-field select:disabled {
+    background: #F1F5F9 !important;
+    color: #64748B !important;
+    border-color: #E2E8F0 !important;
+  }
+
+  /* 6. Advanced Identity Details */
+  .settings-advanced-fields {
+    border: 1px solid #E2E8F0 !important;
+    border-radius: 14px !important;
+    background: #FFFFFF !important;
+    margin-top: 14px !important;
+    padding: 0 !important;
+    overflow: hidden !important;
+  }
+
+  .settings-advanced-fields summary {
+    font-size: 13px !important;
+    font-weight: 600 !important;
+    color: #008520 !important;
+    padding: 14px 16px !important;
+    cursor: pointer !important;
+    background: #F8FAFC !important;
+    list-style-position: inside !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: space-between !important;
+    user-select: none !important;
+  }
+
+  .settings-advanced-fields[open] summary {
+    border-bottom: 1px solid #E2E8F0 !important;
+    margin-bottom: 0 !important;
+  }
+
+  .settings-advanced-fields .settings-identity-fields {
+    padding: 14px 16px !important;
+    box-sizing: border-box !important;
+  }
+
+  /* 7. Logo Section */
+  .settings-logo-section {
+    background: #F8FAFC !important;
+    border: 1px solid #E2E8F0 !important;
+    border-radius: 14px !important;
+    padding: 16px !important;
+    margin-top: 16px !important;
+    box-sizing: border-box !important;
+  }
+
+  .settings-logo-label {
+    font-size: 12.5px !important;
+    font-weight: 600 !important;
+    color: #334155 !important;
+    margin-bottom: 12px !important;
+    display: block !important;
+  }
+
+  .settings-logo-content {
+    display: flex !important;
+    flex-direction: column !important;
+    align-items: center !important;
+    text-align: center !important;
+    gap: 14px !important;
+  }
+
+  .settings-logo-preview {
+    width: 80px !important;
+    height: 80px !important;
+    border-radius: 16px !important;
+    background: #FFFFFF !important;
+    border: 1px solid #CBD5E1 !important;
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.04) !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+  }
+
+  .settings-logo-preview img {
+    width: 68px !important;
+    height: 68px !important;
+    object-fit: contain !important;
+  }
+
+  .settings-logo-actions {
+    display: flex !important;
+    flex-direction: row !important;
+    gap: 10px !important;
+    width: 100% !important;
+    justify-content: center !important;
+  }
+
+  .settings-logo-actions button {
+    flex: 1 !important;
+    min-height: 44px !important;
+    height: 44px !important;
+    font-size: 13px !important;
+    font-weight: 600 !important;
+    border-radius: 10px !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+  }
+
+  /* 8. Toggles & Checkbox Grids */
+  .settings-toggle-list,
+  .settings-toggle-grid {
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 12px !important;
+    width: 100% !important;
+    min-width: 0 !important;
+    box-sizing: border-box !important;
+  }
+
+  .settings-form-grid + .settings-toggle-grid,
+  .settings-form-grid + .settings-toggle-list,
+  .settings-form-grid-three + .settings-toggle-grid,
+  .settings-form-grid-three + .settings-toggle-list,
+  .settings-field + .settings-toggle-grid,
+  .settings-field + .settings-toggle-list,
+  .settings-form-grid + .settings-component-grid,
+  .settings-form-grid-three + .settings-component-grid {
+    margin-top: 16px !important;
+  }
+
+  .settings-toggle-item {
+    display: flex !important;
+    justify-content: space-between !important;
+    align-items: center !important;
+    background: #FFFFFF !important;
+    border: 1px solid #E2E8F0 !important;
+    border-radius: 12px !important;
+    padding: 14px 16px !important;
+    box-sizing: border-box !important;
+    gap: 12px !important;
+    width: 100% !important;
+    min-width: 0 !important;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.02) !important;
+  }
+
+  .settings-toggle-item > div {
+    flex: 1 1 auto !important;
+    min-width: 0 !important;
+  }
+
+  .settings-toggle-item strong {
+    font-size: 13px !important;
+    font-weight: 600 !important;
+    color: #1E293B !important;
+    display: block !important;
+    line-height: 1.3 !important;
+  }
+
+  .settings-toggle-item small {
+    font-size: 11px !important;
+    color: #64748B !important;
+    margin-top: 3px !important;
+    display: block !important;
+    line-height: 1.4 !important;
+  }
+
+  .settings-toggle {
+    width: 48px !important;
+    height: 28px !important;
+    min-width: 48px !important;
+    min-height: 28px !important;
+    max-height: 28px !important;
+    border-radius: 20px !important;
+    background: #CBD5E1 !important;
+    border: none !important;
+    padding: 2px !important;
+    box-sizing: border-box !important;
+    position: relative !important;
+    cursor: pointer !important;
+    flex-shrink: 0 !important;
+    transition: background 0.2s ease !important;
+    display: flex !important;
+    align-items: center !important;
+  }
+
+  .settings-toggle span {
+    width: 24px !important;
+    height: 24px !important;
+    border-radius: 50% !important;
+    background: #FFFFFF !important;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.18) !important;
+    display: block !important;
+    transform: translateX(0) !important;
+    transition: transform 0.2s cubic-bezier(0.4, 0, 0.2, 1) !important;
+  }
+
+  .settings-toggle.active {
+    background: #008520 !important;
+  }
+
+  .settings-toggle.active span {
+    transform: translateX(20px) !important;
+  }
+
+  .settings-component-grid {
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 10px !important;
+    width: 100% !important;
+    box-sizing: border-box !important;
+  }
+
+  .settings-checkbox-item {
+    display: flex !important;
+    align-items: center !important;
+    gap: 12px !important;
+    background: #FFFFFF !important;
+    border: 1px solid #E2E8F0 !important;
+    border-radius: 12px !important;
+    padding: 14px 16px !important;
+    box-sizing: border-box !important;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.02) !important;
+    min-height: 48px !important;
+  }
+
+  .settings-checkbox-item strong {
+    font-size: 13px !important;
+    font-weight: 600 !important;
+    color: #1E293B !important;
+  }
+
+  /* 9. Save & Form Action Buttons */
+  .settings-form-footer,
+  .settings-view-actions {
+    display: flex !important;
+    flex-direction: row !important;
+    align-items: center !important;
+    gap: 10px !important;
+    width: 100% !important;
+    margin-top: 18px !important;
+    padding-top: 14px !important;
+    border-top: 1px solid #F1F5F9 !important;
+  }
+
+  .settings-form-footer button,
+  .settings-view-actions button {
+    flex: 1 !important;
+    min-height: 48px !important;
+    height: 48px !important;
+    border-radius: 12px !important;
+    font-size: 13.5px !important;
+    font-weight: 700 !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    cursor: pointer !important;
+    transition: all 0.15s ease !important;
+  }
+
+  .settings-button.primary,
+  .settings-primary-button {
+    background: #008520 !important;
+    color: #FFFFFF !important;
+    border: none !important;
+    box-shadow: 0 2px 6px rgba(0, 133, 32, 0.25) !important;
+  }
+
+  .settings-button.primary:active:not(:disabled),
+  .settings-primary-button:active:not(:disabled) {
+    background: #006818 !important;
+    transform: scale(0.98) !important;
+  }
+
+  .settings-button.primary:disabled,
+  .settings-primary-button:disabled {
+    background: #CBD5E1 !important;
+    color: #94A3B8 !important;
+    box-shadow: none !important;
+    cursor: not-allowed !important;
+    opacity: 1 !important;
+  }
+
+  .settings-button.secondary,
+  .settings-secondary-button {
+    background: #F8FAFC !important;
+    border: 1px solid #CBD5E1 !important;
+    color: #475569 !important;
+  }
+
+  .settings-button.secondary:active:not(:disabled),
+  .settings-secondary-button:active:not(:disabled) {
+    background: #E2E8F0 !important;
+    transform: scale(0.98) !important;
+  }
+
+  .settings-unsaved-indicator {
+    display: none !important;
+  }
+
+  /* 10. Aside Cards (Supportive & Unobtrusive) */
+  .settings-identity-aside,
+  .settings-side-stack {
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 12px !important;
+    width: 100% !important;
+    margin-top: 4px !important;
+  }
+
+  .settings-side-card,
+  .settings-info-card {
+    background: #FFFFFF !important;
+    border-radius: 14px !important;
+    padding: 14px 16px !important;
+    border: 1px solid #E2E8F0 !important;
+    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.02) !important;
+  }
+
+  .settings-side-card > header,
+  .settings-info-card > header {
+    display: flex !important;
+    align-items: center !important;
+    gap: 8px !important;
+    margin: 0 0 10px 0 !important;
+    padding: 0 0 8px 0 !important;
+    border-bottom: 1px solid #F1F5F9 !important;
+    min-height: auto !important;
+  }
+
+  .settings-side-card header h3,
+  .settings-info-card header h3 {
+    font-size: 12.5px !important;
+    font-weight: 700 !important;
+    margin: 0 !important;
+  }
+
+  .settings-predicate-list {
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 8px !important;
+    width: 100% !important;
+    margin-top: 8px !important;
+  }
+
+  .settings-predicate-list > div {
+    display: grid !important;
+    grid-template-columns: 32px 80px 1fr !important;
+    align-items: center !important;
+    gap: 10px !important;
+    padding: 8px 10px !important;
+    background: #F8FAFC !important;
+    border: 1px solid #E2E8F0 !important;
+    border-radius: 8px !important;
+    box-sizing: border-box !important;
+  }
+
+  .settings-predicate-list b {
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    width: 28px !important;
+    height: 28px !important;
+    border-radius: 6px !important;
+    background: #E8F5E9 !important;
+    color: #008520 !important;
+    font-size: 12px !important;
+    font-weight: 700 !important;
+  }
+
+  .settings-predicate-list span {
+    font-size: 12px !important;
+    font-weight: 700 !important;
+    color: #1E293B !important;
+  }
+
+  .settings-predicate-list small {
+    font-size: 11px !important;
+    color: #64748B !important;
+    font-weight: 500 !important;
+  }
+
+  /* 11. Backup Summary & Mobile Record Cards */
+  .settings-summary-grid {
+    display: grid !important;
+    grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+    gap: 8px !important;
+    margin-bottom: 14px !important;
+  }
+
+  .settings-summary-card {
+    display: flex !important;
+    flex-direction: column !important;
+    align-items: center !important;
+    text-align: center !important;
+    padding: 12px 8px !important;
+    border-radius: 12px !important;
+    background: #F8FAFC !important;
+    border: 1px solid #E2E8F0 !important;
+    box-shadow: none !important;
+    gap: 6px !important;
+  }
+
+  .settings-summary-card span {
+    width: 32px !important;
+    height: 32px !important;
+    border-radius: 8px !important;
+    background: #E8F5E9 !important;
+    color: #008520 !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+  }
+
+  .settings-summary-card span .ui-icon {
+    width: 18px !important;
+    height: 18px !important;
+  }
+
+  .settings-summary-card small {
+    font-size: 10px !important;
+    color: #64748B !important;
+    display: block !important;
+  }
+
+  .settings-summary-card strong {
+    font-size: 12px !important;
+    color: #0F172A !important;
+    display: block !important;
+    margin-top: 2px !important;
+  }
+
+  .settings-backup-actions {
+    display: flex !important;
+    flex-direction: row !important;
+    gap: 10px !important;
+    width: 100% !important;
+  }
+
+  .settings-backup-actions button {
+    flex: 1 !important;
+    min-height: 48px !important;
+    height: 48px !important;
+    border-radius: 12px !important;
+    font-size: 13.5px !important;
+    font-weight: 700 !important;
+  }
+
+  .settings-mobile-record-list {
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 10px !important;
+    width: 100% !important;
+    margin: 12px 0 !important;
+  }
+
+  .settings-mobile-card {
+    background: #FFFFFF !important;
+    border: 1px solid #E2E8F0 !important;
+    border-radius: 14px !important;
+    padding: 14px 16px !important;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.02) !important;
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 10px !important;
+  }
+
+  .settings-mobile-card-header {
+    display: flex !important;
+    justify-content: space-between !important;
+    align-items: center !important;
+  }
+
+  .settings-mobile-card-title-group {
+    display: flex !important;
+    align-items: center !important;
+    gap: 10px !important;
+  }
+
+  .settings-mobile-card-index {
+    width: 24px !important;
+    height: 24px !important;
+    border-radius: 50% !important;
+    background: #F1F5F9 !important;
+    color: #64748B !important;
+    font-size: 11px !important;
+    font-weight: 700 !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+  }
+
+  .settings-mobile-card-title-group strong {
+    font-size: 13.5px !important;
+    color: #0F172A !important;
+    display: block !important;
+  }
+
+  .settings-mobile-card-title-group small {
+    font-size: 11px !important;
+    color: #64748B !important;
+    display: block !important;
+  }
+
+  .settings-mobile-card-body {
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 4px !important;
+    font-size: 12px !important;
+    color: #64748B !important;
+  }
+
+  .settings-mobile-card-body > div {
+    display: flex !important;
+    justify-content: space-between !important;
+    align-items: center !important;
+  }
+
+  .settings-mobile-card-body strong {
+    color: #1E293B !important;
+    font-weight: 600 !important;
+  }
+
+  .settings-mobile-card-footer {
+    display: flex !important;
+    justify-content: flex-end !important;
+    padding-top: 8px !important;
+    border-top: 1px solid #F1F5F9 !important;
+  }
+
+  .settings-mobile-card-footer button {
+    height: 38px !important;
+    min-height: 38px !important;
+    font-size: 12px !important;
+    font-weight: 600 !important;
+    padding: 0 14px !important;
+    border-radius: 8px !important;
+  }
+
+  /* 12. Activity Log Filter Bar on Mobile */
+  .settings-filter-bar {
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 10px !important;
+    background: transparent !important;
+    border: none !important;
+    box-shadow: none !important;
+    padding: 0 !important;
+  }
+
+  .settings-search div {
+    min-height: 48px !important;
+    height: 48px !important;
+    border-radius: 12px !important;
+    border: 1px solid #CBD5E1 !important;
+    background: #FFFFFF !important;
+    display: flex !important;
+    align-items: center !important;
+    padding: 0 14px !important;
+  }
+
+  .settings-search input {
+    font-size: 13.5px !important;
+    color: #0F172A !important;
+  }
+
+  /* 13. Mobile Modals & Sheets */
+  .settings-modal-backdrop {
+    padding: 16px !important;
+  }
+
+  .settings-confirm-modal,
+  .settings-modal {
+    max-width: 100% !important;
+    border-radius: 18px !important;
+    padding: 18px 16px !important;
+  }
+
+  .settings-confirm-modal > footer,
+  .settings-modal > footer,
+  .settings-modal-actions {
+    display: flex !important;
+    flex-direction: row !important;
+    gap: 10px !important;
+    margin: 16px -16px -16px !important;
+    padding: 14px 16px !important;
+  }
+
+  .settings-confirm-modal > footer button,
+  .settings-modal > footer button,
+  .settings-modal-actions button {
+    flex: 1 !important;
+    min-height: 46px !important;
+    height: 46px !important;
+    font-size: 13px !important;
+    font-weight: 700 !important;
+    border-radius: 10px !important;
+  }
+
+  @media (max-width: 360px) {
+    .settings-mobile-module-grid-wrapper {
+      padding: 14px 10px 16px !important;
+    }
+    .settings-mobile-grid-3col {
+      gap: 12px 4px !important;
+    }
+    .settings-mobile-module-grid-wrapper .master-mobile-icon-box {
+      width: 44px !important;
+      height: 44px !important;
+      min-width: 44px !important;
+      min-height: 44px !important;
+      border-radius: 12px !important;
+    }
+    .settings-mobile-module-grid-wrapper .master-mobile-icon-box .ui-icon {
+      width: 20px !important;
+      height: 20px !important;
+    }
+    .settings-mobile-module-grid-wrapper .master-mobile-item-label {
+      font-size: 10px !important;
+    }
+    .settings-summary-grid {
+      grid-template-columns: 1fr !important;
+    }
+  }
 }

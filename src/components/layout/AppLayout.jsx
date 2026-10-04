@@ -2,9 +2,15 @@ import { useEffect, useState } from 'react'
 import { Outlet } from 'react-router-dom'
 import { ADAPTIVE_DESKTOP_MIN_WIDTH, LAYOUT_MODE, LAYOUT_MODES } from '../../config/layoutConfig.js'
 import { useBreakpoint } from '../../hooks/useBreakpoint.js'
+import { useAuth } from '../../auth/AuthContext.jsx'
 import Sidebar from './Sidebar.jsx'
 import Topbar from './Topbar.jsx'
+import MobileAppHeader from './MobileAppHeader.jsx'
 import MobileBottomNav from './MobileBottomNav.jsx'
+import MobileMoreSheet from './MobileMoreSheet.jsx'
+import MobileNotificationSheet from './MobileNotificationSheet.jsx'
+import MobileAccountSheet from './MobileAccountSheet.jsx'
+import MobileAcademicSheet from './MobileAcademicSheet.jsx'
 
 function getDefaultSidebarOpen(layoutMode, breakpoint) {
   if (layoutMode === LAYOUT_MODES.strict) return true
@@ -21,6 +27,13 @@ function AppLayout() {
     sidebarPreference?.device === breakpoint.device ? sidebarPreference.open : defaultSidebarOpen
   const usesDrawer = LAYOUT_MODE === LAYOUT_MODES.adaptive && breakpoint.isMobile
   const isStrict = LAYOUT_MODE === LAYOUT_MODES.strict
+
+  // Mobile Bottom Sheet States
+  const [isMoreOpen, setIsMoreOpen] = useState(false)
+  const [isNotificationOpen, setIsNotificationOpen] = useState(false)
+  const [isAccountOpen, setIsAccountOpen] = useState(false)
+  const [isAcademicOpen, setIsAcademicOpen] = useState(false)
+  const { roles } = useAuth()
 
   useEffect(() => {
     if (!usesDrawer || !sidebarOpen) return undefined
@@ -53,6 +66,95 @@ function AppLayout() {
     setSidebarPreference({ device: breakpoint.device, open: !sidebarOpen })
   }
 
+  const isAnyLayoutSheetOpen =
+    isMoreOpen || isNotificationOpen || isAccountOpen || isAcademicOpen
+
+  useEffect(() => {
+    if (!breakpoint.isMobile) {
+      document.body.classList.remove('mobile-sheet-open')
+      document.body.classList.remove('academic-modal-open')
+      return undefined
+    }
+    const scrollOwner = document.querySelector('.mobile-app-content')
+    if (isAnyLayoutSheetOpen) {
+      document.body.classList.add('mobile-sheet-open')
+      if (scrollOwner) {
+        scrollOwner.style.overflowY = 'hidden'
+      }
+    } else {
+      if (!document.querySelector('.master-mobile-sheet-backdrop')) {
+        document.body.classList.remove('mobile-sheet-open')
+        if (scrollOwner) {
+          scrollOwner.style.overflowY = ''
+        }
+      }
+    }
+    return () => {
+      document.body.classList.remove('mobile-sheet-open')
+      if (scrollOwner) {
+        scrollOwner.style.overflowY = ''
+      }
+    }
+  }, [isAnyLayoutSheetOpen, breakpoint.isMobile])
+
+  // ==========================================
+  // MOBILE APP SHELL (WIDTH <= 767PX)
+  // Edlink-inspired / Native iOS App Structure
+  // ==========================================
+  if (breakpoint.isMobile) {
+    return (
+      <div className="mobile-app-shell">
+        <MobileAppHeader
+          onOpenAcademic={() => setIsAcademicOpen(true)}
+          onOpenNotifications={() => setIsNotificationOpen(true)}
+          onOpenAccount={() => setIsAccountOpen(true)}
+        />
+
+        <main className="mobile-app-content">
+          <Outlet />
+        </main>
+
+        <MobileBottomNav
+          isNotificationOpen={isNotificationOpen}
+          onToggleNotification={() => setIsNotificationOpen((prev) => !prev)}
+          isAccountOpen={isAccountOpen}
+          onToggleAccount={() => setIsAccountOpen((prev) => !prev)}
+          isSheetOpen={isAnyLayoutSheetOpen}
+        />
+
+        {/* Coordinated Mobile Bottom Sheets */}
+        <MobileMoreSheet
+          isOpen={isMoreOpen}
+          onClose={() => setIsMoreOpen(false)}
+          roles={roles}
+        />
+
+        <MobileNotificationSheet
+          isOpen={isNotificationOpen}
+          onClose={() => setIsNotificationOpen(false)}
+        />
+
+        <MobileAccountSheet
+          isOpen={isAccountOpen}
+          onClose={() => setIsAccountOpen(false)}
+          onOpenAcademic={() => {
+            setIsAccountOpen(false)
+            setIsAcademicOpen(true)
+          }}
+        />
+
+        <MobileAcademicSheet
+          isOpen={isAcademicOpen}
+          onClose={() => setIsAcademicOpen(false)}
+        />
+      </div>
+    )
+  }
+
+  // ==========================================
+  // DESKTOP & TABLET SHELL (WIDTH >= 768PX)
+  // Preserved 100% Unchanged (No Desktop Regression)
+  // ==========================================
   const shellClassName = [
     'app-shell',
     `layout-mode-${LAYOUT_MODE}`,
@@ -75,7 +177,7 @@ function AppLayout() {
         aria-label="Tutup sidebar"
       />
       <div className="app-main">
-        <Topbar compact={breakpoint.isMobile} onToggle={toggleSidebar} />
+        <Topbar compact={false} onToggle={toggleSidebar} />
         <div className="app-content-wrapper">
           <main className="dashboard-content">
             <Outlet />
@@ -86,7 +188,6 @@ function AppLayout() {
           </footer>
         </div>
       </div>
-      {breakpoint.isMobile && <MobileBottomNav />}
     </div>
   )
 }

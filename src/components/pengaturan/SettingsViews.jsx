@@ -255,12 +255,12 @@ export function AcademicSettingsView({ onDirtyChange, onNotify }) {
           </div>
         </FormSection>
 
-        <FormSection description="Toggle berikut hanya mengubah konfigurasi mock pada frontend." icon="sliders" title="Akses Modul Akademik">
+        <FormSection description="Konfigurasi izin akses modul pada periode akademik aktif." icon="sliders" title="Akses Modul Akademik">
           <div className="settings-toggle-list">
             <Toggle checked={currentForm.semesterEnabled} description="Mengaktifkan konteks semester terpilih." label="Aktifkan Semester" onChange={(value) => update('semesterEnabled', value)} />
             <Toggle checked={currentForm.scoreInputEnabled} description="Izinkan pengisian nilai pada periode aktif." label="Aktifkan Input Nilai" onChange={(value) => update('scoreInputEnabled', value)} />
             <Toggle checked={currentForm.attendanceInputEnabled} description="Izinkan pencatatan absensi pada periode aktif." label="Aktifkan Pengisian Absensi" onChange={(value) => update('attendanceInputEnabled', value)} />
-            <Toggle checked={currentForm.reportGenerationEnabled} description="Izinkan simulasi generate rapor." label="Aktifkan Generate Rapor" onChange={(value) => update('reportGenerationEnabled', value)} />
+            <Toggle checked={currentForm.reportGenerationEnabled} description="Izinkan proses generate rapor pada periode aktif." label="Aktifkan Generate Rapor" onChange={(value) => update('reportGenerationEnabled', value)} />
           </div>
         </FormSection>
 
@@ -398,7 +398,7 @@ export function ReportSettingsView({ onDirtyChange, onNotify }) {
           <div className="settings-predicate-list">
             {form.predicates.map((item) => <div key={item.grade}><b>{item.grade}</b><span>{item.range}</span><small>{item.label}</small></div>)}
           </div>
-          <p className="settings-card-note">Rentang ini hanya contoh konfigurasi frontend, bukan kebijakan final sekolah.</p>
+          <p className="settings-card-note">Rentang predikat disesuaikan dengan kriteria ketuntasan dan kebijakan sekolah.</p>
         </section>
         <section className="settings-info-card settings-info-blue">
           <header><Icon name="info" /><h3>Tips</h3></header>
@@ -469,7 +469,7 @@ export function SystemSettingsView({ onDirtyChange, onNotify }) {
     <div className="settings-view settings-form-view">
       <div className="settings-panel settings-form-panel">
         {error && <div className="settings-inline-alert error" role="alert">{error}</div>}
-        <div className="settings-panel-heading"><div><h2>Pengaturan Sistem</h2><p>Kelola preferensi aplikasi, antarmuka, dan notifikasi frontend.</p></div></div>
+        <div className="settings-panel-heading"><div><h2>Pengaturan Sistem</h2><p>Kelola preferensi aplikasi, antarmuka, dan notifikasi sistem.</p></div></div>
 
         <FormSection description="Informasi dan format dasar yang digunakan pada antarmuka." icon="settings" title="Preferensi Aplikasi">
           <div className="settings-form-grid">
@@ -482,7 +482,7 @@ export function SystemSettingsView({ onDirtyChange, onNotify }) {
           </div>
         </FormSection>
 
-        <FormSection description="Preferensi tampilan hanya diterapkan pada simulasi frontend." icon="sliders" title="Antarmuka">
+        <FormSection description="Atur preferensi tampilan dan kenyamanan antarmuka." icon="sliders" title="Antarmuka">
           <div className="settings-form-grid"><Field label="Sidebar Default"><select value={form.sidebarDefault} onChange={(event) => update('sidebarDefault', event.target.value)}>{settingsOptions.sidebarModes.map((option) => <option key={option}>{option}</option>)}</select></Field></div>
           <div className="settings-toggle-grid">
             <Toggle checked={form.compactTable} label="Tabel Ringkas" onChange={(value) => update('compactTable', value)} />
@@ -491,7 +491,7 @@ export function SystemSettingsView({ onDirtyChange, onNotify }) {
           </div>
         </FormSection>
 
-        <FormSection description="Semua notifikasi masih berupa preferensi visual lokal." icon="bell" title="Notifikasi">
+        <FormSection description="Atur preferensi penerimaan notifikasi sistem." icon="bell" title="Notifikasi">
           <div className="settings-toggle-list">
             <Toggle checked={form.systemNotifications} label="Notifikasi Sistem" onChange={(value) => update('systemNotifications', value)} />
             <Toggle checked={form.incompleteScoreNotifications} label="Notifikasi Nilai Belum Lengkap" onChange={(value) => update('incompleteScoreNotifications', value)} />
@@ -500,7 +500,7 @@ export function SystemSettingsView({ onDirtyChange, onNotify }) {
           </div>
         </FormSection>
 
-        <FormSection description="Pengaturan berikut belum menerapkan keamanan backend." icon="shield" title="Presentasi Keamanan">
+        <FormSection description="Atur preferensi keamanan dan batas waktu sesi." icon="shield" title="Presentasi Keamanan">
           <div className="settings-form-grid"><Field label="Batas Waktu Sesi"><select value={form.sessionTimeout} onChange={(event) => update('sessionTimeout', event.target.value)}>{settingsOptions.sessionTimeouts.map((option) => <option key={option}>{option}</option>)}</select></Field></div>
           <div className="settings-toggle-list"><Toggle checked={form.confirmImportantActions} label="Konfirmasi Sebelum Aksi Penting" onChange={(value) => update('confirmImportantActions', value)} /></div>
         </FormSection>
@@ -509,8 +509,8 @@ export function SystemSettingsView({ onDirtyChange, onNotify }) {
       </div>
 
       <aside className="settings-side-stack">
-        <section className="settings-info-card settings-info-blue"><header><Icon name="info" /><h3>Status Implementasi</h3></header><dl className="settings-key-value"><div><dt>Konfigurasi</dt><dd>Local State</dd></div><div><dt>Backend</dt><dd>Belum terintegrasi</dd></div><div><dt>Database</dt><dd>Belum terintegrasi</dd></div></dl></section>
-        <section className="settings-info-card settings-info-warning"><header><Icon name="info" /><h3>Catatan</h3></header><p>Opsi sesi dan notifikasi ini belum mengaktifkan security atau push notification sebenarnya.</p></section>
+        <section className="settings-info-card settings-info-blue"><header><Icon name="info" /><h3>Informasi Pengaturan</h3></header><p>Preferensi sistem disimpan secara terpusat untuk menyesuaikan kenyamanan penggunaan aplikasi.</p></section>
+        <section className="settings-info-card settings-info-warning"><header><Icon name="info" /><h3>Catatan</h3></header><p>Opsi sesi dan notifikasi ini menyesuaikan preferensi akun dan sistem kerja sekolah.</p></section>
       </aside>
 
       {confirmReset && <ConfirmModal confirmLabel="Reset Pengaturan" description="Kembalikan preferensi sistem ke nilai terakhir yang tersimpan?" onCancel={() => setConfirmReset(false)} onConfirm={reset} title="Reset Pengaturan Sistem" />}
@@ -591,11 +591,43 @@ export function BackupRestoreView({ onNotify }) {
         <div className="settings-panel-heading"><div><h2>Riwayat Backup</h2><p>File cadangan yang tersimpan di server.</p></div><span className="settings-count-badge">{history.length} riwayat</span></div>
         {visibleRows.length ? (
           <>
-            <div className="settings-table-scroll">
+            <div className="settings-table-scroll settings-desktop-table-wrap">
               <table className="settings-data-table">
                 <thead><tr><th>No</th><th>Tanggal</th><th>Dibuat Oleh</th><th>Jenis</th><th>Ukuran</th><th>Status</th><th>Aksi</th></tr></thead>
                 <tbody>{visibleRows.map((item, index) => <tr key={item.id}><td>{(currentPage - 1) * rowsPerPage + index + 1}</td><td><strong>{item.createdAt}</strong><small>#{item.id}</small></td><td>{item.createdBy}</td><td>{item.type}</td><td>{item.size}</td><td><span className="settings-status-badge success">{item.status}</span></td><td><Button aria-label={`Restore dari ${item.createdAt}`} className="settings-icon-button" onClick={() => { setSelectedBackupId(String(item.id)); setModal('restore') }}><Icon name="reset" /></Button></td></tr>)}</tbody>
               </table>
+            </div>
+
+            <div className="settings-mobile-record-list">
+              {visibleRows.map((item, index) => (
+                <article key={item.id} className="settings-mobile-card">
+                  <header className="settings-mobile-card-header">
+                    <div className="settings-mobile-card-title-group">
+                      <span className="settings-mobile-card-index">{(currentPage - 1) * rowsPerPage + index + 1}</span>
+                      <div>
+                        <strong>{item.createdAt}</strong>
+                        <small>#{item.id}</small>
+                      </div>
+                    </div>
+                    <span className="settings-status-badge success">{item.status}</span>
+                  </header>
+                  <div className="settings-mobile-card-body">
+                    <div><span>Dibuat Oleh:</span><strong>{item.createdBy}</strong></div>
+                    <div><span>Jenis:</span><strong>{item.type}</strong></div>
+                    <div><span>Ukuran:</span><strong>{item.size}</strong></div>
+                  </div>
+                  <footer className="settings-mobile-card-footer">
+                    <button
+                      type="button"
+                      className="settings-button secondary"
+                      onClick={() => { setSelectedBackupId(String(item.id)); setModal('restore') }}
+                    >
+                      <Icon name="reset" />
+                      Restore Data
+                    </button>
+                  </footer>
+                </article>
+              ))}
             </div>
             <MasterPagination currentPage={currentPage} itemLabel="riwayat" onPageChange={setCurrentPage} onRowsPerPageChange={(value) => { setRowsPerPage(value); setCurrentPage(1) }} rowsPerPage={rowsPerPage} totalItems={history.length} totalPages={totalPages} />
           </>
@@ -723,11 +755,44 @@ export function ActivityLogView({ onNotify }) {
         <div className="settings-panel-heading"><div><h2>Riwayat Aktivitas</h2><p>Data sensitif seperti password, token, atau credential tidak ditampilkan.</p></div><span className="settings-count-badge">{filteredLogs.length} aktivitas</span></div>
         {visibleRows.length ? (
           <>
-            <div className="settings-table-scroll">
+            <div className="settings-table-scroll settings-desktop-table-wrap">
               <table className="settings-data-table settings-log-table">
                 <thead><tr><th>No</th><th>Waktu</th><th>Pengguna</th><th>Role</th><th>Modul</th><th>Aktivitas</th><th>Status</th><th>Aksi</th></tr></thead>
                 <tbody>{visibleRows.map((log, index) => <tr key={log.id}><td>{(currentPage - 1) * rowsPerPage + index + 1}</td><td>{log.timestamp}</td><td><strong>{log.user}</strong></td><td>{log.role}</td><td>{log.module}</td><td><strong>{log.activity}</strong><small>{log.target}</small></td><td><span className={`settings-status-badge ${log.status === 'Berhasil' ? 'success' : log.status === 'Menunggu' ? 'pending' : 'muted'}`}>{log.status}</span></td><td><Button aria-label={`Lihat detail ${log.activity}`} className="settings-icon-button" onClick={() => setSelectedLog(log)}><Icon name="eye" /></Button></td></tr>)}</tbody>
               </table>
+            </div>
+
+            <div className="settings-mobile-record-list">
+              {visibleRows.map((log, index) => (
+                <article key={log.id} className="settings-mobile-card">
+                  <header className="settings-mobile-card-header">
+                    <div className="settings-mobile-card-title-group">
+                      <span className="settings-mobile-card-index">{(currentPage - 1) * rowsPerPage + index + 1}</span>
+                      <div>
+                        <strong>{log.user}</strong>
+                        <small>{log.role}</small>
+                      </div>
+                    </div>
+                    <span className={`settings-status-badge ${log.status === 'Berhasil' ? 'success' : log.status === 'Menunggu' ? 'pending' : 'muted'}`}>{log.status}</span>
+                  </header>
+                  <div className="settings-mobile-card-body">
+                    <div><span>Modul:</span><strong>{log.module}</strong></div>
+                    <div><span>Aktivitas:</span><strong>{log.activity}</strong></div>
+                    {log.target && <div><span>Target:</span><strong>{log.target}</strong></div>}
+                    <div><span>Waktu:</span><small>{log.timestamp}</small></div>
+                  </div>
+                  <footer className="settings-mobile-card-footer">
+                    <button
+                      type="button"
+                      className="settings-button secondary"
+                      onClick={() => setSelectedLog(log)}
+                    >
+                      <Icon name="eye" />
+                      Lihat Detail
+                    </button>
+                  </footer>
+                </article>
+              ))}
             </div>
             <MasterPagination currentPage={currentPage} itemLabel="aktivitas" onPageChange={setCurrentPage} onRowsPerPageChange={(value) => { setRowsPerPage(value); setCurrentPage(1) }} rowsPerPage={rowsPerPage} totalItems={filteredLogs.length} totalPages={totalPages} />
           </>

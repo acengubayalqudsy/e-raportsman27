@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { useLocation } from 'react-router-dom'
+import { useBreakpoint } from '../../hooks/useBreakpoint.js'
 import AttendanceTabs from '../../components/absensi/AttendanceTabs.jsx'
 import AttendanceDetailView from '../../components/absensi/AttendanceDetailView.jsx'
 import LiveAttendanceView from '../../components/absensi/LiveAttendanceView.jsx'
@@ -10,20 +11,24 @@ import './Absensi.css'
 
 function Absensi() {
   const location = useLocation()
+  const breakpoint = useBreakpoint()
+  const isMobile = breakpoint.isMobile
   const [notice, setNotice] = useState('')
   const activeTab = attendanceTabs.find((tab) => tab.route === location.pathname) ?? attendanceTabs[0]
 
   return (
     <section className="attendance-page">
-      <header className="attendance-header">
-        <div>
-          <h2>Absensi</h2>
-          <p>Kelola kehadiran siswa secara terstruktur dan akurat</p>
-        </div>
-        <div className="attendance-breadcrumb">
-          <Breadcrumb items={['Dashboard', 'Absensi', activeTab.label]} />
-        </div>
-      </header>
+      {!isMobile && (
+        <header className="attendance-header">
+          <div className="attendance-desktop-title">
+            <h2>Absensi</h2>
+            <p>Kelola kehadiran siswa secara terstruktur dan akurat</p>
+          </div>
+          <div className="attendance-breadcrumb">
+            <Breadcrumb items={['Dashboard', 'Absensi', activeTab.label]} />
+          </div>
+        </header>
+      )}
 
       <AttendanceTabs activeKey={activeTab.key} />
       {activeTab.key === 'rekap' ? (

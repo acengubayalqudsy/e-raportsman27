@@ -9,6 +9,7 @@ import { useAcademicContext } from '../../context/AcademicContext.jsx'
 import { useAuth } from '../../auth/AuthContext.jsx'
 import RaporPagination from './RaporPagination.jsx'
 import RaporSummary from './RaporSummary.jsx'
+import RaporMobileFilterSheet from './RaporMobileFilterSheet.jsx'
 import SupplementaryDataModal from './SupplementaryDataModal.jsx'
 
 const statusOptions = [
@@ -63,6 +64,7 @@ function DaftarRaporView({ onNotify }) {
   const [reloadNonce, setReloadNonce] = useState(0)
   const [modalOpen, setModalOpen] = useState(false)
   const [modalTab, setModalTab] = useState('absensi')
+  const [filterSheetOpen, setFilterSheetOpen] = useState(false)
 
   useEffect(() => {
     let active = true
@@ -216,6 +218,24 @@ function DaftarRaporView({ onNotify }) {
     onNotify('Memuat ulang daftar rapor dari server.')
   }
 
+  const activeFilterCount = filters.status ? 1 : 0
+
+  const handleApplyMobileFilters = (draftFilters) => {
+    if (draftFilters.classId && String(draftFilters.classId) !== String(filters.classId)) {
+      updateFilter('classId', draftFilters.classId)
+    }
+    if (draftFilters.semesterId && String(draftFilters.semesterId) !== String(filters.semesterId)) {
+      updateFilter('semesterId', draftFilters.semesterId)
+    }
+    if (draftFilters.status !== filters.status) {
+      updateFilter('status', draftFilters.status)
+    }
+  }
+
+  const handleResetMobileFilters = () => {
+    updateFilter('status', '')
+  }
+
   const displayError = error && !loadingContext
   const pageStart = pagination.total === 0 ? 0 : ((pagination.current_page - 1) * pagination.per_page) + 1
 
@@ -224,13 +244,27 @@ function DaftarRaporView({ onNotify }) {
       <RaporSummary items={summaryItems} />
       <section className="report-list-workspace">
         <div className="report-list-toolbar">
-          <div className="report-filter-grid">
+          <div className="report-filter-grid report-desktop-filters">
             <label className="report-field"><span>Kelas</span><select value={filters.classId} onChange={(event) => updateFilter('classId', event.target.value)} disabled={loadingContext}><option value="">Pilih kelas</option>{contextOptions.classes.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select></label>
             <label className="report-field"><span>Status Rapor</span><select value={filters.status} onChange={(event) => updateFilter('status', event.target.value)}>{statusOptions.map(([label, value]) => <option key={value || 'all'} value={value}>{label}</option>)}</select></label>
             <label className="report-field"><span>Semester</span><select value={filters.semesterId} onChange={(event) => updateFilter('semesterId', event.target.value)} disabled={loadingContext}><option value="">Pilih semester</option>{contextOptions.semesters.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select></label>
             <label className="report-field"><span>Tahun Ajaran</span><input readOnly value={academicYear?.name ?? selectedYear?.name ?? '-'} aria-label="Tahun ajaran authoritative" /></label>
           </div>
-          <label className="report-search"><SearchInput aria-label="Cari siswa berdasarkan NIS, NISN, atau nama" onChange={(event) => { setSearchQuery(event.target.value); setPagination((current) => ({ ...current, current_page: 1 })) }} placeholder="Cari siswa (NIS/NISN/Nama)..." value={searchQuery} /><Icon name="search" /></label>
+          <div className="report-search-filter-row">
+            <label className="report-search">
+              <SearchInput aria-label="Cari siswa berdasarkan NIS, NISN, atau nama" onChange={(event) => { setSearchQuery(event.target.value); setPagination((current) => ({ ...current, current_page: 1 })) }} placeholder="Cari siswa (NIS/NISN/Nama)..." value={searchQuery} />
+              <Icon name="search" />
+            </label>
+            <button
+              type="button"
+              className={`report-mobile-filter-btn master-mobile-filter-btn ${activeFilterCount > 0 ? 'active' : ''}`}
+              onClick={() => setFilterSheetOpen(true)}
+              aria-label="Filter Rapor"
+            >
+              <Icon name="filter" />
+              {activeFilterCount > 0 && <span className="master-mobile-filter-badge">{activeFilterCount}</span>}
+            </button>
+          </div>
         </div>
 
         <div className="report-list-actions">
@@ -343,6 +377,20 @@ function DaftarRaporView({ onNotify }) {
           refreshData()
         }}
         semesterId={filters.semesterId}
+      />
+
+      <RaporMobileFilterSheet
+        isOpen={filterSheetOpen}
+        onClose={() => setFilterSheetOpen(false)}
+        classes={contextOptions.classes}
+        semesters={contextOptions.semesters}
+        allSemesters={allSemesters}
+        statusOptions={statusOptions}
+        academicYearName={academicYear?.name ?? selectedYear?.name ?? '-'}
+        currentFilters={filters}
+        loadingContext={loadingContext}
+        onApply={handleApplyMobileFilters}
+        onReset={handleResetMobileFilters}
       />
     </>
   )

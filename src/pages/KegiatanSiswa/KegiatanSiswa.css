@@ -856,6 +856,43 @@
 .submenu-item.activity-submenu-item.active { color: #07895a; background: #e5f6ef; }
 .submenu-item.activity-submenu-item.active::before { display: none; }
 
+@media (min-width: 768px) {
+  .activity-mobile-module-grid-wrapper,
+  .activity-mobile-context-chip,
+  .activity-mobile-toolbar-section,
+  .activity-mobile-records-wrapper,
+  .activity-page .master-mobile-toolbar-wrapper,
+  .activity-page .master-mobile-record-container,
+  .activity-page .master-mobile-pagination {
+    display: none !important;
+  }
+}
+
+/* ==============================================================
+   PHASE UI-5: Mobile / Desktop Component Visibility
+   ============================================================== */
+.activity-mobile-module-grid-wrapper,
+.activity-mobile-context-chip,
+.activity-mobile-toolbar-section,
+.activity-mobile-records-wrapper {
+  display: none;
+}
+
+.activity-desktop-title,
+.activity-desktop-tabs-wrapper,
+.activity-desktop-class-context,
+.activity-desktop-filter-card,
+.activity-desktop-score-toolbar,
+.activity-desktop-notes-toolbar,
+.activity-desktop-table-scroll,
+.activity-desktop-sidebar {
+  display: block;
+}
+
+.activity-header {
+  display: flex;
+}
+
 @media (max-width: 1180px) {
   .activity-filter-grid { grid-template-columns: repeat(3, minmax(145px, 1fr)); }
   .activity-toolbar { grid-template-columns: 1fr; gap: 13px; }
@@ -873,42 +910,1280 @@
   .activity-homeroom-context > div:nth-child(3) { border-right: 0; }
 }
 
-@media (max-width: 720px) {
-  .activity-page { gap: 15px; }
-  .activity-header { align-items: flex-start; flex-direction: column; }
-  .activity-header h2 { font-size: 22px; }
-  .activity-breadcrumb { max-width: 100%; overflow-x: auto; }
-  .activity-summary-grid { grid-template-columns: 1fr; gap: 11px; }
-  .activity-filter-grid,
-  .activity-notes-filters { grid-template-columns: 1fr; }
-  .activity-notes-search { grid-column: auto; width: 100%; }
-  .activity-actions,
-  .activity-score-actions,
-  .activity-notes-toolbar-actions { align-items: stretch; flex-direction: column; }
-  .activity-actions .activity-button,
-  .activity-score-actions .activity-button,
-  .activity-notes-toolbar-actions .activity-button { width: 100%; }
-  .activity-add-project { width: 100%; flex-direction: column; align-items: stretch; }
-  .activity-add-project select { width: 100%; max-width: none; }
-  .activity-actions > div { width: 100%; flex-direction: column; }
-  .activity-homeroom-context { grid-template-columns: 1fr 1fr; }
-  .activity-participation-sidebar { display: flex; }
-  .activity-homeroom-context > div { border-right: 0; }
-  .activity-pagination { align-items: flex-start; flex-direction: column; }
-  .activity-pagination-controls { max-width: 100%; flex-wrap: wrap; }
-  .activity-toast { right: 16px; bottom: 16px; }
-}
+/* ==============================================================
+   PHASE UI-5: EDLINK-INSPIRED MOBILE KEGIATAN SISWA (<=767px)
+   Match Master Data Design System — Visual Polish & Spacing Pass
+   ============================================================== */
+@media (max-width: 767px) {
+  /* 1. Page Shell & Consistent Section Gap (18px) */
+  .activity-page {
+    display: flex !important;
+    flex-direction: column !important;
+    padding: 12px 14px 90px !important;
+    gap: 0 !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    box-sizing: border-box !important;
+    overflow-x: hidden !important;
+  }
 
-@media (max-width: 520px) {
-  .activity-homeroom-context,
-  .activity-form-grid { grid-template-columns: 1fr; }
-  .activity-homeroom-context > div { padding: 5px 2px; border-bottom: 1px solid #edf2f7; }
-  .activity-form-grid label.full-width { grid-column: auto; }
-  .activity-modal-footer,
-  .activity-modal-actions { flex-direction: column; }
-  .activity-modal-footer .activity-button,
-  .activity-modal-actions .activity-button { width: 100%; }
-  .activity-detail-grid { grid-template-columns: 1fr; }
-  .activity-detail-notes { grid-template-columns: 1fr; }
-  .activity-pagination-controls label { width: 100%; justify-content: space-between; }
+  /* Reset inner subview wrappers so margin-bottom rules create consistent 18px gaps across all submodules */
+  .activity-page > div,
+  .activity-score-view,
+  .activity-notes-view,
+  .activity-participation-layout {
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 0 !important;
+    width: 100% !important;
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+
+  /* 2. Hide Desktop Elements */
+  .activity-header,
+  .activity-desktop-title,
+  .activity-breadcrumb,
+  .activity-desktop-tabs-wrapper,
+  .activity-tabs,
+  .activity-class-context,
+  .activity-desktop-class-context,
+  .activity-mobile-context-chip,
+  .activity-desktop-filter-card,
+  .activity-desktop-score-toolbar,
+  .activity-desktop-notes-toolbar,
+  .activity-desktop-table-scroll,
+  .activity-desktop-sidebar {
+    display: none !important;
+  }
+
+  .activity-header {
+    display: none !important;
+  }
+
+  /* 3. Section 1: Mobile Module Grid (Pilih Data 4 Columns x 1 Row) */
+  .activity-mobile-module-grid-wrapper {
+    display: block !important;
+    background: #FFFFFF !important;
+    border-radius: 18px !important;
+    padding: 14px 12px 14px !important;
+    border: 1px solid rgba(0, 0, 0, 0.06) !important;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.025) !important;
+    box-sizing: border-box !important;
+    width: 100% !important;
+    margin: 0 0 16px 0 !important;
+  }
+
+  .activity-mobile-grid-4col,
+  .activity-mobile-grid-2col {
+    display: grid !important;
+    grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
+    gap: 6px !important;
+    margin-top: 10px !important;
+    width: 100% !important;
+    box-sizing: border-box !important;
+  }
+
+  .activity-mobile-module-grid-wrapper .master-mobile-grid-item {
+    display: flex !important;
+    flex-direction: column !important;
+    align-items: center !important;
+    text-align: center !important;
+    text-decoration: none !important;
+    gap: 6px !important;
+    padding: 4px 2px !important;
+    border-radius: 12px !important;
+    transition: all 0.2s ease !important;
+    border: none !important;
+    background: transparent !important;
+    min-width: 0 !important;
+    width: 100% !important;
+    box-sizing: border-box !important;
+  }
+
+  .activity-mobile-module-grid-wrapper .master-mobile-icon-box {
+    width: 44px !important;
+    height: 44px !important;
+    min-width: 44px !important;
+    min-height: 44px !important;
+    border-radius: 13px !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    font-size: 19px !important;
+    transition: all 0.2s ease !important;
+    flex-shrink: 0 !important;
+  }
+
+  .activity-mobile-module-grid-wrapper .master-mobile-icon-box .ui-icon {
+    width: 20px !important;
+    height: 20px !important;
+  }
+
+  .activity-mobile-module-grid-wrapper .master-mobile-item-label {
+    font-size: 10.5px !important;
+    font-weight: 600 !important;
+    color: #334155 !important;
+    line-height: 1.2 !important;
+    max-width: 100% !important;
+    width: 100% !important;
+    text-align: center !important;
+    word-break: normal !important;
+    overflow-wrap: break-word !important;
+    hyphens: auto !important;
+    display: -webkit-box !important;
+    -webkit-line-clamp: 2 !important;
+    -webkit-box-orient: vertical !important;
+    overflow: hidden !important;
+  }
+
+  .activity-mobile-module-grid-wrapper .master-mobile-grid-item.active .master-mobile-item-label {
+    color: #008520 !important;
+    font-weight: 700 !important;
+  }
+
+  @media (min-width: 390px) {
+    .activity-mobile-module-grid-wrapper {
+      padding: 16px 14px 14px !important;
+    }
+
+    .activity-mobile-grid-4col,
+    .activity-mobile-grid-2col {
+      gap: 8px !important;
+    }
+
+    .activity-mobile-module-grid-wrapper .master-mobile-icon-box {
+      width: 48px !important;
+      height: 48px !important;
+      min-width: 48px !important;
+      min-height: 48px !important;
+      border-radius: 14px !important;
+    }
+
+    .activity-mobile-module-grid-wrapper .master-mobile-icon-box .ui-icon {
+      width: 22px !important;
+      height: 22px !important;
+    }
+
+    .activity-mobile-module-grid-wrapper .master-mobile-item-label {
+      font-size: 11px !important;
+    }
+  }
+
+  /* 4. Compact Mobile Class Context Chip */
+  .activity-mobile-context-chip {
+    display: flex !important;
+    align-items: center !important;
+    gap: 6px !important;
+    background: #FFFFFF !important;
+    border: 1px solid rgba(0, 0, 0, 0.06) !important;
+    border-radius: 12px !important;
+    padding: 8px 14px !important;
+    font-size: 12px !important;
+    color: #64748B !important;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.02) !important;
+    width: 100% !important;
+    box-sizing: border-box !important;
+    margin: 0 0 18px 0 !important;
+  }
+
+  .activity-mobile-context-chip .activity-mobile-context-label {
+    color: #64748B !important;
+  }
+
+  .activity-mobile-context-chip .activity-mobile-context-value {
+    color: #008520 !important;
+    font-weight: 700 !important;
+  }
+
+  /* 5. Section 2: Ringkasan Data (White Section 2-col, Clean Typography & Balanced Height) */
+  .activity-page .master-summary-wrapper.master-mobile-summary-section,
+  .activity-page .master-summary-wrapper {
+    display: block !important;
+    background: #FFFFFF !important;
+    border-radius: 18px !important;
+    padding: 16px 18px !important;
+    border: 1px solid rgba(0, 0, 0, 0.06) !important;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.025) !important;
+    box-sizing: border-box !important;
+    width: 100% !important;
+    margin: 0 0 18px 0 !important;
+  }
+
+  .activity-page .master-summary-header {
+    display: block !important;
+    margin-bottom: 2px !important;
+  }
+
+  .activity-page .master-summary-title {
+    font-size: 14.5px !important;
+    font-weight: 700 !important;
+    color: #0F172A !important;
+    margin: 0 0 2px !important;
+  }
+
+  .activity-page .master-summary-desc {
+    font-size: 11px !important;
+    color: #64748B !important;
+  }
+
+  .activity-page .master-summary-grid {
+    display: grid !important;
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    gap: 8px !important;
+    margin-top: 12px !important;
+    margin-bottom: 0 !important;
+  }
+
+  .activity-page .master-summary-grid > *:last-child:nth-child(odd) {
+    grid-column: 1 / -1 !important;
+  }
+
+  .activity-page .master-summary-card {
+    background: #F8FAFC !important;
+    border: 1px solid #E2E8F0 !important;
+    box-shadow: none !important;
+    min-height: 72px !important;
+    height: auto !important;
+    padding: 10px 12px !important;
+    gap: 10px !important;
+    border-radius: 12px !important;
+    display: flex !important;
+    align-items: center !important;
+    box-sizing: border-box !important;
+    transition: background 0.15s ease;
+  }
+
+  .activity-page .master-summary-card:hover,
+  .activity-page .master-summary-card:active {
+    background: #F1F5F9 !important;
+  }
+
+  .activity-page .master-summary-card .master-summary-icon {
+    width: 38px !important;
+    height: 38px !important;
+    min-width: 38px !important;
+    flex: 0 0 38px !important;
+    border-radius: 10px !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    margin: 0 !important;
+  }
+
+  .activity-page .master-summary-card .master-summary-icon .ui-icon {
+    width: 19px !important;
+    height: 19px !important;
+    color: #ffffff !important;
+  }
+
+  .activity-page .master-summary-card .master-summary-icon.green {
+    color: #ffffff !important;
+    background: linear-gradient(145deg, #07895a, #11b884) !important;
+  }
+
+  .activity-page .master-summary-card .master-summary-icon.blue {
+    color: #ffffff !important;
+    background: linear-gradient(145deg, #0870c5, #1490e6) !important;
+  }
+
+  .activity-page .master-summary-card .master-summary-icon.purple {
+    color: #ffffff !important;
+    background: linear-gradient(145deg, #7441ad, #9658cf) !important;
+  }
+
+  .activity-page .master-summary-card .master-summary-icon.orange {
+    color: #ffffff !important;
+    background: linear-gradient(145deg, #f57c00, #ff9f1a) !important;
+  }
+
+  .activity-page .master-summary-card .master-summary-icon.teal {
+    color: #ffffff !important;
+    background: linear-gradient(145deg, #087b8d, #12a9be) !important;
+  }
+
+  .activity-page .master-summary-card .master-summary-copy {
+    display: flex !important;
+    flex-direction: column !important;
+    min-width: 0 !important;
+    flex: 1 1 auto !important;
+    gap: 1px !important;
+  }
+
+  .activity-page .master-summary-card .master-summary-copy > small {
+    font-size: 10px !important;
+    font-weight: 600 !important;
+    color: #64748B !important;
+    line-height: 1.2 !important;
+    white-space: nowrap !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+  }
+
+  .activity-page .master-summary-card .master-summary-copy > strong {
+    font-size: 17px !important;
+    font-weight: 700 !important;
+    color: #0F172A !important;
+    margin: 1px 0 !important;
+    line-height: 1.2 !important;
+  }
+
+  .activity-page .master-summary-card .master-summary-copy > span {
+    font-size: 8.5px !important;
+    color: #64748B !important;
+    line-height: 1.2 !important;
+    white-space: nowrap !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+  }
+
+  .activity-page .master-summary-card .master-summary-sparkline {
+    display: none !important;
+  }
+
+  /* 6. Section 3: White Toolbar Section (12px gap, 48px Touch Height, 13.5px Label) */
+  .activity-mobile-toolbar-section {
+    display: block !important;
+    background: #FFFFFF !important;
+    border-radius: 18px !important;
+    padding: 16px 18px !important;
+    border: 1px solid rgba(0, 0, 0, 0.06) !important;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.025) !important;
+    box-sizing: border-box !important;
+    width: 100% !important;
+    margin: 0 0 18px 0 !important;
+  }
+
+  .activity-page .master-mobile-toolbar-wrapper {
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 12px !important;
+    margin-bottom: 0 !important;
+    width: 100% !important;
+  }
+
+  /* Row 1: Search & Filter (gap: 12px) */
+  .activity-page .master-mobile-search-row {
+    width: 100% !important;
+    margin: 0 !important;
+  }
+
+  .activity-page .master-mobile-search-container {
+    display: flex !important;
+    align-items: center !important;
+    gap: 12px !important;
+    width: 100% !important;
+  }
+
+  .activity-page .master-mobile-search-input-wrap {
+    flex: 1 !important;
+    min-width: 0 !important;
+    position: relative !important;
+    display: flex !important;
+    align-items: center !important;
+    height: 48px !important;
+    min-height: 48px !important;
+    background: #FFFFFF !important;
+    border: 1px solid #CBD5E1 !important;
+    border-radius: 12px !important;
+    box-sizing: border-box !important;
+    transition: border-color 0.15s ease, box-shadow 0.15s ease !important;
+  }
+
+  .activity-page .master-mobile-search-input-wrap:focus-within {
+    border-color: #008520 !important;
+    box-shadow: 0 0 0 3px rgba(0, 133, 32, 0.12) !important;
+  }
+
+  .activity-page .master-mobile-search-input-wrap input,
+  .activity-page .master-mobile-search-field {
+    width: 100% !important;
+    height: 100% !important;
+    border: none !important;
+    background: transparent !important;
+    padding: 0 40px 0 14px !important;
+    font-size: 13.5px !important;
+    font-weight: 500 !important;
+    color: #0F172A !important;
+    outline: none !important;
+    box-sizing: border-box !important;
+  }
+
+  .activity-page .master-mobile-filter-btn {
+    width: 48px !important;
+    height: 48px !important;
+    min-width: 48px !important;
+    min-height: 48px !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    position: relative !important;
+    background: #FFFFFF !important;
+    border: 1px solid #CBD5E1 !important;
+    border-radius: 12px !important;
+    color: #475569 !important;
+    cursor: pointer !important;
+    flex-shrink: 0 !important;
+    transition: background-color 0.15s ease, border-color 0.15s ease, color 0.15s ease, transform 0.15s ease !important;
+    -webkit-tap-highlight-color: transparent !important;
+  }
+
+  .activity-page .master-mobile-filter-btn:active {
+    transform: scale(0.96) !important;
+    background: #F1F5F9 !important;
+  }
+
+  .activity-page .master-mobile-filter-btn.active {
+    background: #F0FDF4 !important;
+    border-color: #008520 !important;
+    color: #008520 !important;
+  }
+
+  /* Row 2: Primary CTA + Overflow (gap: 12px, 48px Touch Height, 13.5px Label) */
+  .activity-page .master-mobile-cta-row {
+    display: flex !important;
+    align-items: center !important;
+    gap: 12px !important;
+    width: 100% !important;
+  }
+
+  .activity-page .master-mobile-primary-cta {
+    flex: 1 !important;
+    min-width: 0 !important;
+    height: 48px !important;
+    min-height: 48px !important;
+    border-radius: 12px !important;
+    font-size: 13.5px !important;
+    font-weight: 700 !important;
+    background: #008520 !important;
+    color: #FFFFFF !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    gap: 8px !important;
+    border: none !important;
+    box-shadow: 0 2px 6px rgba(0, 133, 32, 0.25) !important;
+    padding: 0 16px !important;
+    cursor: pointer !important;
+    transition: all 0.15s ease !important;
+  }
+
+  .activity-page .master-mobile-primary-cta:active:not(:disabled) {
+    transform: scale(0.98) !important;
+    background: #006818 !important;
+  }
+
+  .activity-page .master-mobile-primary-cta:disabled {
+    background: #E2E8F0 !important;
+    color: #94A3B8 !important;
+    box-shadow: none !important;
+    cursor: not-allowed !important;
+  }
+
+  .activity-page .master-mobile-primary-cta .ui-icon {
+    width: 18px !important;
+    height: 18px !important;
+  }
+
+  .activity-page .master-mobile-overflow-wrap {
+    position: relative !important;
+    flex-shrink: 0 !important;
+  }
+
+  .activity-page .master-mobile-overflow-btn {
+    width: 48px !important;
+    height: 48px !important;
+    min-width: 48px !important;
+    min-height: 48px !important;
+    border-radius: 12px !important;
+    background: #008520 !important;
+    color: #FFFFFF !important;
+    border: none !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    box-shadow: 0 2px 6px rgba(0, 133, 32, 0.25) !important;
+    cursor: pointer !important;
+    transition: all 0.15s ease !important;
+  }
+
+  .activity-page .master-mobile-overflow-btn:active,
+  .activity-page .master-mobile-overflow-btn.active {
+    background: #006818 !important;
+    transform: scale(0.96) !important;
+  }
+
+  .activity-page .master-mobile-overflow-btn .ui-icon {
+    width: 20px !important;
+    height: 20px !important;
+  }
+
+  /* 7. Homeroom Context Card */
+  .activity-homeroom-context {
+    display: grid !important;
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    gap: 10px !important;
+    background: #FFFFFF !important;
+    border-radius: 18px !important;
+    padding: 14px 16px !important;
+    border: 1px solid rgba(0, 0, 0, 0.06) !important;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.025) !important;
+    box-sizing: border-box !important;
+    width: 100% !important;
+    margin: 0 0 18px 0 !important;
+  }
+
+  .activity-homeroom-context > div {
+    border-right: none !important;
+    padding: 4px 0 !important;
+  }
+
+  .activity-homeroom-context span {
+    font-size: 10.5px !important;
+    color: #64748B !important;
+    margin-bottom: 2px !important;
+  }
+
+  .activity-homeroom-context strong {
+    font-size: 12px !important;
+    color: #0F172A !important;
+  }
+
+  /* 8. Section 4: Data List / Table White Section */
+  .activity-workspace,
+  .activity-score-card,
+  .activity-notes-card {
+    display: block !important;
+    background: #FFFFFF !important;
+    border-radius: 18px !important;
+    padding: 16px 18px !important;
+    border: 1px solid rgba(0, 0, 0, 0.06) !important;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.025) !important;
+    box-sizing: border-box !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    overflow: hidden !important;
+    margin: 0 !important;
+  }
+
+  .activity-participation-layout {
+    display: block !important;
+    width: 100% !important;
+  }
+
+  /* Header with Flex Safety */
+  .activity-page .activity-table-heading,
+  .activity-page .activity-score-card-header,
+  .activity-page .activity-notes-card-header {
+    display: flex !important;
+    align-items: flex-start !important;
+    justify-content: space-between !important;
+    gap: 12px !important;
+    margin-bottom: 14px !important;
+    padding-bottom: 12px !important;
+    border-bottom: 1px solid #F1F5F9 !important;
+  }
+
+  .activity-page .activity-table-heading > div:first-child,
+  .activity-page .activity-score-card-header > div:first-child,
+  .activity-page .activity-notes-card-header > div:first-child {
+    flex: 1 1 auto !important;
+    min-width: 0 !important;
+  }
+
+  .activity-page .activity-table-heading h3,
+  .activity-page .activity-score-card-header h2,
+  .activity-page .activity-notes-card-header h2 {
+    font-size: 14.5px !important;
+    font-weight: 700 !important;
+    color: #0F172A !important;
+    margin: 0 !important;
+    line-height: 1.35 !important;
+    word-break: break-word !important;
+  }
+
+  .activity-page .activity-table-heading p,
+  .activity-page .activity-score-card-header p,
+  .activity-page .activity-notes-card-header p {
+    font-size: 11.5px !important;
+    color: #64748B !important;
+    margin: 3px 0 0 !important;
+    line-height: 1.3 !important;
+  }
+
+  .activity-page .master-record-count-badge {
+    flex-shrink: 0 !important;
+    margin-top: 2px !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    padding: 4px 10px !important;
+    background: #E8F5E9 !important;
+    color: #008520 !important;
+    font-size: 11.5px !important;
+    font-weight: 700 !important;
+    border-radius: 20px !important;
+    white-space: nowrap !important;
+  }
+
+  /* 9. Mobile Records (Keikutsertaan) — Clean Hierarchy, Badges Reduced */
+  .activity-mobile-records-wrapper {
+    display: block !important;
+    width: 100% !important;
+  }
+
+  .activity-page .master-mobile-record-list {
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 12px !important;
+    width: 100% !important;
+  }
+
+  .activity-record-card {
+    background: #FFFFFF !important;
+    border: 1px solid #E2E8F0 !important;
+    border-radius: 14px !important;
+    padding: 14px 16px !important;
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 8px !important;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.02) !important;
+    transition: border-color 0.15s ease !important;
+    box-sizing: border-box !important;
+    width: 100% !important;
+  }
+
+  .activity-record-card .activity-card-top {
+    display: flex !important;
+    align-items: flex-start !important;
+    justify-content: space-between !important;
+    gap: 10px !important;
+  }
+
+  .activity-record-card .activity-card-title-group {
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 4px !important;
+    flex: 1 !important;
+    min-width: 0 !important;
+  }
+
+  .activity-record-card .activity-card-student-name {
+    font-size: 14.5px !important;
+    font-weight: 700 !important;
+    color: #0F172A !important;
+    line-height: 1.25 !important;
+    word-break: break-word !important;
+  }
+
+  .activity-record-card .activity-card-code-row {
+    font-size: 11.5px !important;
+    color: #64748B !important;
+    line-height: 1.2 !important;
+  }
+
+  .activity-record-card .activity-card-btn-more {
+    width: 42px !important;
+    height: 42px !important;
+    min-width: 42px !important;
+    min-height: 42px !important;
+    border-radius: 10px !important;
+    border: 1px solid #E2E8F0 !important;
+    background: #F8FAFC !important;
+    color: #64748B !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    flex-shrink: 0 !important;
+    cursor: pointer !important;
+  }
+
+  .activity-record-card .activity-card-btn-more .ui-icon {
+    width: 18px !important;
+    height: 18px !important;
+  }
+
+  .activity-record-card .activity-card-middle {
+    margin-top: 2px !important;
+  }
+
+  .activity-record-card .activity-card-ekskul-tag {
+    display: inline-flex !important;
+    align-items: center !important;
+    gap: 5px !important;
+    background: #F1F5F9 !important;
+    border-radius: 8px !important;
+    padding: 4px 10px !important;
+    font-size: 12px !important;
+    color: #334155 !important;
+  }
+
+  .activity-record-card .activity-card-ekskul-label {
+    color: #64748B !important;
+    font-weight: 500 !important;
+  }
+
+  .activity-record-card .activity-card-ekskul-name {
+    color: #0F172A !important;
+    font-weight: 700 !important;
+  }
+
+  .activity-record-card .activity-card-bottom {
+    display: flex !important;
+    align-items: center !important;
+    justify-content: space-between !important;
+    gap: 8px !important;
+    margin-top: 4px !important;
+    flex-wrap: wrap !important;
+  }
+
+  .activity-record-card .activity-card-meta-left {
+    flex: 1 !important;
+    min-width: 0 !important;
+  }
+
+  .activity-record-card .activity-card-pembina {
+    font-size: 11px !important;
+    color: #64748B !important;
+    line-height: 1.3 !important;
+    display: block !important;
+  }
+
+  .activity-record-card .activity-card-badges-right {
+    display: flex !important;
+    align-items: center !important;
+    gap: 6px !important;
+    flex-shrink: 0 !important;
+  }
+
+  .activity-record-card .activity-card-predicate-chip {
+    display: inline-flex !important;
+    align-items: center !important;
+    padding: 3px 8px !important;
+    background: #EFF6FF !important;
+    color: #1D4ED8 !important;
+    border: 1px solid #BFDBFE !important;
+    border-radius: 6px !important;
+    font-size: 11px !important;
+    font-weight: 700 !important;
+    white-space: nowrap !important;
+  }
+
+  /* 10. Controlled Internal Horizontal Scroll (Nilai & Catatan) */
+  .activity-table-scroll,
+  .activity-notes-table-wrap {
+    width: 100% !important;
+    max-width: 100% !important;
+    overflow-x: auto !important;
+    -webkit-overflow-scrolling: touch !important;
+    box-sizing: border-box !important;
+    border-radius: 12px !important;
+    border: 1px solid #E2E8F0 !important;
+    background: #FFFFFF !important;
+    margin-bottom: 12px !important;
+  }
+
+  .activity-page .activity-score-table,
+  .activity-page .activity-notes-table {
+    min-width: 620px !important;
+    margin: 0 !important;
+  }
+
+  .activity-score-description,
+  .activity-notes-input-cell textarea {
+    min-width: 220px !important;
+    font-size: 11px !important;
+  }
+
+  .activity-notes-title-input {
+    min-width: 220px !important;
+    font-size: 11px !important;
+  }
+
+  /* 11. Pagination Polish (Breathing Room & Spacing) */
+  .activity-page .master-pagination {
+    margin-top: 16px !important;
+    padding-top: 14px !important;
+    border-top: 1px solid #F1F5F9 !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: space-between !important;
+    width: 100% !important;
+    box-sizing: border-box !important;
+  }
+
+  .activity-page .master-mobile-pagination {
+    display: none !important;
+  }
+
+  .activity-page .master-pagination .master-pagination-info {
+    font-size: 12px !important;
+    color: #64748B !important;
+    font-weight: 500 !important;
+  }
+
+  .activity-page .master-pagination-controls {
+    display: flex !important;
+    align-items: center !important;
+    gap: 8px !important;
+  }
+
+  /* 12. Modal Consistency & Mobile Bottom Sheet UX */
+  @keyframes activitySheetSlideUp {
+    from {
+      opacity: 0.7;
+      transform: translateY(100%);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  .activity-modal-backdrop {
+    position: fixed !important;
+    top: var(--mobile-header-total-height, calc(56px + max(10px, env(safe-area-inset-top, 10px)))) !important;
+    left: 0 !important;
+    right: 0 !important;
+    bottom: 0 !important;
+    padding: 0 !important;
+    display: flex !important;
+    flex-direction: column !important;
+    justify-content: flex-end !important;
+    align-items: center !important;
+    z-index: 10000 !important;
+    backdrop-filter: blur(5px) !important;
+    -webkit-backdrop-filter: blur(5px) !important;
+    background: rgba(15, 23, 42, 0.55) !important;
+    overflow: hidden !important;
+    overflow-x: hidden !important;
+    box-sizing: border-box !important;
+    width: 100% !important;
+    max-width: 100% !important;
+  }
+
+  .activity-modal {
+    position: relative !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    min-width: 0 !important;
+    max-height: calc(100% - 10px) !important;
+    height: auto !important;
+    border-radius: 20px 20px 0 0 !important;
+    box-shadow: 0 -8px 36px rgba(0, 0, 0, 0.22) !important;
+    border: none !important;
+    border-top: 1px solid rgba(0, 0, 0, 0.08) !important;
+    background: #FFFFFF !important;
+    display: flex !important;
+    flex-direction: column !important;
+    overflow: hidden !important;
+    overflow-x: hidden !important;
+    box-sizing: border-box !important;
+    margin: 0 auto !important;
+    animation: activitySheetSlideUp 0.26s cubic-bezier(0.16, 1, 0.3, 1) !important;
+  }
+
+  /* Sheet Drag Handle */
+  .activity-modal::before {
+    content: '' !important;
+    display: block !important;
+    width: 38px !important;
+    height: 4.5px !important;
+    border-radius: 999px !important;
+    background: #CBD5E1 !important;
+    margin: 8px auto 2px !important;
+    flex-shrink: 0 !important;
+  }
+
+  .activity-modal.wide,
+  .activity-modal.activity-modal-wide {
+    max-width: 100% !important;
+    width: 100% !important;
+  }
+
+  .activity-modal > header,
+  .activity-modal-header {
+    display: flex !important;
+    align-items: flex-start !important;
+    justify-content: space-between !important;
+    padding: 10px 18px 12px 18px !important;
+    border-bottom: 1px solid #F1F5F9 !important;
+    gap: 12px !important;
+    background: #FFFFFF !important;
+    width: 100% !important;
+    box-sizing: border-box !important;
+    flex-shrink: 0 !important;
+  }
+
+  .activity-modal > header > div,
+  .activity-modal-header > div {
+    flex: 1 1 auto !important;
+    min-width: 0 !important;
+  }
+
+  .activity-modal > header h3,
+  .activity-modal-header h3 {
+    font-size: 16px !important;
+    font-weight: 700 !important;
+    color: #0F172A !important;
+    margin: 0 !important;
+    line-height: 1.3 !important;
+    letter-spacing: -0.015em !important;
+    word-break: break-word !important;
+  }
+
+  .activity-modal > header p,
+  .activity-modal-header p {
+    font-size: 11.5px !important;
+    color: #64748B !important;
+    margin: 3px 0 0 0 !important;
+    line-height: 1.4 !important;
+  }
+
+  .activity-modal > header > button,
+  .activity-modal-header > button {
+    width: 32px !important;
+    height: 32px !important;
+    min-width: 32px !important;
+    min-height: 32px !important;
+    border-radius: 50% !important;
+    background: #F1F5F9 !important;
+    color: #64748B !important;
+    border: none !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    font-size: 20px !important;
+    line-height: 1 !important;
+    cursor: pointer !important;
+    flex-shrink: 0 !important;
+    transition: background 0.15s ease !important;
+  }
+
+  .activity-modal > header > button:active,
+  .activity-modal-header > button:active {
+    background: #E2E8F0 !important;
+  }
+
+  /* Form Container & Grid - Single vertical scroll owner */
+  .activity-modal-form,
+  .activity-form {
+    display: flex !important;
+    flex-direction: column !important;
+    min-height: 0 !important;
+    flex: 1 1 auto !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    min-width: 0 !important;
+    overflow: hidden !important;
+    box-sizing: border-box !important;
+  }
+
+  .activity-form-grid {
+    display: flex !important;
+    flex-direction: column !important;
+    grid-template-columns: none !important;
+    padding: 16px 18px !important;
+    gap: 14px !important;
+    overflow-y: auto !important;
+    overflow-x: hidden !important;
+    -webkit-overflow-scrolling: touch !important;
+    flex: 1 1 auto !important;
+    min-height: 0 !important;
+    box-sizing: border-box !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    min-width: 0 !important;
+  }
+
+  .activity-field,
+  .activity-form-grid label,
+  .activity-modal label {
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 6px !important;
+    color: #334155 !important;
+    font-size: 12.5px !important;
+    font-weight: 600 !important;
+    line-height: 1.3 !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    min-width: 0 !important;
+    box-sizing: border-box !important;
+    margin: 0 !important;
+  }
+
+  .activity-field span,
+  .activity-form-grid label span,
+  .activity-modal label span {
+    font-size: 12.5px !important;
+    font-weight: 600 !important;
+    color: #334155 !important;
+    line-height: 1.3 !important;
+  }
+
+  .activity-field span b,
+  .activity-form-grid label span b,
+  .activity-modal label span b {
+    color: #DC2626 !important;
+    margin-left: 3px !important;
+    font-weight: 700 !important;
+  }
+
+  /* Form Controls Normalization (Height 48px, Radius 12px) */
+  .activity-form-grid input,
+  .activity-form-grid select,
+  .activity-modal input,
+  .activity-modal select {
+    width: 100% !important;
+    max-width: 100% !important;
+    min-width: 0 !important;
+    min-height: 48px !important;
+    height: 48px !important;
+    max-height: 48px !important;
+    line-height: 46px !important;
+    padding: 0 14px !important;
+    background: #FFFFFF !important;
+    border: 1px solid #CBD5E1 !important;
+    border-radius: 12px !important;
+    font-size: 13.5px !important;
+    font-weight: 500 !important;
+    color: #0F172A !important;
+    box-sizing: border-box !important;
+    outline: none !important;
+    transition: border-color 0.15s ease, box-shadow 0.15s ease !important;
+  }
+
+  /* Single downward chevron for select controls & robust long value truncation */
+  .activity-form-grid select,
+  .activity-modal select {
+    appearance: none !important;
+    -webkit-appearance: none !important;
+    -moz-appearance: none !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    min-width: 0 !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+    white-space: nowrap !important;
+    word-break: normal !important;
+    background-color: #FFFFFF !important;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='18' height='18' viewBox='0 0 24 24' fill='none' stroke='%2364748B' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E") !important;
+    background-repeat: no-repeat !important;
+    background-position: right 14px center !important;
+    background-size: 18px 18px !important;
+    padding-right: 42px !important;
+    cursor: pointer !important;
+    font-weight: 500 !important;
+  }
+
+  .activity-form-grid select::-ms-expand,
+  .activity-modal select::-ms-expand {
+    display: none !important;
+  }
+
+  /* Readonly / Disabled Fields (Tahun Ajaran, Semester) */
+  .activity-form-grid input:disabled,
+  .activity-form-grid input[readonly],
+  .activity-modal input:disabled,
+  .activity-modal input[readonly] {
+    background: #F8FAFC !important;
+    color: #64748B !important;
+    border: 1px solid #CBD5E1 !important;
+    cursor: default !important;
+    opacity: 1 !important;
+    -webkit-text-fill-color: #64748B !important;
+  }
+
+  .activity-form-grid select:disabled,
+  .activity-modal select:disabled {
+    background-color: #F8FAFC !important;
+    color: #94A3B8 !important;
+    border-color: #E2E8F0 !important;
+    cursor: not-allowed !important;
+    opacity: 0.8 !important;
+  }
+
+  /* Textarea Constrained & Natural Placeholder Wrapping */
+  .activity-form-grid textarea,
+  .activity-modal textarea {
+    width: 100% !important;
+    max-width: 100% !important;
+    min-width: 0 !important;
+    min-height: 84px !important;
+    line-height: 1.5 !important;
+    padding: 12px 14px !important;
+    background: #FFFFFF !important;
+    border: 1px solid #CBD5E1 !important;
+    border-radius: 12px !important;
+    font-size: 13.5px !important;
+    font-weight: 500 !important;
+    color: #0F172A !important;
+    box-sizing: border-box !important;
+    outline: none !important;
+    resize: none !important;
+    font-family: inherit !important;
+    overflow-wrap: break-word !important;
+    word-break: break-word !important;
+    white-space: pre-wrap !important;
+    transition: border-color 0.15s ease, box-shadow 0.15s ease !important;
+  }
+
+  .activity-form-grid textarea::placeholder,
+  .activity-modal textarea::placeholder {
+    color: #94A3B8 !important;
+    white-space: pre-wrap !important;
+    word-break: break-word !important;
+    font-size: 12.5px !important;
+    line-height: 1.45 !important;
+  }
+
+  .activity-form-grid input:focus,
+  .activity-form-grid select:focus,
+  .activity-form-grid textarea:focus,
+  .activity-modal input:focus,
+  .activity-modal select:focus,
+  .activity-modal textarea:focus {
+    border-color: #008520 !important;
+    box-shadow: 0 0 0 3px rgba(0, 133, 32, 0.12) !important;
+  }
+
+  /* Modal Footer: Compact Asymmetric Grid (Batal & Simpan Keikutsertaan) */
+  .activity-modal-actions,
+  .activity-modal-footer {
+    display: grid !important;
+    grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.6fr) !important;
+    align-items: center !important;
+    gap: 10px !important;
+    padding: 12px 16px max(16px, env(safe-area-inset-bottom, 16px)) !important;
+    background: #FFFFFF !important;
+    border-top: 1px solid #F1F5F9 !important;
+    box-sizing: border-box !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    min-width: 0 !important;
+    flex-shrink: 0 !important;
+  }
+
+  .activity-modal-actions .activity-button,
+  .activity-modal-footer .activity-button {
+    width: 100% !important;
+    max-width: 100% !important;
+    min-width: 0 !important;
+    min-height: 48px !important;
+    height: 48px !important;
+    border-radius: 12px !important;
+    font-size: 13.5px !important;
+    font-weight: 700 !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    gap: 6px !important;
+    cursor: pointer !important;
+    box-sizing: border-box !important;
+    white-space: nowrap !important;
+    transition: all 0.15s ease !important;
+  }
+
+  .activity-modal-actions .activity-button-secondary,
+  .activity-modal-footer .activity-button-secondary {
+    background: #F8FAFC !important;
+    border: 1px solid #CBD5E1 !important;
+    color: #475569 !important;
+    padding: 0 12px !important;
+    font-size: 13.5px !important;
+  }
+
+  .activity-modal-actions .activity-button-secondary:active,
+  .activity-modal-footer .activity-button-secondary:active {
+    background: #E2E8F0 !important;
+    transform: scale(0.98) !important;
+  }
+
+  .activity-modal-actions .activity-button-primary,
+  .activity-modal-footer .activity-button-primary {
+    background: #008520 !important;
+    border: none !important;
+    color: #FFFFFF !important;
+    box-shadow: 0 2px 6px rgba(0, 133, 32, 0.25) !important;
+    padding: 0 8px !important;
+    font-size: 13px !important;
+    font-weight: 700 !important;
+    letter-spacing: -0.01em !important;
+    overflow: visible !important;
+    text-overflow: clip !important;
+  }
+
+  .activity-modal-actions .activity-button-primary .ui-icon,
+  .activity-modal-footer .activity-button-primary .ui-icon {
+    width: 16px !important;
+    height: 16px !important;
+    flex-shrink: 0 !important;
+  }
+
+  .activity-modal-actions .activity-button-primary:active,
+  .activity-modal-footer .activity-button-primary:active {
+    background: #006818 !important;
+    transform: scale(0.98) !important;
+  }
+
+  @media (max-width: 350px) {
+    .activity-modal-actions,
+    .activity-modal-footer {
+      grid-template-columns: minmax(0, 0.8fr) minmax(0, 1.7fr) !important;
+      padding: 10px 12px max(14px, env(safe-area-inset-bottom, 14px)) !important;
+      gap: 8px !important;
+    }
+
+    .activity-modal-actions .activity-button-primary,
+    .activity-modal-footer .activity-button-primary {
+      font-size: 12.5px !important;
+      padding: 0 6px !important;
+      gap: 5px !important;
+    }
+  }
+
+  .activity-detail-content {
+    display: flex !important;
+    flex-direction: column !important;
+    padding: 16px 18px !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    min-width: 0 !important;
+    box-sizing: border-box !important;
+    overflow-y: auto !important;
+    overflow-x: hidden !important;
+    -webkit-overflow-scrolling: touch !important;
+    flex: 1 1 auto !important;
+    min-height: 0 !important;
+  }
+
+  .activity-detail-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    gap: 8px !important;
+    width: 100% !important;
+    box-sizing: border-box !important;
+  }
+
+  .activity-detail-grid > div {
+    padding: 9px 11px !important;
+    border-radius: 10px !important;
+    min-width: 0 !important;
+    box-sizing: border-box !important;
+    overflow: hidden !important;
+  }
+
+  .activity-detail-list {
+    width: 100% !important;
+    box-sizing: border-box !important;
+  }
+
+  .activity-detail-list article {
+    min-width: 0 !important;
+    box-sizing: border-box !important;
+  }
+
+  .activity-toast {
+    right: 16px !important;
+    bottom: 84px !important;
+  }
 }

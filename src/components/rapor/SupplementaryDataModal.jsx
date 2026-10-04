@@ -275,6 +275,25 @@ function SupplementaryDataModal({ isOpen, onClose, activeTab = 'absensi', classI
     }
   }
 
+  const currentTabSaveConfig = {
+    absensi: {
+      label: 'Simpan Presensi',
+      handler: handleSaveAttendance,
+    },
+    ekstrakurikuler: {
+      label: 'Simpan Ekstrakurikuler',
+      handler: handleSaveExtracurriculars,
+    },
+    kokurikuler: {
+      label: 'Simpan Kokurikuler',
+      handler: handleSaveCocurriculars,
+    },
+    'catatan-wali-kelas': {
+      label: 'Simpan Catatan',
+      handler: handleSaveHomeroomNotes,
+    },
+  }[currentTab]
+
   return (
     <div className="report-supplementary-backdrop">
       <div aria-labelledby="report-supplementary-title" aria-modal="true" className="report-supplementary-dialog" role="dialog">
@@ -348,10 +367,6 @@ function SupplementaryDataModal({ isOpen, onClose, activeTab = 'absensi', classI
                     <p>
                       Masukkan jumlah hari ketidakhadiran selama satu semester (Sakit, Izin, Tanpa Keterangan).
                     </p>
-                    <Button className="report-button primary" disabled={saving} onClick={handleSaveAttendance}>
-                      <Icon name="save" />
-                      {saving ? 'Menyimpan...' : 'Simpan Presensi'}
-                    </Button>
                   </div>
                   <div className="report-supplementary-table-scroll">
                   <table className="report-supplementary-attendance-table">
@@ -423,10 +438,6 @@ function SupplementaryDataModal({ isOpen, onClose, activeTab = 'absensi', classI
                     <p>
                       Kelola kegiatan ekstrakurikuler yang diikuti setiap siswa beserta predikat capaian.
                     </p>
-                    <Button className="report-button primary" disabled={saving} onClick={handleSaveExtracurriculars}>
-                      <Icon name="save" />
-                      {saving ? 'Menyimpan...' : 'Simpan Ekstrakurikuler'}
-                    </Button>
                   </div>
                   <div className="report-supplementary-student-list">
                     {extracurricularList.map((item, idx) => (
@@ -491,10 +502,6 @@ function SupplementaryDataModal({ isOpen, onClose, activeTab = 'absensi', classI
                     <p>
                       Catatan perkembangan Projek Penguatan Profil Pelajar Pancasila (P5) siswa.
                     </p>
-                    <Button className="report-button primary" disabled={saving} onClick={handleSaveCocurriculars}>
-                      <Icon name="save" />
-                      {saving ? 'Menyimpan...' : 'Simpan Kokurikuler'}
-                    </Button>
                   </div>
                   <div className="report-supplementary-student-list">
                     {cocurricularList.map((item, idx) => (
@@ -538,10 +545,6 @@ function SupplementaryDataModal({ isOpen, onClose, activeTab = 'absensi', classI
                     <p>
                       Catatan evaluasi, bimbingan, dan motivasi wali kelas yang akan dicantumkan pada buku rapor.
                     </p>
-                    <Button className="report-button primary" disabled={saving} onClick={handleSaveHomeroomNotes}>
-                      <Icon name="save" />
-                      {saving ? 'Menyimpan...' : 'Simpan Catatan'}
-                    </Button>
                   </div>
                   <div className="report-supplementary-student-list">
                     {homeroomNotesList.map((item, idx) => (
@@ -570,10 +573,25 @@ function SupplementaryDataModal({ isOpen, onClose, activeTab = 'absensi', classI
 
         {/* Footer */}
         <div className="report-supplementary-footer">
-          <span>{students.length} siswa dalam kelas</span>
-          <Button className="report-button secondary" onClick={onClose}>
+          <Button
+            type="button"
+            className="report-button secondary report-supplementary-btn-cancel"
+            onClick={onClose}
+            disabled={saving}
+          >
             Tutup
           </Button>
+          {currentTabSaveConfig && (
+            <Button
+              type="button"
+              className="report-button primary report-supplementary-btn-save"
+              disabled={saving || loading || !students.length}
+              onClick={currentTabSaveConfig.handler}
+            >
+              <Icon name="save" />
+              {saving ? 'Menyimpan...' : currentTabSaveConfig.label}
+            </Button>
+          )}
         </div>
       </div>
     </div>

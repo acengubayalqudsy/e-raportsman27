@@ -19,6 +19,7 @@ use App\Http\Controllers\Api\V1\StudentController;
 use App\Http\Controllers\Api\V1\ExcelController;
 use App\Http\Controllers\Api\V1\TeacherController;
 use App\Http\Controllers\Api\V1\UserController;
+use App\Http\Controllers\Api\V1\ExploreNewsController;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -62,6 +63,11 @@ Route::prefix('v1')->group(function () {
             Route::get('/test-role-admin', [AuthController::class, 'testAdmin'])->middleware('role:admin');
             Route::get('/test-role-guru', [AuthController::class, 'testGuru'])->middleware('role:guru');
         });
+    });
+
+    // Explore / Jelajah News Aggregator (All Authenticated Roles)
+    Route::prefix('explore')->middleware(['auth:sanctum'])->group(function () {
+        Route::get('/news', [ExploreNewsController::class, 'index']);
     });
 
     // Master Data Siswa Routes

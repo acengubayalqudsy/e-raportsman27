@@ -3,6 +3,7 @@ import Button from '../common/Button.jsx'
 import Icon from '../common/Icon.jsx'
 import SearchInput from '../common/SearchInput.jsx'
 import MasterPagination from '../master-data/MasterPagination.jsx'
+import MasterMobileToolbar from '../master-data/MasterMobileToolbar.jsx'
 import AcademicModal from './AcademicModal.jsx'
 import AcademicSummary from './AcademicSummary.jsx'
 import rombelService from '../../services/rombelService.js'
@@ -359,6 +360,32 @@ export function AcademicRombelView({ onNotify }) {
     }
   }
 
+  // Direct Sync Action for Mobile (Direct execution without popup/modal)
+  const handleDirectSync = async () => {
+    if (syncLoading) return
+    if (!selectedSemesterId) {
+      onNotify?.('Pilih semester terlebih dahulu untuk menyinkronkan data.')
+      return
+    }
+
+    setSyncLoading(true)
+    try {
+      const res = await rombelService.commitSync(selectedSemesterId)
+      if (res.success) {
+        onNotify?.(res.message || 'Data siswa berhasil disinkronkan.')
+        await loadMembers()
+      } else {
+        onNotify?.(res.message || 'Gagal menyinkronkan data siswa.')
+      }
+    } catch (err) {
+      console.error('Error executing direct sync:', err)
+      const errorMsg = err?.response?.data?.message || err?.message || 'Gagal menyinkronkan data siswa.'
+      onNotify?.(errorMsg.includes('<!DOCTYPE') ? 'Gagal menyinkronkan data siswa.' : errorMsg)
+    } finally {
+      setSyncLoading(false)
+    }
+  }
+
   const totalPages = Math.max(1, Math.ceil(totalItems / rowsPerPage))
   const pagination = {
     currentPage,
@@ -368,86 +395,217 @@ export function AcademicRombelView({ onNotify }) {
     setRowsPerPage: (val) => { setRowsPerPage(val); setCurrentPage(1) },
   }
 
+  const rombelFilterFields = useMemo(() => [
+    {
+      key: 'yearId',
+      label: 'Tahun Ajaran',
+      options: years.map((y) => ({ value: String(y.id), label: `${y.name} (${y.status})` })),
+    },
+    {
+      key: 'semesterId',
+      label: 'Semester',
+      options: availableSemesters.map((s) => ({ value: String(s.id), label: `${s.name} (${s.status})` })),
+    },
+    {
+      key: 'grade',
+      label: 'Tingkat',
+      options: ['Semua Tingkat', 'X', 'XI', 'XII'],
+    },
+    {
+      key: 'classId',
+      label: 'Kelas / Rombel',
+      options: availableClasses.map((c) => ({ value: String(c.id), label: `${c.name} (Kapasitas: ${c.capacity})` })),
+    },
+  ], [years, availableSemesters, availableClasses])
+
+  const mobileFilters = useMemo(() => ({
+    yearId: String(selectedYearId || ''),
+    semesterId: String(selectedSemesterId || ''),
+    grade: selectedGrade || 'Semua Tingkat',
+    classId: String(effectiveClassId || ''),
+  }), [selectedYearId, selectedSemesterId, selectedGrade, effectiveClassId])
+
+  const handleMobileFilterChange = (key, value) => {
+    if (key === 'yearId') {
+      setSelectedYearId(value)
+      setCurrentPage(1)
+    } else if (key === 'semesterId') {
+      setSelectedSemesterId(value)
+      setCurrentPage(1)
+    } else if (key === 'grade') {
+      setSelectedGrade(value)
+      const matched = classes.find((c) => String(c.academic_year_id) === String(selectedYearId) && (value === 'Semua Tingkat' || c.grade === value))
+      if (matched) setSelectedClassId(String(matched.id))
+      else setSelectedClassId('')
+      setCurrentPage(1)
+    } else if (key === 'classId') {
+      setSelectedClassId(value)
+      setCurrentPage(1)
+    }
+  }
+
+  const activeFilterCount = useMemo(() => {
+    let count = 0
+    if (selectedGrade && selectedGrade !== 'Semua Tingkat') count++
+    return count
+  }, [selectedGrade])
+
   return (
     <>
       <section className="academic-workspace">
-        <div className="academic-toolbar">
-          <div className="academic-filter-grid four-fields">
-            <AcademicField
-              disabled={loadingRefs}
-              label="Tahun Ajaran"
-              onChange={(e) => {
-                setSelectedYearId(e.target.value)
-                setCurrentPage(1)
-              }}
-              options={years.map((y) => ({ value: String(y.id), label: `${y.name} (${y.status})` }))}
-              value={selectedYearId}
-            />
-            <AcademicField
-              disabled={loadingRefs}
-              label="Semester"
-              onChange={(e) => {
-                setSelectedSemesterId(e.target.value)
-                setCurrentPage(1)
-              }}
-              options={availableSemesters.map((s) => ({ value: String(s.id), label: `${s.name} (${s.status})` }))}
-              value={selectedSemesterId}
-            />
-            <AcademicField
-              label="Tingkat"
-              onChange={(e) => {
-                setSelectedGrade(e.target.value)
-                const matched = classes.find((c) => String(c.academic_year_id) === String(selectedYearId) && (e.target.value === 'Semua Tingkat' || c.grade === e.target.value))
-                if (matched) setSelectedClassId(String(matched.id))
-                else setSelectedClassId('')
-                setCurrentPage(1)
-              }}
-              options={['Semua Tingkat', 'X', 'XI', 'XII']}
-              value={selectedGrade}
-            />
-            <AcademicField
-              disabled={loadingRefs}
-              label="Kelas / Rombel"
-              onChange={(e) => {
-                setSelectedClassId(e.target.value)
-                setCurrentPage(1)
-              }}
-              options={availableClasses.map((c) => ({ value: String(c.id), label: `${c.name} (Kapasitas: ${c.capacity})` }))}
-              value={effectiveClassId}
+        {/* Desktop Toolbar & Actions */}
+        <div className="academic-desktop-toolbar-container">
+          <div className="academic-toolbar">
+            <div className="academic-filter-grid four-fields">
+              <AcademicField
+                disabled={loadingRefs}
+                label="Tahun Ajaran"
+                onChange={(e) => {
+                  setSelectedYearId(e.target.value)
+                  setCurrentPage(1)
+                }}
+                options={years.map((y) => ({ value: String(y.id), label: `${y.name} (${y.status})` }))}
+                value={selectedYearId}
+              />
+              <AcademicField
+                disabled={loadingRefs}
+                label="Semester"
+                onChange={(e) => {
+                  setSelectedSemesterId(e.target.value)
+                  setCurrentPage(1)
+                }}
+                options={availableSemesters.map((s) => ({ value: String(s.id), label: `${s.name} (${s.status})` }))}
+                value={selectedSemesterId}
+              />
+              <AcademicField
+                label="Tingkat"
+                onChange={(e) => {
+                  setSelectedGrade(e.target.value)
+                  const matched = classes.find((c) => String(c.academic_year_id) === String(selectedYearId) && (e.target.value === 'Semua Tingkat' || c.grade === e.target.value))
+                  if (matched) setSelectedClassId(String(matched.id))
+                  else setSelectedClassId('')
+                  setCurrentPage(1)
+                }}
+                options={['Semua Tingkat', 'X', 'XI', 'XII']}
+                value={selectedGrade}
+              />
+              <AcademicField
+                disabled={loadingRefs}
+                label="Kelas / Rombel"
+                onChange={(e) => {
+                  setSelectedClassId(e.target.value)
+                  setCurrentPage(1)
+                }}
+                options={availableClasses.map((c) => ({ value: String(c.id), label: `${c.name} (Kapasitas: ${c.capacity})` }))}
+                value={effectiveClassId}
+              />
+            </div>
+            <AcademicSearch
+              ariaLabel="Cari siswa"
+              onChange={(e) => { setSearchQuery(e.target.value); setCurrentPage(1) }}
+              placeholder="Cari siswa (NIS/Nama)..."
+              value={searchQuery}
             />
           </div>
-          <AcademicSearch
-            ariaLabel="Cari siswa"
-            onChange={(e) => { setSearchQuery(e.target.value); setCurrentPage(1) }}
-            placeholder="Cari siswa (NIS/Nama)..."
-            value={searchQuery}
-          />
-        </div>
 
-        <div className="academic-actions">
-          <div className="academic-context-title">
-            <span><Icon name="users" /></span>
-            <div>
-              <h3>{selectedClassObj ? selectedClassObj.name : 'Rombongan Belajar'}</h3>
-              <p>
-                {stats?.total_members ?? totalItems} Siswa Terdaftar &middot; Kapasitas: {selectedClassObj?.capacity ?? 36}
-                {stats?.remaining_capacity !== undefined && ` (Sisa: ${stats.remaining_capacity})`}
-              </p>
+          <div className="academic-actions">
+            <div className="academic-context-title">
+              <span><Icon name="users" /></span>
+              <div>
+                <h3>{selectedClassObj ? selectedClassObj.name : 'Rombongan Belajar'}</h3>
+                <p>
+                  {stats?.total_members ?? totalItems} Siswa Terdaftar &middot; Kapasitas: {selectedClassObj?.capacity ?? 36}
+                  {stats?.remaining_capacity !== undefined && ` (Sisa: ${stats.remaining_capacity})`}
+                </p>
+              </div>
+            </div>
+            <div style={{ display: 'flex', gap: '8px' }}>
+              <Button className="academic-button secondary" disabled={!selectedClassId || !selectedSemesterId} onClick={() => excelService.download('rombel_members', 'export', { class_id: selectedClassId, semester_id: selectedSemesterId }).catch((error) => onNotify(error.message))} type="button"><Icon name="download" /> Export Excel</Button>
+              <Button className="academic-button secondary" onClick={handleOpenSync} type="button">
+                <Icon name="refresh" /> Sinkronkan Data Siswa
+              </Button>
+              <Button className="academic-button primary" onClick={handleOpenAdd} type="button">
+                <Icon name="plus" /> Tambah Siswa ke Rombel
+              </Button>
             </div>
           </div>
-          <div style={{ display: 'flex', gap: '8px' }}>
-            <Button className="academic-button secondary" disabled={!selectedClassId || !selectedSemesterId} onClick={() => excelService.download('rombel_members', 'export', { class_id: selectedClassId, semester_id: selectedSemesterId }).catch((error) => onNotify(error.message))} type="button"><Icon name="download" /> Export Excel</Button>
-            <Button className="academic-button secondary" onClick={handleOpenSync} type="button">
-              <Icon name="refresh" /> Sinkronkan Data Siswa
-            </Button>
-            <Button className="academic-button primary" onClick={handleOpenAdd} type="button">
-              <Icon name="plus" /> Tambah Siswa ke Rombel
-            </Button>
+        </div>
+
+        {/* Mobile Toolbar & Context Info Card (Matches Master Data Reference) */}
+        {syncLoading && (
+          <div className="academic-mobile-sync-banner" role="status" aria-live="polite">
+            <span className="academic-mobile-sync-spinner" />
+            <span>Menyinkronkan data siswa...</span>
+          </div>
+        )}
+
+        <MasterMobileToolbar
+          activeFilterCount={activeFilterCount}
+          addLabel="Tambah Siswa"
+          exportDisabled={!selectedClassId || !selectedSemesterId}
+          exportLabel="Export Excel"
+          extraActions={[
+            {
+              label: syncLoading ? 'Menyinkronkan...' : 'Sinkronkan Data Siswa',
+              icon: 'refresh',
+              disabled: syncLoading || !selectedSemesterId,
+              onClick: handleDirectSync,
+            },
+          ]}
+          filterFields={rombelFilterFields}
+          filters={mobileFilters}
+          onAdd={handleOpenAdd}
+          onExport={() => excelService.download('rombel_members', 'export', { class_id: selectedClassId, semester_id: selectedSemesterId }).catch((error) => onNotify(error.message))}
+          onFilterChange={handleMobileFilterChange}
+          onFilterReset={() => {
+            setSelectedGrade('Semua Tingkat')
+            setCurrentPage(1)
+          }}
+          onSearchChange={(value) => {
+            setSearchQuery(value)
+            setCurrentPage(1)
+          }}
+          searchPlaceholder="Cari siswa (NIS/Nama)..."
+          searchQuery={searchQuery}
+        />
+
+        <div className="academic-mobile-context-card">
+          <div className="academic-mobile-context-icon">
+            <Icon name="users" />
+          </div>
+          <div className="academic-mobile-context-info">
+            <div className="academic-mobile-context-badge-row">
+              <span className="academic-mobile-context-tag">ROMBEL TERPILIH</span>
+              {selectedClassObj?.grade && (
+                <span className="academic-mobile-context-grade">Tingkat {selectedClassObj.grade}</span>
+              )}
+            </div>
+            <h4 className="academic-mobile-context-name">
+              {selectedClassObj ? selectedClassObj.name : 'Rombongan Belajar'}
+            </h4>
+            <div className="academic-mobile-context-meta">
+              <span className="meta-highlight">
+                <strong>{stats?.total_members ?? totalItems}</strong> Siswa Terdaftar
+              </span>
+              <span className="meta-divider">&bull;</span>
+              <span>Kapasitas: <strong>{selectedClassObj?.capacity ?? 36}</strong></span>
+              {stats?.remaining_capacity !== undefined && (
+                <>
+                  <span className="meta-divider">&bull;</span>
+                  <span className="meta-sisa">Sisa: <strong>{stats.remaining_capacity}</strong></span>
+                </>
+              )}
+            </div>
           </div>
         </div>
 
-        <div className="academic-table-scroll">
-          <table className="academic-table academic-rombel-table">
+        <section className="academic-table-section-card">
+          <div className="academic-table-section-header">
+            <h4 className="academic-table-section-title">Daftar Siswa</h4>
+            <span className="academic-table-section-count">{totalItems} data</span>
+          </div>
+          <div className="academic-table-scroll">
+            <table className="academic-table academic-rombel-table">
             <thead>
               <tr>
                 <th>No</th>
@@ -530,6 +688,7 @@ export function AcademicRombelView({ onNotify }) {
         </div>
         <PaginationFooter itemLabel="siswa" pagination={pagination} totalItems={totalItems} />
       </section>
+    </section>
 
       {/* MODAL 1: TAMBAH SISWA KE ROMBEL */}
       {addOpen && (
@@ -555,7 +714,7 @@ export function AcademicRombelView({ onNotify }) {
                   ))}
                 </select>
               </label>
-              <label>
+              <label className="full-width">
                 <span>Tanggal Masuk<b>*</b></span>
                 <input
                   required
@@ -564,7 +723,7 @@ export function AcademicRombelView({ onNotify }) {
                   onChange={(e) => setJoinDate(e.target.value)}
                 />
               </label>
-              <label>
+              <label className="full-width">
                 <span>Catatan</span>
                 <input
                   placeholder="Keterangan tambahan..."
@@ -618,7 +777,7 @@ export function AcademicRombelView({ onNotify }) {
                     ))}
                 </select>
               </label>
-              <label>
+              <label className="full-width">
                 <span>Tanggal Mutasi<b>*</b></span>
                 <input
                   required
@@ -627,7 +786,7 @@ export function AcademicRombelView({ onNotify }) {
                   onChange={(e) => setTransferDate(e.target.value)}
                 />
               </label>
-              <label>
+              <label className="full-width">
                 <span>Alasan Mutasi</span>
                 <input
                   placeholder="Contoh: Pindah peminatan / rekomendasi BK"
@@ -753,6 +912,8 @@ export function AcademicHomeroomView({ onNotify }) {
     availableSemesters,
     selectedYearId,
     selectedSemesterId,
+    selectedYear,
+    selectedSemester,
     setSelectedYearId,
     setSelectedSemesterId,
   } = useAcademicContext()
@@ -760,6 +921,9 @@ export function AcademicHomeroomView({ onNotify }) {
   const [classes, setClasses] = useState([])
   const [teachers, setTeachers] = useState([])
   const [loadingRefs, setLoadingRefs] = useState(true)
+
+  const activeYearObj = selectedYear || (years && years.find((y) => String(y.id) === String(selectedYearId))) || null
+  const activeSemesterObj = selectedSemester || (availableSemesters && availableSemesters.find((s) => String(s.id) === String(selectedSemesterId))) || null
 
   const [selectedGrade, setSelectedGrade] = useState('Semua Tingkat')
   const [selectedClassId, setSelectedClassId] = useState('Semua Kelas')
@@ -815,6 +979,11 @@ export function AcademicHomeroomView({ onNotify }) {
       return matchYear && matchGrade
     })
   }, [classes, selectedYearId, selectedGrade])
+
+  const modalClasses = useMemo(() => {
+    const list = classes.filter((c) => !selectedYearId || !c.academic_year_id || String(c.academic_year_id) === String(selectedYearId))
+    return list.length > 0 ? list : classes
+  }, [classes, selectedYearId])
 
   // 2. Fetch Homerooms & Stats with request race protection
   const loadHomerooms = useCallback(async () => {
@@ -971,60 +1140,148 @@ export function AcademicHomeroomView({ onNotify }) {
     setRowsPerPage: (val) => { setRowsPerPage(val); setCurrentPage(1) },
   }
 
+  const homeroomFilterFields = useMemo(() => [
+    {
+      key: 'yearId',
+      label: 'Tahun Ajaran',
+      options: years.map((y) => ({ value: String(y.id), label: `${y.name} (${y.status})` })),
+    },
+    {
+      key: 'semesterId',
+      label: 'Semester',
+      options: availableSemesters.map((s) => ({ value: String(s.id), label: `${s.name} (${s.status})` })),
+    },
+    {
+      key: 'grade',
+      label: 'Tingkat',
+      options: ['Semua Tingkat', 'X', 'XI', 'XII'],
+    },
+    {
+      key: 'classId',
+      label: 'Kelas',
+      options: [{ value: 'Semua Kelas', label: 'Semua Kelas' }, ...availableClasses.map((c) => ({ value: String(c.id), label: c.name }))],
+    },
+  ], [years, availableSemesters, availableClasses])
+
+  const mobileHomeroomFilters = useMemo(() => ({
+    yearId: String(selectedYearId || ''),
+    semesterId: String(selectedSemesterId || ''),
+    grade: selectedGrade || 'Semua Tingkat',
+    classId: String(selectedClassId || 'Semua Kelas'),
+  }), [selectedYearId, selectedSemesterId, selectedGrade, selectedClassId])
+
+  const handleMobileHomeroomFilterChange = (key, value) => {
+    if (key === 'yearId') {
+      setSelectedYearId(value)
+      setCurrentPage(1)
+    } else if (key === 'semesterId') {
+      setSelectedSemesterId(value)
+      setCurrentPage(1)
+    } else if (key === 'grade') {
+      setSelectedGrade(value)
+      setCurrentPage(1)
+    } else if (key === 'classId') {
+      setSelectedClassId(value)
+      setCurrentPage(1)
+    }
+  }
+
+  const handleMobileHomeroomFilterReset = () => {
+    setSelectedGrade('Semua Tingkat')
+    setSelectedClassId('Semua Kelas')
+    setCurrentPage(1)
+  }
+
+  const activeHomeroomFilterCount = useMemo(() => {
+    let count = 0
+    if (selectedGrade && selectedGrade !== 'Semua Tingkat') count++
+    if (selectedClassId && selectedClassId !== 'Semua Kelas') count++
+    return count
+  }, [selectedGrade, selectedClassId])
+
   return (
     <>
       <AcademicSummary items={summary} />
       <section className="academic-workspace">
-        <div className="academic-toolbar">
-          <div className="academic-filter-grid four-fields">
-            <AcademicField
-              disabled={loadingRefs}
-              label="Tahun Ajaran"
-              onChange={(e) => { setSelectedYearId(e.target.value); setCurrentPage(1) }}
-              options={years.map((y) => ({ value: String(y.id), label: `${y.name} (${y.status})` }))}
-              value={selectedYearId}
-            />
-            <AcademicField
-              disabled={loadingRefs}
-              label="Semester"
-              onChange={(e) => { setSelectedSemesterId(e.target.value); setCurrentPage(1) }}
-              options={availableSemesters.map((s) => ({ value: String(s.id), label: `${s.name} (${s.status})` }))}
-              value={selectedSemesterId}
-            />
-            <AcademicField
-              label="Tingkat"
-              onChange={(e) => { setSelectedGrade(e.target.value); setCurrentPage(1) }}
-              options={['Semua Tingkat', 'X', 'XI', 'XII']}
-              value={selectedGrade}
-            />
-            <AcademicField
-              disabled={loadingRefs}
-              label="Kelas"
-              onChange={(e) => { setSelectedClassId(e.target.value); setCurrentPage(1) }}
-              options={[{ value: 'Semua Kelas', label: 'Semua Kelas' }, ...availableClasses.map((c) => ({ value: String(c.id), label: c.name }))]}
-              value={selectedClassId}
+        {/* Desktop Toolbar & Actions */}
+        <div className="academic-desktop-toolbar-container">
+          <div className="academic-toolbar">
+            <div className="academic-filter-grid four-fields">
+              <AcademicField
+                disabled={loadingRefs}
+                label="Tahun Ajaran"
+                onChange={(e) => { setSelectedYearId(e.target.value); setCurrentPage(1) }}
+                options={years.map((y) => ({ value: String(y.id), label: `${y.name} (${y.status})` }))}
+                value={selectedYearId}
+              />
+              <AcademicField
+                disabled={loadingRefs}
+                label="Semester"
+                onChange={(e) => { setSelectedSemesterId(e.target.value); setCurrentPage(1) }}
+                options={availableSemesters.map((s) => ({ value: String(s.id), label: `${s.name} (${s.status})` }))}
+                value={selectedSemesterId}
+              />
+              <AcademicField
+                label="Tingkat"
+                onChange={(e) => { setSelectedGrade(e.target.value); setCurrentPage(1) }}
+                options={['Semua Tingkat', 'X', 'XI', 'XII']}
+                value={selectedGrade}
+              />
+              <AcademicField
+                disabled={loadingRefs}
+                label="Kelas"
+                onChange={(e) => { setSelectedClassId(e.target.value); setCurrentPage(1) }}
+                options={[{ value: 'Semua Kelas', label: 'Semua Kelas' }, ...availableClasses.map((c) => ({ value: String(c.id), label: c.name }))]}
+                value={selectedClassId}
+              />
+            </div>
+            <AcademicSearch
+              ariaLabel="Cari kelas atau wali kelas"
+              onChange={(e) => { setSearchQuery(e.target.value); setCurrentPage(1) }}
+              placeholder="Cari kelas / wali kelas..."
+              value={searchQuery}
             />
           </div>
-          <AcademicSearch
-            ariaLabel="Cari kelas atau wali kelas"
-            onChange={(e) => { setSearchQuery(e.target.value); setCurrentPage(1) }}
-            placeholder="Cari kelas / wali kelas..."
-            value={searchQuery}
-          />
-        </div>
 
-        <div className="academic-actions">
-          <div>
-            <h3>Penugasan Wali Kelas</h3>
-            <p>Satu kelas hanya memiliki 1 wali kelas aktif per semester</p>
+          <div className="academic-actions">
+            <div>
+              <h3>Penugasan Wali Kelas</h3>
+              <p>Satu kelas hanya memiliki 1 wali kelas aktif per semester</p>
+            </div>
+            <div><Button className="academic-button secondary" onClick={() => excelService.download('homeroom_assignments', 'export', { semester_id: selectedSemesterId, class_id: selectedClassId === 'Semua Kelas' ? '' : selectedClassId }).catch((error) => onNotify(error.message))} type="button"><Icon name="download" /> Export Excel</Button><Button className="academic-button primary" onClick={() => openModal('add')} type="button">
+              <Icon name="plus" /> Atur Wali Kelas
+            </Button></div>
           </div>
-          <div><Button className="academic-button secondary" onClick={() => excelService.download('homeroom_assignments', 'export', { semester_id: selectedSemesterId, class_id: selectedClassId === 'Semua Kelas' ? '' : selectedClassId }).catch((error) => onNotify(error.message))} type="button"><Icon name="download" /> Export Excel</Button><Button className="academic-button primary" onClick={() => openModal('add')} type="button">
-            <Icon name="plus" /> Atur Wali Kelas
-          </Button></div>
         </div>
 
-        <div className="academic-table-scroll">
-          <table className="academic-table academic-homeroom-table">
+        {/* Mobile Toolbar */}
+        <MasterMobileToolbar
+          activeFilterCount={activeHomeroomFilterCount}
+          addLabel="Atur Wali Kelas"
+          exportDisabled={false}
+          exportLabel="Export Excel"
+          filterFields={homeroomFilterFields}
+          filters={mobileHomeroomFilters}
+          onAdd={() => openModal('add')}
+          onExport={() => excelService.download('homeroom_assignments', 'export', { semester_id: selectedSemesterId, class_id: selectedClassId === 'Semua Kelas' ? '' : selectedClassId }).catch((error) => onNotify(error.message))}
+          onFilterChange={handleMobileHomeroomFilterChange}
+          onFilterReset={handleMobileHomeroomFilterReset}
+          onSearchChange={(value) => {
+            setSearchQuery(value)
+            setCurrentPage(1)
+          }}
+          searchPlaceholder="Cari kelas / wali kelas..."
+          searchQuery={searchQuery}
+        />
+
+        {/* White Section for Data Table */}
+        <section className="academic-table-section-card">
+          <div className="academic-table-section-header">
+            <h4 className="academic-table-section-title">Penugasan Wali Kelas</h4>
+            <span className="academic-table-section-count">{totalItems} data</span>
+          </div>
+          <div className="academic-table-scroll">
+            <table className="academic-table academic-homeroom-table">
             <thead>
               <tr>
                 <th>No</th>
@@ -1096,6 +1353,7 @@ export function AcademicHomeroomView({ onNotify }) {
           </table>
         </div>
         <PaginationFooter itemLabel="penugasan" pagination={pagination} totalItems={totalItems} />
+        </section>
       </section>
 
       {/* MODAL TAMBAH / EDIT WALI KELAS */}
@@ -1107,28 +1365,56 @@ export function AcademicHomeroomView({ onNotify }) {
         >
           <form className="academic-entity-form" onSubmit={handleModalSubmit}>
             <div className="academic-form-grid">
-              <label>
-                <span>Kelas / Rombel<b>*</b></span>
+              <div className="academic-modal-context-card">
+                <div className="academic-modal-context-icon">
+                  <Icon name="info" />
+                </div>
+                <div className="academic-modal-context-body">
+                  <span className="academic-modal-context-label">Tahun Ajaran &amp; Semester</span>
+                  <div className="academic-modal-context-values">
+                    <strong>{activeYearObj?.name || 'Tahun Ajaran'}</strong>
+                    <span className="context-dot">•</span>
+                    <strong>{activeSemesterObj?.name ? (activeSemesterObj.name.toLowerCase().startsWith('semester') ? activeSemesterObj.name : `Semester ${activeSemesterObj.name}`) : 'Semester'}</strong>
+                  </div>
+                </div>
+              </div>
+
+              {!loadingRefs && modalClasses.length === 0 && (
+                <p className="academic-form-empty-warning" role="alert">
+                  <Icon name="info" />
+                  <span>Belum ada data kelas yang tersedia pada tahun ajaran ini. Tambahkan data kelas terlebih dahulu di modul Master Data.</span>
+                </p>
+              )}
+
+              {!loadingRefs && teachers.length === 0 && (
+                <p className="academic-form-empty-warning" role="alert">
+                  <Icon name="info" />
+                  <span>Data guru belum tersedia. Tambahkan data guru terlebih dahulu di modul Master Data.</span>
+                </p>
+              )}
+
+              <label className="full-width">
+                <span>Kelas / Rombel <b>*</b></span>
                 <select
                   disabled={modal.type === 'edit'}
                   required
                   value={formClassId}
                   onChange={(e) => setFormClassId(e.target.value)}
                 >
-                  <option value="">-- Pilih Kelas --</option>
-                  {availableClasses.map((c) => (
+                  <option value="">{loadingRefs ? '-- Memuat Kelas... --' : modalClasses.length === 0 ? '-- Belum Ada Kelas --' : '-- Pilih Kelas --'}</option>
+                  {modalClasses.map((c) => (
                     <option key={c.id} value={c.id}>{c.name} ({c.grade})</option>
                   ))}
                 </select>
               </label>
-              <label>
-                <span>Guru Wali Kelas<b>*</b></span>
+              <label className="full-width">
+                <span>Guru Wali Kelas <b>*</b></span>
                 <select
                   required
                   value={formTeacherId}
                   onChange={(e) => setFormTeacherId(e.target.value)}
                 >
-                  <option value="">-- Pilih Guru --</option>
+                  <option value="">{loadingRefs ? '-- Memuat Guru... --' : teachers.length === 0 ? '-- Belum Ada Guru --' : '-- Pilih Guru --'}</option>
                   {teachers.map((t) => (
                     <option key={t.id} value={t.id}>
                       {t.name} {t.nip ? `(${t.nip})` : ''}
@@ -1136,7 +1422,7 @@ export function AcademicHomeroomView({ onNotify }) {
                   ))}
                 </select>
               </label>
-              <label>
+              <label className="full-width">
                 <span>Nomor SK Tugas</span>
                 <input
                   placeholder="Contoh: SK/2024/001"
@@ -1146,8 +1432,8 @@ export function AcademicHomeroomView({ onNotify }) {
                 />
               </label>
               {modal.type === 'edit' ? (
-                <label>
-                  <span>Status Penugasan<b>*</b></span>
+                <label className="full-width">
+                  <span>Status Penugasan <b>*</b></span>
                   <select
                     required
                     value={formStatus}
@@ -1159,11 +1445,12 @@ export function AcademicHomeroomView({ onNotify }) {
                   </select>
                 </label>
               ) : (
-                <label>
-                  <span>Catatan</span>
-                  <input
-                    placeholder="Catatan penugasan..."
-                    type="text"
+                <label className="full-width">
+                  <span>Catatan / Keterangan</span>
+                  <textarea
+                    className="academic-form-textarea"
+                    placeholder="Catatan penugasan (opsional)..."
+                    rows={2}
                     value={formNotes}
                     onChange={(e) => setFormNotes(e.target.value)}
                   />
@@ -1171,9 +1458,12 @@ export function AcademicHomeroomView({ onNotify }) {
               )}
             </div>
             {modalError && (
-              <div className="academic-conflict-alert" style={{ background: '#fef2f2', borderColor: '#fca5a5', color: '#991b1b' }}>
+              <div className="academic-conflict-alert" role="alert">
                 <Icon name="info" />
-                <span>{modalError}</span>
+                <div>
+                  <strong>Kendala Validasi:</strong>
+                  <span>{modalError}</span>
+                </div>
               </div>
             )}
             <footer>
@@ -1433,72 +1723,176 @@ export function AcademicTeacherAssignmentView({ onNotify }) {
     setRowsPerPage: (val) => { setRowsPerPage(val); setCurrentPage(1) },
   }
 
+  const teacherFilterFields = useMemo(() => [
+    {
+      key: 'yearId',
+      label: 'Tahun Ajaran',
+      options: years.map((y) => ({ value: String(y.id), label: `${y.name} (${y.status})` })),
+    },
+    {
+      key: 'semesterId',
+      label: 'Semester',
+      options: availableSemesters.map((s) => ({ value: String(s.id), label: `${s.name} (${s.status})` })),
+    },
+    {
+      key: 'classId',
+      label: 'Kelas',
+      options: [{ value: 'Semua Kelas', label: 'Semua Kelas' }, ...availableClasses.map((c) => ({ value: String(c.id), label: c.name }))],
+    },
+    {
+      key: 'subjectId',
+      label: 'Mata Pelajaran',
+      options: [{ value: 'Semua Mata Pelajaran', label: 'Semua Mata Pelajaran' }, ...subjects.map((sb) => ({ value: String(sb.id), label: `${sb.code} - ${sb.name}` }))],
+    },
+    {
+      key: 'teacherId',
+      label: 'Guru',
+      options: [{ value: 'Semua Guru', label: 'Semua Guru' }, ...teachers.map((tc) => ({ value: String(tc.id), label: tc.name }))],
+    },
+  ], [years, availableSemesters, availableClasses, subjects, teachers])
+
+  const mobileTeacherFilters = useMemo(() => ({
+    yearId: String(selectedYearId || ''),
+    semesterId: String(selectedSemesterId || ''),
+    classId: String(selectedClassId || 'Semua Kelas'),
+    subjectId: String(selectedSubjectId || 'Semua Mata Pelajaran'),
+    teacherId: String(selectedTeacherId || 'Semua Guru'),
+  }), [selectedYearId, selectedSemesterId, selectedClassId, selectedSubjectId, selectedTeacherId])
+
+  const handleMobileTeacherFilterChange = (key, value) => {
+    if (key === 'yearId') {
+      setSelectedYearId(value)
+      setCurrentPage(1)
+    } else if (key === 'semesterId') {
+      setSelectedSemesterId(value)
+      setCurrentPage(1)
+    } else if (key === 'classId') {
+      setSelectedClassId(value)
+      setCurrentPage(1)
+    } else if (key === 'subjectId') {
+      setSelectedSubjectId(value)
+      setCurrentPage(1)
+    } else if (key === 'teacherId') {
+      setSelectedTeacherId(value)
+      setCurrentPage(1)
+    }
+  }
+
+  const handleMobileTeacherFilterReset = () => {
+    setSelectedClassId('Semua Kelas')
+    setSelectedSubjectId('Semua Mata Pelajaran')
+    setSelectedTeacherId('Semua Guru')
+    setCurrentPage(1)
+  }
+
+  const activeTeacherFilterCount = useMemo(() => {
+    let count = 0
+    if (selectedClassId && selectedClassId !== 'Semua Kelas') count++
+    if (selectedSubjectId && selectedSubjectId !== 'Semua Mata Pelajaran') count++
+    if (selectedTeacherId && selectedTeacherId !== 'Semua Guru') count++
+    return count
+  }, [selectedClassId, selectedSubjectId, selectedTeacherId])
+
   return (
     <>
       <AcademicSummary items={summary} />
       <section className="academic-workspace">
-        <div className="academic-toolbar">
-          <div className="academic-filter-grid five-fields">
-            <AcademicField
-              disabled={loadingRefs}
-              label="Tahun Ajaran"
-              onChange={(e) => { setSelectedYearId(e.target.value); setCurrentPage(1) }}
-              options={years.map((y) => ({ value: String(y.id), label: `${y.name} (${y.status})` }))}
-              value={selectedYearId}
-            />
-            <AcademicField
-              disabled={loadingRefs}
-              label="Semester"
-              onChange={(e) => { setSelectedSemesterId(e.target.value); setCurrentPage(1) }}
-              options={availableSemesters.map((s) => ({ value: String(s.id), label: `${s.name} (${s.status})` }))}
-              value={selectedSemesterId}
-            />
-            <AcademicField
-              disabled={loadingRefs}
-              label="Kelas"
-              onChange={(e) => { setSelectedClassId(e.target.value); setCurrentPage(1) }}
-              options={[{ value: 'Semua Kelas', label: 'Semua Kelas' }, ...availableClasses.map((c) => ({ value: String(c.id), label: c.name }))]}
-              value={selectedClassId}
-            />
-            <AcademicField
-              disabled={loadingRefs}
-              label="Mata Pelajaran"
-              onChange={(e) => { setSelectedSubjectId(e.target.value); setCurrentPage(1) }}
-              options={[{ value: 'Semua Mata Pelajaran', label: 'Semua Mata Pelajaran' }, ...subjects.map((sb) => ({ value: String(sb.id), label: `${sb.code} - ${sb.name}` }))]}
-              value={selectedSubjectId}
-            />
-            <AcademicField
-              disabled={loadingRefs}
-              label="Guru"
-              onChange={(e) => { setSelectedTeacherId(e.target.value); setCurrentPage(1) }}
-              options={[{ value: 'Semua Guru', label: 'Semua Guru' }, ...teachers.map((tc) => ({ value: String(tc.id), label: tc.name }))]}
-              value={selectedTeacherId}
+        {/* Desktop Toolbar & Actions */}
+        <div className="academic-desktop-toolbar-container">
+          <div className="academic-toolbar">
+            <div className="academic-filter-grid five-fields">
+              <AcademicField
+                disabled={loadingRefs}
+                label="Tahun Ajaran"
+                onChange={(e) => { setSelectedYearId(e.target.value); setCurrentPage(1) }}
+                options={years.map((y) => ({ value: String(y.id), label: `${y.name} (${y.status})` }))}
+                value={selectedYearId}
+              />
+              <AcademicField
+                disabled={loadingRefs}
+                label="Semester"
+                onChange={(e) => { setSelectedSemesterId(e.target.value); setCurrentPage(1) }}
+                options={availableSemesters.map((s) => ({ value: String(s.id), label: `${s.name} (${s.status})` }))}
+                value={selectedSemesterId}
+              />
+              <AcademicField
+                disabled={loadingRefs}
+                label="Kelas"
+                onChange={(e) => { setSelectedClassId(e.target.value); setCurrentPage(1) }}
+                options={[{ value: 'Semua Kelas', label: 'Semua Kelas' }, ...availableClasses.map((c) => ({ value: String(c.id), label: c.name }))]}
+                value={selectedClassId}
+              />
+              <AcademicField
+                disabled={loadingRefs}
+                label="Mata Pelajaran"
+                onChange={(e) => { setSelectedSubjectId(e.target.value); setCurrentPage(1) }}
+                options={[{ value: 'Semua Mata Pelajaran', label: 'Semua Mata Pelajaran' }, ...subjects.map((sb) => ({ value: String(sb.id), label: `${sb.code} - ${sb.name}` }))]}
+                value={selectedSubjectId}
+              />
+              <AcademicField
+                disabled={loadingRefs}
+                label="Guru"
+                onChange={(e) => { setSelectedTeacherId(e.target.value); setCurrentPage(1) }}
+                options={[{ value: 'Semua Guru', label: 'Semua Guru' }, ...teachers.map((tc) => ({ value: String(tc.id), label: tc.name }))]}
+                value={selectedTeacherId}
+              />
+            </div>
+            <AcademicSearch
+              ariaLabel="Cari guru atau mata pelajaran"
+              onChange={(e) => { setSearchQuery(e.target.value); setCurrentPage(1) }}
+              placeholder="Cari guru / mata pelajaran..."
+              value={searchQuery}
             />
           </div>
-          <AcademicSearch
-            ariaLabel="Cari guru atau mata pelajaran"
-            onChange={(e) => { setSearchQuery(e.target.value); setCurrentPage(1) }}
-            placeholder="Cari guru / mata pelajaran..."
-            value={searchQuery}
-          />
+
+          <div className="academic-actions">
+            <div>
+              <h3>Daftar Penugasan Guru</h3>
+              <p>Penugasan guru mengajar per rombel, mata pelajaran, dan semester</p>
+            </div>
+            <div><Button className="academic-button secondary" onClick={() => excelService.download('course_assignments', 'export', {
+              semester_id: selectedSemesterId, class_id: selectedClassId === 'Semua Kelas' ? '' : selectedClassId,
+              subject_id: selectedSubjectId === 'Semua Mata Pelajaran' ? '' : selectedSubjectId,
+              teacher_id: selectedTeacherId === 'Semua Guru' ? '' : selectedTeacherId,
+            }).catch((error) => onNotify(error.message))} type="button"><Icon name="download" /> Export Excel</Button><Button className="academic-button primary" onClick={() => openModal('add')} type="button">
+              <Icon name="plus" /> Tambah Penugasan
+            </Button></div>
+          </div>
         </div>
 
-        <div className="academic-actions">
-          <div>
-            <h3>Daftar Penugasan Guru</h3>
-            <p>Penugasan guru mengajar per rombel, mata pelajaran, dan semester</p>
-          </div>
-          <div><Button className="academic-button secondary" onClick={() => excelService.download('course_assignments', 'export', {
-            semester_id: selectedSemesterId, class_id: selectedClassId === 'Semua Kelas' ? '' : selectedClassId,
+        {/* Mobile Toolbar */}
+        <MasterMobileToolbar
+          activeFilterCount={activeTeacherFilterCount}
+          addLabel="Tambah Penugasan"
+          exportDisabled={false}
+          exportLabel="Export Excel"
+          filterFields={teacherFilterFields}
+          filters={mobileTeacherFilters}
+          onAdd={() => openModal('add')}
+          onExport={() => excelService.download('course_assignments', 'export', {
+            semester_id: selectedSemesterId,
+            class_id: selectedClassId === 'Semua Kelas' ? '' : selectedClassId,
             subject_id: selectedSubjectId === 'Semua Mata Pelajaran' ? '' : selectedSubjectId,
             teacher_id: selectedTeacherId === 'Semua Guru' ? '' : selectedTeacherId,
-          }).catch((error) => onNotify(error.message))} type="button"><Icon name="download" /> Export Excel</Button><Button className="academic-button primary" onClick={() => openModal('add')} type="button">
-            <Icon name="plus" /> Tambah Penugasan
-          </Button></div>
-        </div>
+          }).catch((error) => onNotify(error.message))}
+          onFilterChange={handleMobileTeacherFilterChange}
+          onFilterReset={handleMobileTeacherFilterReset}
+          onSearchChange={(value) => {
+            setSearchQuery(value)
+            setCurrentPage(1)
+          }}
+          searchPlaceholder="Cari guru / mata pelajaran..."
+          searchQuery={searchQuery}
+        />
 
-        <div className="academic-table-scroll">
-          <table className="academic-table academic-assignment-table">
+        {/* White Section for Data Table */}
+        <section className="academic-table-section-card">
+          <div className="academic-table-section-header">
+            <h4 className="academic-table-section-title">Daftar Penugasan Guru</h4>
+            <span className="academic-table-section-count">{totalItems} data</span>
+          </div>
+          <div className="academic-table-scroll">
+            <table className="academic-table academic-assignment-table">
             <thead>
               <tr>
                 <th>No</th>
@@ -1587,27 +1981,38 @@ export function AcademicTeacherAssignmentView({ onNotify }) {
               })}
             </tbody>
           </table>
-        </div>
-        <PaginationFooter itemLabel="penugasan" pagination={pagination} totalItems={totalItems} />
+          </div>
+          <PaginationFooter itemLabel="penugasan" pagination={pagination} totalItems={totalItems} />
+        </section>
       </section>
 
       {/* MODAL TAMBAH / EDIT PENUGASAN MENGAJAR */}
       {modal && (
         <AcademicModal
-          description="Aturan bisnis: Satu rombel/mapel/semester hanya memiliki 1 guru dengan peran 'Utama'."
+          description="Satu rombel, mata pelajaran, dan semester hanya memiliki 1 guru utama."
           onClose={() => setModal(null)}
           title={`${modal.type === 'edit' ? 'Edit' : 'Tambah'} Penugasan Guru`}
         >
-          <div style={{ marginBottom: '14px', padding: '8px 12px', background: '#f8fafc', borderRadius: '6px', border: '1px solid #e2e8f0', fontSize: '13px' }}>
-            <span style={{ color: '#64748b' }}>Konteks: </span>
-            <strong style={{ color: '#0f172a' }}>{selectedYear?.name || 'Tahun Ajaran'}</strong>
-            <span style={{ color: '#94a3b8', margin: '0 8px' }}>•</span>
-            <strong style={{ color: '#0f172a' }}>{selectedSemester?.name ? (selectedSemester.name.toLowerCase().startsWith('semester') ? selectedSemester.name : `Semester ${selectedSemester.name}`) : 'Semester'}</strong>
-          </div>
           <form className="academic-entity-form" onSubmit={handleModalSubmit}>
             <div className="academic-form-grid">
-              <label>
-                <span>Guru Pengampu<b>*</b></span>
+              <div className="academic-modal-context-card">
+                <div className="academic-modal-context-icon">
+                  <Icon name="info" />
+                </div>
+                <div className="academic-modal-context-body">
+                  <span className="academic-modal-context-label">Tahun Ajaran &amp; Semester</span>
+                  <div className="academic-modal-context-values">
+                    <strong>{selectedYear?.name || 'Tahun Ajaran'}</strong>
+                    <span className="context-dot">•</span>
+                    <strong>{selectedSemester?.name ? (selectedSemester.name.toLowerCase().startsWith('semester') ? selectedSemester.name : `Semester ${selectedSemester.name}`) : 'Semester'}</strong>
+                  </div>
+                </div>
+              </div>
+
+              <div className="academic-form-section-title">Informasi Penugasan</div>
+
+              <label className="full-width">
+                <span>Guru Pengampu <b>*</b></span>
                 <select
                   disabled={modal.type === 'edit'}
                   required
@@ -1620,8 +2025,9 @@ export function AcademicTeacherAssignmentView({ onNotify }) {
                   ))}
                 </select>
               </label>
-              <label>
-                <span>Mata Pelajaran<b>*</b></span>
+
+              <label className="full-width">
+                <span>Mata Pelajaran <b>*</b></span>
                 <select
                   disabled={modal.type === 'edit'}
                   required
@@ -1634,8 +2040,9 @@ export function AcademicTeacherAssignmentView({ onNotify }) {
                   ))}
                 </select>
               </label>
-              <label>
-                <span>Rombongan Belajar<b>*</b></span>
+
+              <label className="full-width">
+                <span>Rombongan Belajar <b>*</b></span>
                 <select
                   disabled={modal.type === 'edit'}
                   required
@@ -1648,31 +2055,38 @@ export function AcademicTeacherAssignmentView({ onNotify }) {
                   ))}
                 </select>
               </label>
-              <label>
-                <span>Jumlah Jam / Minggu (JP)<b>*</b></span>
-                <input
-                  min={1}
-                  required
-                  type="number"
-                  value={formWeeklyHours}
-                  onChange={(e) => setFormWeeklyHours(e.target.value)}
-                />
-              </label>
-              <label>
-                <span>Peran Guru<b>*</b></span>
-                <select
-                  required
-                  value={formRole}
-                  onChange={(e) => setFormRole(e.target.value)}
-                >
-                  <option value="Utama">Utama</option>
-                  <option value="Pendamping">Pendamping</option>
-                  <option value="Pengganti">Pengganti</option>
-                </select>
-              </label>
-              {modal.type === 'edit' ? (
+
+              <div className="academic-form-section-title">Beban &amp; Peran Mengajar</div>
+
+              <div className="academic-form-row-2col">
                 <label>
-                  <span>Status Penugasan<b>*</b></span>
+                  <span>Jumlah JP / Minggu <b>*</b></span>
+                  <input
+                    min={1}
+                    required
+                    type="number"
+                    value={formWeeklyHours}
+                    onChange={(e) => setFormWeeklyHours(e.target.value)}
+                  />
+                </label>
+
+                <label>
+                  <span>Peran Guru <b>*</b></span>
+                  <select
+                    required
+                    value={formRole}
+                    onChange={(e) => setFormRole(e.target.value)}
+                  >
+                    <option value="Utama">Utama</option>
+                    <option value="Pendamping">Pendamping</option>
+                    <option value="Pengganti">Pengganti</option>
+                  </select>
+                </label>
+              </div>
+
+              {modal.type === 'edit' ? (
+                <label className="full-width">
+                  <span>Status Penugasan <b>*</b></span>
                   <select
                     required
                     value={formStatus}
@@ -1684,23 +2098,29 @@ export function AcademicTeacherAssignmentView({ onNotify }) {
                   </select>
                 </label>
               ) : (
-                <label>
-                  <span>Catatan</span>
-                  <input
-                    placeholder="Catatan tambahan..."
-                    type="text"
+                <label className="full-width">
+                  <span>Catatan / Keterangan</span>
+                  <textarea
+                    className="academic-form-textarea"
+                    placeholder="Catatan tambahan (opsional)..."
+                    rows={2}
                     value={formNotes}
                     onChange={(e) => setFormNotes(e.target.value)}
                   />
                 </label>
               )}
+
+              {modalError && (
+                <div className="academic-conflict-alert" role="alert">
+                  <Icon name="info" />
+                  <div>
+                    <strong>Kendala Validasi:</strong>
+                    <span>{modalError}</span>
+                  </div>
+                </div>
+              )}
             </div>
-            {modalError && (
-              <div className="academic-conflict-alert" style={{ background: '#fef2f2', borderColor: '#fca5a5', color: '#991b1b' }}>
-                <Icon name="info" />
-                <span>{modalError}</span>
-              </div>
-            )}
+
             <footer>
               <Button className="academic-button secondary" onClick={() => setModal(null)} type="button">
                 Batal
@@ -1876,56 +2296,135 @@ export function AcademicRoomAllocationView({ onNotify }) {
   const currentYearObj = academicYears.find((y) => Number(y.id) === Number(selectedAcademicYearId)) || activeAcademicYear || academicYears[0]
   const currentSemesterObj = semesters.find((s) => Number(s.id) === Number(selectedSemesterId)) || activeSemester || semesters[0]
 
+  const roomFilterFields = useMemo(() => [
+    {
+      key: 'day',
+      label: 'Hari',
+      options: ['Semua Hari', ...dayOptions],
+    },
+    {
+      key: 'className',
+      label: 'Kelas',
+      options: ['Semua Kelas', ...classes.map((c) => c.name)],
+    },
+    {
+      key: 'room',
+      label: 'Ruangan',
+      options: ['Semua Ruangan', ...rooms.map((r) => r.name)],
+    },
+    {
+      key: 'status',
+      label: 'Status',
+      options: ['Semua Status', 'Aktif', 'Tidak Aktif'],
+    },
+  ], [dayOptions, classes, rooms])
+
+  const mobileRoomFilters = useMemo(() => ({
+    day: filters.day || 'Semua Hari',
+    className: filters.className || 'Semua Kelas',
+    room: filters.room || 'Semua Ruangan',
+    status: filters.status || 'Semua Status',
+  }), [filters])
+
+  const handleMobileRoomFilterChange = (key, value) => {
+    updateFilter(key, value)
+  }
+
+  const handleMobileRoomFilterReset = () => {
+    setFilters({
+      day: 'Semua Hari',
+      className: 'Semua Kelas',
+      room: 'Semua Ruangan',
+      status: 'Semua Status',
+    })
+    setCurrentPage(1)
+  }
+
+  const activeRoomFilterCount = useMemo(() => {
+    let count = 0
+    if (filters.day && filters.day !== 'Semua Hari') count++
+    if (filters.className && filters.className !== 'Semua Kelas') count++
+    if (filters.room && filters.room !== 'Semua Ruangan') count++
+    if (filters.status && filters.status !== 'Semua Status') count++
+    return count
+  }, [filters])
+
   return (
     <>
       <section className="academic-workspace">
-        <div className="academic-toolbar">
-          <div className="academic-filter-grid four-fields">
-            <AcademicField
-              label="Hari"
-              onChange={(event) => updateFilter('day', event.target.value)}
-              options={['Semua Hari', ...dayOptions]}
-              value={filters.day}
-            />
-            <AcademicField
-              label="Kelas"
-              onChange={(event) => updateFilter('className', event.target.value)}
-              options={['Semua Kelas', ...classes.map((c) => c.name)]}
-              value={filters.className}
-            />
-            <AcademicField
-              label="Ruangan"
-              onChange={(event) => updateFilter('room', event.target.value)}
-              options={['Semua Ruangan', ...rooms.map((r) => r.name)]}
-              value={filters.room}
-            />
-            <AcademicField
-              label="Status"
-              onChange={(event) => updateFilter('status', event.target.value)}
-              options={['Semua Status', 'Aktif', 'Tidak Aktif']}
-              value={filters.status}
+        {/* Desktop Toolbar & Actions */}
+        <div className="academic-desktop-toolbar-container">
+          <div className="academic-toolbar">
+            <div className="academic-filter-grid four-fields">
+              <AcademicField
+                label="Hari"
+                onChange={(event) => updateFilter('day', event.target.value)}
+                options={['Semua Hari', ...dayOptions]}
+                value={filters.day}
+              />
+              <AcademicField
+                label="Kelas"
+                onChange={(event) => updateFilter('className', event.target.value)}
+                options={['Semua Kelas', ...classes.map((c) => c.name)]}
+                value={filters.className}
+              />
+              <AcademicField
+                label="Ruangan"
+                onChange={(event) => updateFilter('room', event.target.value)}
+                options={['Semua Ruangan', ...rooms.map((r) => r.name)]}
+                value={filters.room}
+              />
+              <AcademicField
+                label="Status"
+                onChange={(event) => updateFilter('status', event.target.value)}
+                options={['Semua Status', 'Aktif', 'Tidak Aktif']}
+                value={filters.status}
+              />
+            </div>
+            <AcademicSearch
+              ariaLabel="Cari alokasi ruangan"
+              onChange={(event) => { setSearchQuery(event.target.value); setCurrentPage(1) }}
+              placeholder="Cari kelas / mapel / ruangan..."
+              value={searchQuery}
             />
           </div>
-          <AcademicSearch
-            ariaLabel="Cari alokasi ruangan"
-            onChange={(event) => { setSearchQuery(event.target.value); setCurrentPage(1) }}
-            placeholder="Cari kelas / mapel / ruangan..."
-            value={searchQuery}
-          />
-        </div>
 
-        <div className="academic-actions">
-          <div>
-            <h3>Pembagian Ruangan</h3>
-            <p>Atur pemakaian ruang untuk jadwal pembelajaran (Database Realtime)</p>
+          <div className="academic-actions">
+            <div>
+              <h3>Pembagian Ruangan</h3>
+              <p>Atur pemakaian ruang untuk jadwal pembelajaran (Database Realtime)</p>
+            </div>
+            <Button className="academic-button primary" onClick={() => openModal('add')} type="button">
+              <Icon name="plus" /> Tambah Alokasi
+            </Button>
           </div>
-          <Button className="academic-button primary" onClick={() => openModal('add')} type="button">
-            <Icon name="plus" /> Tambah Alokasi
-          </Button>
         </div>
 
-        <div className="academic-table-scroll">
-          <table className="academic-table academic-room-table">
+        {/* Mobile Toolbar */}
+        <MasterMobileToolbar
+          activeFilterCount={activeRoomFilterCount}
+          addLabel="Tambah Alokasi"
+          filterFields={roomFilterFields}
+          filters={mobileRoomFilters}
+          onAdd={() => openModal('add')}
+          onFilterChange={handleMobileRoomFilterChange}
+          onFilterReset={handleMobileRoomFilterReset}
+          onSearchChange={(value) => {
+            setSearchQuery(value)
+            setCurrentPage(1)
+          }}
+          searchPlaceholder="Cari kelas / mapel / ruangan..."
+          searchQuery={searchQuery}
+        />
+
+        {/* White Section for Data Table */}
+        <section className="academic-table-section-card">
+          <div className="academic-table-section-header">
+            <h4 className="academic-table-section-title">Pembagian Ruangan</h4>
+            <span className="academic-table-section-count">{filteredAllocations.length} data</span>
+          </div>
+          <div className="academic-table-scroll">
+            <table className="academic-table academic-room-table">
             <thead>
               <tr>
                 <th>No</th>
@@ -1991,6 +2490,7 @@ export function AcademicRoomAllocationView({ onNotify }) {
           </table>
         </div>
         <PaginationFooter itemLabel="alokasi" pagination={pagination} totalItems={filteredAllocations.length} />
+        </section>
       </section>
 
       {modal && (
@@ -2026,75 +2526,101 @@ export function AcademicRoomAllocationView({ onNotify }) {
               })
             }}
           >
-            <div style={{ background: '#f8fafc', padding: '0.625rem 0.875rem', borderRadius: '0.375rem', border: '1px solid #e2e8f0', fontSize: '0.8125rem', color: '#475569', marginBottom: '0.75rem', display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
-              <Icon name="info" />
-              <span>Tahun Ajaran: <strong>{currentYearObj?.name ?? '-'}</strong> | Semester: <strong>{currentSemesterObj?.name ?? '-'}</strong></span>
-            </div>
-
             <div className="academic-form-grid">
+              <div className="academic-modal-context-card">
+                <div className="academic-modal-context-icon">
+                  <Icon name="info" />
+                </div>
+                <div className="academic-modal-context-body">
+                  <span className="academic-modal-context-label">Tahun Ajaran &amp; Semester</span>
+                  <div className="academic-modal-context-values">
+                    <strong>{currentYearObj?.name ?? '-'}</strong>
+                    <span className="context-dot">•</span>
+                    <strong>{currentSemesterObj?.name ?? '-'}</strong>
+                  </div>
+                </div>
+              </div>
+
+              <div className="academic-form-section-title">Penugasan &amp; Jadwal</div>
+
               <label className="full-width">
-                <span>Penugasan Mengajar<b>*</b></span>
+                <span>Penugasan Mengajar <b>*</b></span>
                 <select defaultValue={modal.item?.course_assignment_id || roomCourseAssignments.find((ca) => Number(ca.class_id) === Number(modal.item?.class_id) && Number(ca.subject_id) === Number(modal.item?.subject_id) && Number(ca.teacher_id) === Number(modal.item?.teacher_id))?.id || roomCourseAssignments[0]?.id || ''} name="course_assignment_id" required>
                   {roomCourseAssignments.map((ca) => <option key={ca.id} value={ca.id}>{ca.label}</option>)}
                 </select>
               </label>
-              {!roomCourseAssignments.length && <p className="full-width" role="alert">Belum ada penugasan mengajar aktif pada semester ini. Tambahkan penugasan guru terlebih dahulu.</p>}
-              <label>
-                <span>Hari<b>*</b></span>
-                <select defaultValue={modal.item?.day || modal.item?.day_of_week || dayOptions[0]} name="day_of_week" required>
-                  {dayOptions.map((d) => <option key={d} value={d}>{d}</option>)}
-                </select>
-              </label>
+              {!roomCourseAssignments.length && (
+                <p className="academic-form-empty-warning" role="alert">
+                  <Icon name="info" />
+                  <span>Belum ada penugasan mengajar aktif pada semester ini. Tambahkan penugasan guru terlebih dahulu.</span>
+                </p>
+              )}
 
-              <label>
-                <span>Sesi Waktu<b>*</b></span>
-                <select
-                  defaultValue={
-                    modal.item?.time ||
-                    (modal.item?.start_time && modal.item?.end_time
-                      ? `${modal.item.start_time.substring(0, 5)} - ${modal.item.end_time.substring(0, 5)}`
-                      : '07:30 - 09:00')
-                  }
-                  name="time"
-                  required
-                >
-                  <option value="07:00 - 07:45">07:00 - 07:45</option>
-                  <option value="07:30 - 09:00">07:30 - 09:00</option>
-                  <option value="07:45 - 08:30">07:45 - 08:30</option>
-                  <option value="08:45 - 09:30">08:45 - 09:30</option>
-                  <option value="09:00 - 10:30">09:00 - 10:30</option>
-                  <option value="09:45 - 10:30">09:45 - 10:30</option>
-                  <option value="10:30 - 12:00">10:30 - 12:00</option>
-                  <option value="10:45 - 11:30">10:45 - 11:30</option>
-                  <option value="12:30 - 14:00">12:30 - 14:00</option>
-                  <option value="13:15 - 14:00">13:15 - 14:00</option>
-                </select>
-              </label>
+              <div className="academic-form-section-title">Waktu &amp; Ruangan</div>
 
-              <label>
-                <span>Ruangan<b>*</b></span>
-                <select defaultValue={modal.item?.room_id || rooms[0]?.id} name="room_id" required>
-                  {rooms.map((r) => (
-                    <option key={r.id} value={r.id}>{r.name} ({r.code})</option>
-                  ))}
-                </select>
-              </label>
+              <div className="academic-form-row-2col">
+                <label>
+                  <span>Hari <b>*</b></span>
+                  <select defaultValue={modal.item?.day || modal.item?.day_of_week || dayOptions[0]} name="day_of_week" required>
+                    {dayOptions.map((d) => <option key={d} value={d}>{d}</option>)}
+                  </select>
+                </label>
 
-              <label>
-                <span>Status<b>*</b></span>
-                <select defaultValue={modal.item?.status || 'Aktif'} name="status" required>
-                  <option value="Aktif">Aktif</option>
-                  <option value="Tidak Aktif">Tidak Aktif</option>
-                </select>
-              </label>
+                <label>
+                  <span>Sesi Waktu <b>*</b></span>
+                  <select
+                    defaultValue={
+                      modal.item?.time ||
+                      (modal.item?.start_time && modal.item?.end_time
+                        ? `${modal.item.start_time.substring(0, 5)} - ${modal.item.end_time.substring(0, 5)}`
+                        : '07:30 - 09:00')
+                    }
+                    name="time"
+                    required
+                  >
+                    <option value="07:00 - 07:45">07:00 - 07:45</option>
+                    <option value="07:30 - 09:00">07:30 - 09:00</option>
+                    <option value="07:45 - 08:30">07:45 - 08:30</option>
+                    <option value="08:45 - 09:30">08:45 - 09:30</option>
+                    <option value="09:00 - 10:30">09:00 - 10:30</option>
+                    <option value="09:45 - 10:30">09:45 - 10:30</option>
+                    <option value="10:30 - 12:00">10:30 - 12:00</option>
+                    <option value="10:45 - 11:30">10:45 - 11:30</option>
+                    <option value="12:30 - 14:00">12:30 - 14:00</option>
+                    <option value="13:15 - 14:00">13:15 - 14:00</option>
+                  </select>
+                </label>
+              </div>
 
-              <label>
-                <span>Catatan</span>
-                <input
+              <div className="academic-form-row-2col">
+                <label>
+                  <span>Ruangan <b>*</b></span>
+                  <select defaultValue={modal.item?.room_id || rooms[0]?.id} name="room_id" required>
+                    {rooms.map((r) => (
+                      <option key={r.id} value={r.id}>{r.name} ({r.code})</option>
+                    ))}
+                  </select>
+                </label>
+
+                <label>
+                  <span>Status <b>*</b></span>
+                  <select defaultValue={modal.item?.status || 'Aktif'} name="status" required>
+                    <option value="Aktif">Aktif</option>
+                    <option value="Tidak Aktif">Tidak Aktif</option>
+                  </select>
+                </label>
+              </div>
+
+              <div className="academic-form-section-title">Catatan Tambahan</div>
+
+              <label className="full-width">
+                <span>Catatan / Keterangan</span>
+                <textarea
+                  className="academic-form-textarea"
                   defaultValue={modal.item?.notes || ''}
                   name="notes"
-                  placeholder="Keterangan alokasi ruangan..."
-                  type="text"
+                  placeholder="Keterangan alokasi ruangan (opsional)..."
+                  rows={2}
                 />
               </label>
             </div>

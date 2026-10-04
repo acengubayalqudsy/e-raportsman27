@@ -1,0 +1,800 @@
+/* ==============================================================
+   JELAJAH - PORTAL BERITA & INFORMASI PENDIDIKAN
+   SMAN 27 GARUT (Mobile First + Adaptive Desktop)
+   ============================================================== */
+
+.jelajah-page {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  width: 100%;
+  box-sizing: border-box;
+  padding: 12px 14px 80px;
+  background: transparent;
+}
+
+.jelajah-container {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  width: 100%;
+  max-width: 1100px;
+  margin: 0 auto;
+  box-sizing: border-box;
+}
+
+/* ==============================================================
+   1. HEADER CARD & SEARCH & CATEGORY CHIPS
+   ============================================================== */
+.jelajah-header-card {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  background: #FFFFFF;
+  border-radius: 18px;
+  padding: 16px 14px 14px;
+  border: 1px solid rgba(0, 0, 0, 0.06);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.025);
+  box-sizing: border-box;
+  width: 100%;
+}
+
+.jelajah-header-copy {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.jelajah-badge-top {
+  display: inline-block;
+  align-self: flex-start;
+  font-size: 10px;
+  font-weight: 700;
+  color: #008520;
+  background: #E7F7EC;
+  padding: 3px 8px;
+  border-radius: 6px;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  margin-bottom: 2px;
+}
+
+.jelajah-title {
+  font-size: 18px;
+  font-weight: 800;
+  color: #0F172A;
+  margin: 0;
+  letter-spacing: -0.02em;
+}
+
+.jelajah-subtitle {
+  font-size: 11.5px;
+  color: #64748B;
+  margin: 0;
+  line-height: 1.35;
+}
+
+/* Search Box */
+.jelajah-search-box {
+  position: relative;
+  display: flex;
+  align-items: center;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.jelajah-search-icon {
+  position: absolute;
+  left: 12px;
+  width: 16px;
+  height: 16px;
+  color: #94A3B8;
+  pointer-events: none;
+}
+
+.jelajah-search-input {
+  width: 100%;
+  height: 42px;
+  padding: 0 34px 0 38px;
+  font-size: 12.5px;
+  color: #0F172A;
+  background: #F8FAFC;
+  border: 1px solid #E2E8F0;
+  border-radius: 12px;
+  outline: none;
+  transition: all 0.15s ease;
+  box-sizing: border-box;
+}
+
+.jelajah-search-input:focus {
+  background: #FFFFFF;
+  border-color: #008520;
+  box-shadow: 0 0 0 3px rgba(0, 133, 32, 0.12);
+}
+
+.jelajah-search-input::placeholder {
+  color: #94A3B8;
+}
+
+.jelajah-search-clear {
+  position: absolute;
+  right: 10px;
+  background: #E2E8F0;
+  border: none;
+  color: #475569;
+  font-size: 14px;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  padding: 0;
+}
+
+/* Category Chips Scroll */
+.jelajah-category-scroll {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  overflow-x: auto;
+  white-space: nowrap;
+  padding-bottom: 2px;
+  -webkit-overflow-scrolling: touch;
+}
+
+.jelajah-chip {
+  display: inline-flex;
+  align-items: center;
+  height: 32px;
+  padding: 0 13px;
+  border-radius: 16px;
+  font-size: 11.5px;
+  font-weight: 600;
+  color: #475569;
+  background: #F1F5F9;
+  border: 1px solid #E2E8F0;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  white-space: nowrap;
+  flex-shrink: 0;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.jelajah-chip:hover {
+  background: #E2E8F0;
+  color: #0F172A;
+}
+
+.jelajah-chip.active {
+  background: #008520 !important;
+  color: #FFFFFF !important;
+  border-color: #008520 !important;
+  box-shadow: 0 2px 6px rgba(0, 133, 32, 0.25);
+  font-weight: 700;
+}
+
+/* ==============================================================
+   2. HEADLINE CARD
+   ============================================================== */
+.jelajah-feed {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  width: 100%;
+}
+
+.jelajah-headline-card {
+  display: flex;
+  flex-direction: column;
+  background: #FFFFFF;
+  border-radius: 18px;
+  border: 1px solid rgba(0, 0, 0, 0.06);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.025);
+  overflow: hidden;
+  box-sizing: border-box;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.jelajah-headline-card:hover {
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.05);
+}
+
+.jelajah-headline-img-wrapper {
+  position: relative;
+  width: 100%;
+  height: 190px;
+  background: #E2E8F0;
+  overflow: hidden;
+}
+
+.jelajah-headline-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+  transition: transform 0.3s ease;
+}
+
+.jelajah-headline-card:hover .jelajah-headline-img {
+  transform: scale(1.02);
+}
+
+.jelajah-headline-badge-group {
+  position: absolute;
+  top: 12px;
+  left: 12px;
+  display: flex;
+  gap: 6px;
+  z-index: 2;
+}
+
+.jelajah-badge-country {
+  display: inline-flex;
+  align-items: center;
+  font-size: 10px;
+  font-weight: 700;
+  padding: 4px 8px;
+  border-radius: 6px;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+}
+
+.jelajah-badge-country.id {
+  background: #008520;
+  color: #FFFFFF;
+}
+
+.jelajah-badge-country.intl {
+  background: #2563EB;
+  color: #FFFFFF;
+}
+
+.jelajah-badge-country.small {
+  font-size: 9px;
+  padding: 2px 6px;
+}
+
+.jelajah-badge-cat {
+  display: inline-flex;
+  align-items: center;
+  font-size: 9.5px;
+  font-weight: 700;
+  padding: 4px 8px;
+  border-radius: 6px;
+  background: rgba(15, 23, 42, 0.75);
+  backdrop-filter: blur(4px);
+  color: #FFFFFF;
+  letter-spacing: 0.02em;
+}
+
+.jelajah-headline-body {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 14px 14px 16px;
+}
+
+.jelajah-headline-title {
+  font-size: 16px;
+  font-weight: 700;
+  color: #0F172A;
+  margin: 0;
+  line-height: 1.35;
+}
+
+.jelajah-link {
+  color: inherit;
+  text-decoration: none;
+  transition: color 0.15s ease;
+}
+
+.jelajah-link:hover {
+  color: #008520;
+}
+
+.jelajah-headline-desc {
+  font-size: 12px;
+  color: #64748B;
+  margin: 0;
+  line-height: 1.5;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.jelajah-headline-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-top: 6px;
+  padding-top: 10px;
+  border-top: 1px solid #F1F5F9;
+}
+
+.jelajah-meta {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  color: #94A3B8;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.jelajah-source {
+  font-weight: 600;
+  color: #475569;
+}
+
+.jelajah-dot {
+  color: #CBD5E1;
+}
+
+.jelajah-time {
+  color: #94A3B8;
+  font-size: 10.5px;
+}
+
+.jelajah-read-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: #E7F7EC;
+  color: #008520;
+  font-size: 11.5px;
+  font-weight: 700;
+  padding: 6px 12px;
+  border-radius: 8px;
+  text-decoration: none;
+  white-space: nowrap;
+  transition: background 0.15s ease, transform 0.1s ease;
+}
+
+.jelajah-read-btn:hover {
+  background: #008520;
+  color: #FFFFFF;
+}
+
+.jelajah-btn-icon {
+  width: 12px;
+  height: 12px;
+}
+
+/* ==============================================================
+   3. SECTION & LIST CARDS (BERITA TERBARU)
+   ============================================================== */
+.jelajah-section {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  width: 100%;
+}
+
+.jelajah-section-header {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.jelajah-section-title {
+  font-size: 15px;
+  font-weight: 700;
+  color: #0F172A;
+  margin: 0;
+  letter-spacing: -0.01em;
+}
+
+.jelajah-section-sub {
+  font-size: 11px;
+  color: #64748B;
+}
+
+.jelajah-news-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: 100%;
+}
+
+.jelajah-list-card {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: #FFFFFF;
+  border-radius: 14px;
+  padding: 10px;
+  border: 1px solid rgba(0, 0, 0, 0.05);
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.02);
+  box-sizing: border-box;
+  width: 100%;
+  transition: transform 0.15s ease;
+}
+
+.jelajah-list-card:hover {
+  transform: translateY(-1px);
+}
+
+.jelajah-list-thumb-link {
+  flex-shrink: 0;
+  text-decoration: none;
+  display: block;
+}
+
+.jelajah-list-thumb {
+  width: 90px;
+  height: 85px;
+  min-width: 90px;
+  border-radius: 10px;
+  object-fit: cover;
+  display: block;
+  background: #E2E8F0;
+}
+
+.jelajah-list-content {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  flex: 1;
+  min-width: 0;
+}
+
+.jelajah-list-meta-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+}
+
+.jelajah-list-title {
+  font-size: 13px;
+  font-weight: 700;
+  color: #0F172A;
+  margin: 0;
+  line-height: 1.35;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.jelajah-list-desc {
+  font-size: 11px;
+  color: #64748B;
+  margin: 0;
+  line-height: 1.4;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.jelajah-list-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  margin-top: 2px;
+  font-size: 10.5px;
+}
+
+.jelajah-inline-read {
+  color: #008520;
+  font-weight: 700;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.jelajah-inline-read:hover {
+  text-decoration: underline;
+}
+
+/* ==============================================================
+   4. GRID CARDS (INDONESIA & INTERNASIONAL SECTIONS)
+   ============================================================== */
+.jelajah-grid-cards {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.jelajah-grid-card {
+  display: flex;
+  flex-direction: column;
+  background: #FFFFFF;
+  border-radius: 14px;
+  border: 1px solid rgba(0, 0, 0, 0.05);
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.02);
+  overflow: hidden;
+  box-sizing: border-box;
+  transition: transform 0.15s ease;
+}
+
+.jelajah-grid-card:hover {
+  transform: translateY(-2px);
+}
+
+.jelajah-grid-thumb-box {
+  position: relative;
+  width: 100%;
+  height: 105px;
+  background: #E2E8F0;
+  overflow: hidden;
+}
+
+.jelajah-grid-thumb {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.jelajah-grid-thumb-box .jelajah-badge-country {
+  position: absolute;
+  top: 6px;
+  left: 6px;
+  z-index: 1;
+}
+
+.jelajah-grid-body {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 10px 10px 12px;
+  flex: 1;
+}
+
+.jelajah-grid-title {
+  font-size: 12px;
+  font-weight: 700;
+  color: #0F172A;
+  margin: 0;
+  line-height: 1.35;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.jelajah-grid-desc {
+  font-size: 10.5px;
+  color: #64748B;
+  margin: 0;
+  line-height: 1.4;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.jelajah-grid-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 4px;
+  margin-top: auto;
+  padding-top: 6px;
+  border-top: 1px solid #F1F5F9;
+  font-size: 10px;
+}
+
+/* ==============================================================
+   5. SKELETON LOADING & ERROR & EMPTY STATES
+   ============================================================== */
+.jelajah-skeleton-wrapper {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  width: 100%;
+}
+
+.jelajah-skeleton-headline {
+  background: #FFFFFF;
+  border-radius: 18px;
+  overflow: hidden;
+  border: 1px solid #E2E8F0;
+}
+
+.jelajah-skeleton-img {
+  width: 100%;
+  height: 190px;
+  background: #E2E8F0;
+}
+
+.jelajah-skeleton-content {
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.jelajah-skeleton-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.jelajah-skeleton-item {
+  display: flex;
+  gap: 12px;
+  background: #FFFFFF;
+  border-radius: 14px;
+  padding: 10px;
+  border: 1px solid #E2E8F0;
+}
+
+.jelajah-skeleton-thumb {
+  width: 90px;
+  height: 85px;
+  border-radius: 10px;
+  background: #E2E8F0;
+  flex-shrink: 0;
+}
+
+.jelajah-skeleton-text-group {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  flex: 1;
+}
+
+.jelajah-skeleton-line {
+  height: 12px;
+  background: #E2E8F0;
+  border-radius: 4px;
+  width: 100%;
+}
+
+.jelajah-skeleton-line.title {
+  height: 16px;
+  width: 85%;
+}
+
+.jelajah-skeleton-line.medium {
+  width: 65%;
+}
+
+.jelajah-skeleton-line.short {
+  width: 40%;
+}
+
+/* Error & Empty Cards */
+.jelajah-error-card,
+.jelajah-empty-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  background: #FFFFFF;
+  border-radius: 18px;
+  padding: 32px 20px;
+  border: 1px solid #E2E8F0;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.02);
+  gap: 10px;
+}
+
+.jelajah-error-icon-box,
+.jelajah-empty-icon-box {
+  width: 50px;
+  height: 50px;
+  border-radius: 14px;
+  background: #FEF2F2;
+  color: #DC2626;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 4px;
+}
+
+.jelajah-empty-icon-box {
+  background: #E7F7EC;
+  color: #008520;
+}
+
+.jelajah-error-title,
+.jelajah-empty-title {
+  font-size: 16px;
+  font-weight: 700;
+  color: #0F172A;
+  margin: 0;
+}
+
+.jelajah-error-desc,
+.jelajah-empty-desc {
+  font-size: 12px;
+  color: #64748B;
+  margin: 0;
+  max-width: 320px;
+  line-height: 1.45;
+}
+
+.jelajah-retry-btn {
+  background: #008520;
+  color: #FFFFFF;
+  border: none;
+  font-size: 12.5px;
+  font-weight: 700;
+  padding: 8px 18px;
+  border-radius: 10px;
+  cursor: pointer;
+  margin-top: 6px;
+  transition: background 0.15s ease;
+}
+
+.jelajah-retry-btn:hover {
+  background: #006b1a;
+}
+
+/* ==============================================================
+   6. DESKTOP ADAPTATION (>= 768px & >= 1024px)
+   ============================================================== */
+@media (min-width: 768px) {
+  .jelajah-page {
+    padding: 20px 24px 60px;
+  }
+
+  .jelajah-header-card {
+    padding: 22px 20px 18px;
+    border-radius: 20px;
+  }
+
+  .jelajah-title {
+    font-size: 24px;
+  }
+
+  .jelajah-subtitle {
+    font-size: 13px;
+  }
+
+  .jelajah-headline-card {
+    display: grid;
+    grid-template-columns: 1.15fr 1fr;
+    border-radius: 20px;
+  }
+
+  .jelajah-headline-img-wrapper {
+    height: 100%;
+    min-height: 260px;
+  }
+
+  .jelajah-headline-body {
+    padding: 24px 20px;
+    justify-content: center;
+  }
+
+  .jelajah-headline-title {
+    font-size: 20px;
+  }
+
+  .jelajah-headline-desc {
+    font-size: 13px;
+    -webkit-line-clamp: 4;
+  }
+
+  .jelajah-news-list {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 12px;
+  }
+
+  .jelajah-grid-cards {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 14px;
+  }
+
+  .jelajah-grid-thumb-box {
+    height: 130px;
+  }
+}
+
+@media (min-width: 1024px) {
+  .jelajah-grid-cards {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}

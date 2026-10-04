@@ -1,9 +1,10 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import Button from '../common/Button.jsx'
 import Icon from '../common/Icon.jsx'
 import assessmentService from '../../services/assessmentService.js'
 import excelService from '../../services/excelService.js'
 import { MasterImportModal } from '../master-data/MasterModals.jsx'
+import MasterMobileToolbar from '../master-data/MasterMobileToolbar.jsx'
 import {
   formatScore,
   getPredicate,
@@ -40,14 +41,14 @@ function ContextFilters({
 function SectionHeading({ icon, title, description, action }) {
   return (
     <div className="assessment-section-heading">
-      <div>
-        <span><Icon name={icon} /></span>
-        <div>
+      <div className="assessment-section-heading-content">
+        <span className="assessment-section-heading-icon"><Icon name={icon} /></span>
+        <div className="assessment-section-heading-text">
           <h3>{title}</h3>
           <p>{description}</p>
         </div>
       </div>
-      {action}
+      {action && <div className="assessment-section-heading-action">{action}</div>}
     </div>
   )
 }
@@ -106,13 +107,41 @@ function NilaiPerMapelView({ onNotify }) {
 
   return (
     <section className="assessment-secondary-workspace">
-      <ContextFilters
-        assignedCourses={assignedCourses}
-        onCourseChange={setSelectedCourseId}
-        selectedCourseId={selectedCourseId}
-      />
-      <div className="assessment-secondary-card">
-        {selectedCourseId && <button className="assessment-button secondary" onClick={() => excelService.download('scores', 'export', { course_assignment_id: selectedCourseId }).catch((error) => onNotify(error.message))} type="button">Export Excel</button>}
+      {/* Desktop Toolbar */}
+      <div className="assessment-desktop-toolbar-container">
+        <ContextFilters
+          assignedCourses={assignedCourses}
+          onCourseChange={setSelectedCourseId}
+          selectedCourseId={selectedCourseId}
+        />
+      </div>
+
+      {/* Mobile Toolbar */}
+      <div className="assessment-mobile-toolbar-wrapper">
+        <MasterMobileToolbar
+          activeFilterCount={selectedCourseId ? 1 : 0}
+          exportLabel="Export Excel"
+          filterAriaLabel="Filter Mata Pelajaran & Kelas"
+          filterFields={[
+            {
+              key: 'courseId',
+              label: 'Mata Pelajaran & Kelas',
+              options: assignedCourses.map((c) => ({
+                value: String(c.course_assignment_id),
+                label: `${c.class_name} — ${c.subject_name} (${c.role || 'Utama'})`,
+              })),
+            },
+          ]}
+          filters={{ courseId: String(selectedCourseId || '') }}
+          onExport={selectedCourseId ? () => excelService.download('scores', 'export', { course_assignment_id: selectedCourseId }).catch((error) => onNotify(error.message)) : undefined}
+          onFilterChange={(_key, val) => setSelectedCourseId(Number(val))}
+        />
+      </div>
+
+      <div className="assessment-secondary-card assessment-mobile-white-section">
+        <div className="assessment-desktop-export-btn">
+          {selectedCourseId && <button className="assessment-button secondary" onClick={() => excelService.download('scores', 'export', { course_assignment_id: selectedCourseId }).catch((error) => onNotify(error.message))} type="button">Export Excel</button>}
+        </div>
         <SectionHeading
           description={`Monitoring rekapitulasi nilai ${gradebook?.course_assignment?.subject_name || ''} kelas ${gradebook?.course_assignment?.class_name || ''}.`}
           icon="table"
@@ -187,15 +216,15 @@ function NilaiPerMapelView({ onNotify }) {
 function NilaiSikapView() {
   return (
     <section className="assessment-secondary-workspace">
-      <div className="assessment-secondary-card">
+      <div className="assessment-secondary-card assessment-mobile-white-section">
         <SectionHeading
           description="Sesuai regulasi Kurikulum Merdeka (Kemendikbudristek), penilaian karakter & sikap diwadahi melalui Projek Penguatan Profil Pelajar Pancasila (P5) dan catatan perkembangan wali kelas."
           icon="shield"
           title="Nilai Sikap / Karakter (Kurikulum Merdeka)"
         />
-        <div style={{ padding: '2rem', background: '#f8fafc', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
-          <h4 style={{ color: '#1e293b', marginBottom: '0.5rem' }}>Informasi Integrasi P5 & Karakter</h4>
-          <p style={{ color: '#64748b', lineHeight: 1.6 }}>
+        <div style={{ padding: '1.25rem', background: '#f8fafc', borderRadius: '12px', border: '1px solid #e2e8f0' }}>
+          <h4 style={{ color: '#1e293b', marginBottom: '0.5rem', fontSize: '14px', fontWeight: '700' }}>Informasi Integrasi P5 & Karakter</h4>
+          <p style={{ color: '#64748b', lineHeight: 1.6, fontSize: '12.5px', margin: 0 }}>
             Modul ini disiapkan untuk integrasi Rapor P5 yang mencakup dimensi: Beriman & Bertakwa, Berkebinekaan Global, Bergotong Royong, Mandiri, Bernalar Kritis, dan Kreatif. Konfirmasi format spesifik SMAN 27 Garut akan diaktifkan pada modul Rapor.
           </p>
         </div>
@@ -211,6 +240,8 @@ function CapaianKompetensiView({ onNotify }) {
   const [descriptions, setDescriptions] = useState({})
   const [isLocked, setIsLocked] = useState(false)
   const [loading, setLoading] = useState(false)
+  const [isSaving, setIsSaving] = useState(false)
+  const [searchQuery, setSearchQuery] = useState('')
   const [showImport, setShowImport] = useState(false)
   const [refreshKey, setRefreshKey] = useState(0)
   const compReqIdRef = useRef(0)
@@ -269,7 +300,7 @@ function CapaianKompetensiView({ onNotify }) {
   }, [selectedCourseId, refreshKey])
 
   const handleSaveDescriptions = async () => {
-    if (!selectedCourseId) return
+    if (!selectedCourseId || isSaving) return
     if (isLocked) {
       onNotify('Nilai telah dikunci. Deskripsi capaian tidak dapat diubah.')
       return
@@ -285,38 +316,104 @@ function CapaianKompetensiView({ onNotify }) {
       return
     }
 
-    const res = await assessmentService.updateCompetencyAchievements(selectedCourseId, payload)
-    if (res.success && res.data?.updated_count > 0) {
-      onNotify(`Deskripsi capaian kompetensi berhasil disimpan untuk ${res.data.updated_count} siswa.`)
-    } else if (res.success) {
-      onNotify('Belum ada nilai akhir yang dapat disimpan deskripsinya.')
-    } else {
-      onNotify(res.error || 'Gagal menyimpan deskripsi.')
+    setIsSaving(true)
+    try {
+      const res = await assessmentService.updateCompetencyAchievements(selectedCourseId, payload)
+      if (res.success && res.data?.updated_count > 0) {
+        onNotify(`Deskripsi capaian kompetensi berhasil disimpan untuk ${res.data.updated_count} siswa.`)
+      } else if (res.success) {
+        onNotify('Belum ada nilai akhir yang dapat disimpan deskripsinya.')
+      } else {
+        onNotify(res.error || 'Gagal menyimpan deskripsi.')
+      }
+    } finally {
+      setIsSaving(false)
     }
   }
 
+  const filteredStudents = useMemo(() => {
+    if (!searchQuery.trim()) return students
+    const q = searchQuery.toLowerCase().trim()
+    return students.filter(
+      (s) =>
+        (s.name && s.name.toLowerCase().includes(q)) ||
+        (s.nis && String(s.nis).toLowerCase().includes(q))
+    )
+  }, [students, searchQuery])
+
   return (
     <section className="assessment-secondary-workspace">
-      <ContextFilters
-        assignedCourses={assignedCourses}
-        onCourseChange={setSelectedCourseId}
-        selectedCourseId={selectedCourseId}
-      />
-      <div className="assessment-secondary-card">
-        {selectedCourseId && <div style={{ display: 'flex', gap: 8, padding: '12px 0' }}>
-          <button className="assessment-button secondary" disabled={isLocked} onClick={() => setShowImport(true)} type="button">Import Excel</button>
-          <button className="assessment-button secondary" onClick={() => excelService.download('competencies', 'export', { course_assignment_id: selectedCourseId }).catch((error) => onNotify(error.message))} type="button">Export Excel</button>
-        </div>}
+      {/* Desktop Toolbar */}
+      <div className="assessment-desktop-toolbar-container">
+        <ContextFilters
+          assignedCourses={assignedCourses}
+          onCourseChange={setSelectedCourseId}
+          selectedCourseId={selectedCourseId}
+        />
+      </div>
+
+      {/* Mobile Toolbar */}
+      <div className="assessment-mobile-toolbar-wrapper">
+        <MasterMobileToolbar
+          activeFilterCount={selectedCourseId ? 1 : 0}
+          exportLabel="Export Excel"
+          extraActions={[
+            {
+              label: 'Import Excel',
+              icon: 'cloudUpload',
+              disabled: isLocked,
+              onClick: () => setShowImport(true),
+            },
+          ]}
+          filterAriaLabel="Filter Mata Pelajaran & Kelas"
+          filterFields={[
+            {
+              key: 'courseId',
+              label: 'Mata Pelajaran & Kelas',
+              options: assignedCourses.map((c) => ({
+                value: String(c.course_assignment_id),
+                label: `${c.class_name} — ${c.subject_name} (${c.role || 'Utama'})`,
+              })),
+            },
+          ]}
+          filters={{ courseId: String(selectedCourseId || '') }}
+          onExport={selectedCourseId ? () => excelService.download('competencies', 'export', { course_assignment_id: selectedCourseId }).catch((error) => onNotify(error.message)) : undefined}
+          onFilterChange={(_key, val) => setSelectedCourseId(Number(val))}
+          onSearchChange={setSearchQuery}
+          primaryAction={
+            <button
+              aria-label="Simpan Deskripsi"
+              className="master-mobile-primary-cta"
+              disabled={isLocked || isSaving || !students.some((student) => student.final_grade)}
+              onClick={handleSaveDescriptions}
+              type="button"
+            >
+              <Icon name={isLocked ? "lock" : "save"} />
+              <span>{isLocked ? 'Deskripsi Terkunci' : isSaving ? 'Menyimpan...' : 'Simpan Deskripsi'}</span>
+            </button>
+          }
+          searchPlaceholder="Cari siswa (NIS/Nama)..."
+          searchQuery={searchQuery}
+        />
+      </div>
+
+      <div className="assessment-secondary-card assessment-mobile-white-section">
+        {selectedCourseId && (
+          <div className="assessment-desktop-export-btn" style={{ display: 'flex', gap: 8, padding: '12px 0' }}>
+            <button className="assessment-button secondary" disabled={isLocked} onClick={() => setShowImport(true)} type="button">Import Excel</button>
+            <button className="assessment-button secondary" onClick={() => excelService.download('competencies', 'export', { course_assignment_id: selectedCourseId }).catch((error) => onNotify(error.message))} type="button">Export Excel</button>
+          </div>
+        )}
         {showImport && selectedCourseId && <MasterImportModal context={{ course_assignment_id: selectedCourseId }} entityLabel="Capaian Kompetensi" module="competencies" onClose={() => setShowImport(false)} onComplete={(count) => { setShowImport(false); setRefreshKey((key) => key + 1); onNotify(`${count} capaian kompetensi diperbarui.`) }} />}
         <SectionHeading
           action={
             <Button
               className="assessment-button primary"
-              disabled={isLocked || !students.some((student) => student.final_grade)}
+              disabled={isLocked || isSaving || !students.some((student) => student.final_grade)}
               onClick={handleSaveDescriptions}
             >
               <Icon name="save" />
-              Simpan Deskripsi
+              {isSaving ? 'Menyimpan...' : 'Simpan Deskripsi'}
             </Button>
           }
           description="Susun narasi capaian kompetensi berdasarkan hasil nilai akhir siswa."
@@ -331,8 +428,12 @@ function CapaianKompetensiView({ onNotify }) {
               <p style={{ padding: '2rem', textAlign: 'center', color: '#64748b' }}>
                 Belum ada siswa atau data nilai akhir. Silakan hitung nilai akhir terlebih dahulu pada tab Input Nilai.
               </p>
+            ) : filteredStudents.length === 0 ? (
+              <p style={{ padding: '2rem', textAlign: 'center', color: '#64748b' }}>
+                Tidak ada siswa yang sesuai dengan kata kunci &quot;{searchQuery}&quot;.
+              </p>
             ) : (
-              students.map((student) => {
+              filteredStudents.map((student) => {
                 const finalScore = student.final_grade?.score
                 return (
                   <article className="assessment-competency-row" key={student.id}>
@@ -431,27 +532,72 @@ function RekapNilaiView({ onNotify }) {
     }
   }, [selectedClassId, semesterId])
 
+  const [searchQuery, setSearchQuery] = useState('')
+
   const subjects = recapData?.subjects || []
-  const students = recapData?.students || []
+  const students = useMemo(() => recapData?.students || [], [recapData?.students])
+
+  const filteredStudents = useMemo(() => {
+    if (!searchQuery.trim()) return students
+    const q = searchQuery.toLowerCase().trim()
+    return students.filter(
+      (st) =>
+        (st.name && st.name.toLowerCase().includes(q)) ||
+        (st.nis && String(st.nis).toLowerCase().includes(q))
+    )
+  }, [students, searchQuery])
 
   return (
     <section className="assessment-secondary-workspace">
-      <div className="assessment-context-filters">
-        <label className="assessment-field" style={{ minWidth: '200px' }}>
-          <span>Pilih Kelas</span>
-          <select
-            value={selectedClassId || ''}
-            onChange={(e) => setSelectedClassId(Number(e.target.value))}
-          >
-            {classes.map((cls) => (
-              <option key={cls.class_id} value={cls.class_id}>{cls.class_name}</option>
-            ))}
-          </select>
-        </label>
+      {/* Desktop Toolbar */}
+      <div className="assessment-desktop-toolbar-container">
+        <div className="assessment-context-filters">
+          <label className="assessment-field" style={{ minWidth: '200px' }}>
+            <span>Pilih Kelas</span>
+            <select
+              value={selectedClassId || ''}
+              onChange={(e) => setSelectedClassId(Number(e.target.value))}
+            >
+              {classes.map((cls) => (
+                <option key={cls.class_id} value={cls.class_id}>{cls.class_name}</option>
+              ))}
+            </select>
+          </label>
+        </div>
       </div>
 
-      <div className="assessment-secondary-card">
-        {selectedClassId && semesterId && <button className="assessment-button secondary" onClick={() => excelService.download('class_recap', 'export', { class_id: selectedClassId, semester_id: semesterId }).catch((error) => onNotify(error.message))} type="button">Export Excel</button>}
+      {/* Mobile Toolbar */}
+      <div className="assessment-mobile-toolbar-wrapper">
+        <MasterMobileToolbar
+          activeFilterCount={selectedClassId ? 1 : 0}
+          exportDisabled={!selectedClassId || !semesterId}
+          exportLabel="Export Excel"
+          filterAriaLabel="Filter Kelas"
+          filterFields={[
+            {
+              key: 'classId',
+              label: 'Kelas',
+              options: classes.map((cls) => ({
+                value: String(cls.class_id),
+                label: cls.class_name,
+              })),
+            },
+          ]}
+          filters={{ classId: String(selectedClassId || '') }}
+          onExport={selectedClassId && semesterId ? () => excelService.download('class_recap', 'export', { class_id: selectedClassId, semester_id: semesterId }).catch((error) => onNotify(error.message)) : undefined}
+          onFilterChange={(_key, val) => setSelectedClassId(Number(val))}
+          onSearchChange={setSearchQuery}
+          searchPlaceholder="Cari siswa di leger..."
+          searchQuery={searchQuery}
+        />
+      </div>
+
+      <div className="assessment-secondary-card assessment-mobile-white-section">
+        {selectedClassId && semesterId && (
+          <div className="assessment-desktop-export-btn">
+            <button className="assessment-button secondary" onClick={() => excelService.download('class_recap', 'export', { class_id: selectedClassId, semester_id: semesterId }).catch((error) => onNotify(error.message))} type="button">Export Excel</button>
+          </div>
+        )}
         <SectionHeading
           description="Ringkasan nilai seluruh mata pelajaran dalam format leger kelas."
           icon="table"
@@ -480,8 +626,14 @@ function RekapNilaiView({ onNotify }) {
                       Tidak ada data siswa atau nilai akhir belum dihitung.
                     </td>
                   </tr>
+                ) : filteredStudents.length === 0 ? (
+                  <tr>
+                    <td colSpan={subjects.length + 4} style={{ textAlign: 'center', padding: '2rem' }}>
+                      Tidak ada siswa yang sesuai dengan kata kunci &quot;{searchQuery}&quot;.
+                    </td>
+                  </tr>
                 ) : (
-                  students.map((st, index) => (
+                  filteredStudents.map((st, index) => (
                     <tr key={st.student_id}>
                       <td>{index + 1}</td>
                       <td className="assessment-recap-name">
@@ -590,24 +742,69 @@ function ValidasiNilaiView({ onNotify }) {
     }
   }
 
+  const [searchQuery, setSearchQuery] = useState('')
+
+  const filteredValidationList = useMemo(() => {
+    if (!searchQuery.trim()) return validationList
+    const q = searchQuery.toLowerCase().trim()
+    return validationList.filter(
+      (item) =>
+        (item.subject_name && item.subject_name.toLowerCase().includes(q)) ||
+        (item.teacher_name && item.teacher_name.toLowerCase().includes(q))
+    )
+  }, [validationList, searchQuery])
+
   return (
     <section className="assessment-secondary-workspace">
-      <div className="assessment-context-filters">
-        <label className="assessment-field" style={{ minWidth: '200px' }}>
-          <span>Pilih Kelas Binaannya</span>
-          <select
-            value={selectedClassId || ''}
-            onChange={(e) => setSelectedClassId(Number(e.target.value))}
-          >
-            {classes.map((cls) => (
-              <option key={cls.class_id} value={cls.class_id}>{cls.class_name}</option>
-            ))}
-          </select>
-        </label>
+      {/* Desktop Toolbar */}
+      <div className="assessment-desktop-toolbar-container">
+        <div className="assessment-context-filters">
+          <label className="assessment-field" style={{ minWidth: '200px' }}>
+            <span>Pilih Kelas Binaannya</span>
+            <select
+              value={selectedClassId || ''}
+              onChange={(e) => setSelectedClassId(Number(e.target.value))}
+            >
+              {classes.map((cls) => (
+                <option key={cls.class_id} value={cls.class_id}>{cls.class_name}</option>
+              ))}
+            </select>
+          </label>
+        </div>
       </div>
 
-      <div className="assessment-secondary-card">
-        {selectedClassId && semesterId && <button className="assessment-button secondary" onClick={() => excelService.download('validation_status', 'export', { class_id: selectedClassId, semester_id: semesterId }).catch((error) => onNotify(error.message))} type="button">Export Excel</button>}
+      {/* Mobile Toolbar */}
+      <div className="assessment-mobile-toolbar-wrapper">
+        <MasterMobileToolbar
+          activeFilterCount={selectedClassId ? 1 : 0}
+          exportDisabled={!selectedClassId || !semesterId}
+          exportLabel="Export Excel"
+          filterAriaLabel="Filter Kelas Binaannya"
+          filterFields={[
+            {
+              key: 'classId',
+              label: 'Kelas Binaannya',
+              options: classes.map((cls) => ({
+                value: String(cls.class_id),
+                label: cls.class_name,
+              })),
+            },
+          ]}
+          filters={{ classId: String(selectedClassId || '') }}
+          onExport={selectedClassId && semesterId ? () => excelService.download('validation_status', 'export', { class_id: selectedClassId, semester_id: semesterId }).catch((error) => onNotify(error.message)) : undefined}
+          onFilterChange={(_key, val) => setSelectedClassId(Number(val))}
+          onSearchChange={setSearchQuery}
+          searchPlaceholder="Cari mata pelajaran / guru..."
+          searchQuery={searchQuery}
+        />
+      </div>
+
+      <div className="assessment-secondary-card assessment-mobile-white-section">
+        {selectedClassId && semesterId && (
+          <div className="assessment-desktop-export-btn">
+            <button className="assessment-button secondary" onClick={() => excelService.download('validation_status', 'export', { class_id: selectedClassId, semester_id: semesterId }).catch((error) => onNotify(error.message))} type="button">Export Excel</button>
+          </div>
+        )}
         <SectionHeading
           description="Pastikan nilai dan deskripsi capaian lengkap sebelum digunakan pada Rapor & Leger."
           icon="check"
@@ -621,8 +818,12 @@ function ValidasiNilaiView({ onNotify }) {
               <p style={{ padding: '2rem', color: '#64748b', gridColumn: '1 / -1' }}>
                 Tidak ada penugasan mata pelajaran yang terdaftar pada kelas ini.
               </p>
+            ) : filteredValidationList.length === 0 ? (
+              <p style={{ padding: '2rem', color: '#64748b', gridColumn: '1 / -1' }}>
+                Tidak ada mata pelajaran yang sesuai dengan kata kunci &quot;{searchQuery}&quot;.
+              </p>
             ) : (
-              validationList.map((subject) => (
+              filteredValidationList.map((subject) => (
                 <article className="assessment-validation-card" key={subject.course_assignment_id}>
                   <div className="assessment-validation-head">
                     <span><Icon name="book" /></span>

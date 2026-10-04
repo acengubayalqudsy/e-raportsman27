@@ -7,6 +7,8 @@ import { useAcademicContext } from '../../context/AcademicContext.jsx'
 import { MasterDeleteModal, MasterDetailModal } from './MasterModals.jsx'
 import MasterPagination from './MasterPagination.jsx'
 import MasterSummary from './MasterSummary.jsx'
+import MasterMobileToolbar from './MasterMobileToolbar.jsx'
+import MasterMobileRecordList from './MasterMobileRecordList.jsx'
 
 const ROOM_TYPES = [
   'Semua',
@@ -87,6 +89,9 @@ function RoomModal({ initialData = null, onClose, onSave }) {
   return (
     <div className="master-modal-backdrop" role="presentation">
       <section aria-modal="true" className="master-modal regular" role="dialog">
+        <div className="master-mobile-sheet-handle-wrapper" aria-hidden="true">
+          <div className="master-mobile-sheet-handle" />
+        </div>
         <header>
           <div>
             <h3>{isEdit ? 'Edit Ruangan' : 'Tambah Ruangan Baru'}</h3>
@@ -133,21 +138,28 @@ function RoomModal({ initialData = null, onClose, onSave }) {
                   {fieldErrors.name && <small style={{ color: '#ef4444' }}>{fieldErrors.name[0]}</small>}
                 </label>
 
-                <label>
-                  <span>Tipe Ruangan <b>*</b></span>
-                  <select
-                    required
-                    value={formData.room_type}
-                    onChange={(e) => handleChange('room_type', e.target.value)}
-                  >
-                    <option value="Kelas">Kelas</option>
-                    <option value="Laboratorium">Laboratorium</option>
-                    <option value="Perpustakaan">Perpustakaan</option>
-                    <option value="Aula">Aula</option>
-                    <option value="Kantor">Kantor</option>
-                    <option value="Lainnya">Lainnya</option>
-                  </select>
-                </label>
+                <div className="master-form-group">
+                  <label htmlFor="master-room-type" className="master-field-label">
+                    Tipe Ruangan <b>*</b>
+                  </label>
+                  <div className="master-form-select-wrap">
+                    <select
+                      id="master-room-type"
+                      className="master-form-select"
+                      required
+                      value={formData.room_type}
+                      onChange={(e) => handleChange('room_type', e.target.value)}
+                    >
+                      <option value="Kelas">Kelas</option>
+                      <option value="Laboratorium">Laboratorium</option>
+                      <option value="Perpustakaan">Perpustakaan</option>
+                      <option value="Aula">Aula</option>
+                      <option value="Kantor">Kantor</option>
+                      <option value="Lainnya">Lainnya</option>
+                    </select>
+                    <Icon name="chevron" className="master-select-chevron" />
+                  </div>
+                </div>
 
                 <label>
                   <span>Kapasitas (Siswa) <b>*</b></span>
@@ -188,17 +200,24 @@ function RoomModal({ initialData = null, onClose, onSave }) {
                   />
                 </label>
 
-                <label>
-                  <span>Status Ruangan <b>*</b></span>
-                  <select
-                    required
-                    value={formData.status}
-                    onChange={(e) => handleChange('status', e.target.value)}
-                  >
-                    <option value="Aktif">Aktif</option>
-                    <option value="Tidak Aktif">Tidak Aktif</option>
-                  </select>
-                </label>
+                <div className="master-form-group">
+                  <label htmlFor="master-room-status" className="master-field-label">
+                    Status Ruangan <b>*</b>
+                  </label>
+                  <div className="master-form-select-wrap">
+                    <select
+                      id="master-room-status"
+                      className="master-form-select"
+                      required
+                      value={formData.status}
+                      onChange={(e) => handleChange('status', e.target.value)}
+                    >
+                      <option value="Aktif">Aktif</option>
+                      <option value="Tidak Aktif">Tidak Aktif</option>
+                    </select>
+                    <Icon name="chevron" className="master-select-chevron" />
+                  </div>
+                </div>
 
                 <label className="full-width">
                   <span>Keterangan Tambahan</span>
@@ -302,6 +321,18 @@ function MasterRoomView({ onNotify }) {
     }
   }, [page, perPage, roomTypeFilter, statusFilter, search, selectedYearId, refreshTrigger, onNotify])
 
+  const roomFilterFields = [
+    { key: 'room_type', label: 'Jenis Ruangan', options: ROOM_TYPES },
+    { key: 'status', label: 'Status', options: ROOM_STATUSES },
+  ]
+
+  const activeFilterCount = useMemo(() => {
+    let count = 0
+    if (roomTypeFilter && roomTypeFilter !== 'Semua') count++
+    if (statusFilter && statusFilter !== 'Semua') count++
+    return count
+  }, [roomTypeFilter, statusFilter])
+
   const handleCreate = async (payload) => {
     const res = await roomService.createRoom({ ...payload, academic_year_id: selectedYearId || undefined })
     if (res.success) {
@@ -401,6 +432,7 @@ function MasterRoomView({ onNotify }) {
       <MasterSummary items={summaryCards} />
 
       <section className="master-data-workspace" aria-label="Daftar Ruangan">
+        <div className="master-desktop-toolbar-container">
         <div className="master-data-toolbar">
           <div className="master-filter-grid master-reference-filters" style={{ gridTemplateColumns: 'repeat(2, minmax(130px, 1fr))' }}>
             <label className="master-field">
@@ -478,7 +510,36 @@ function MasterRoomView({ onNotify }) {
             </Button>
           </div>
         </div>
+        </div>
 
+        <MasterMobileToolbar
+          activeFilterCount={activeFilterCount}
+          addLabel="Tambah Ruangan"
+          filterFields={roomFilterFields}
+          filters={{ room_type: roomTypeFilter, status: statusFilter }}
+          onAdd={() => {
+            setSelectedRoom(null)
+            setActiveModal('add')
+          }}
+          onFilterChange={(key, val) => {
+            if (key === 'room_type') setRoomTypeFilter(val)
+            if (key === 'status') setStatusFilter(val)
+            setPage(1)
+          }}
+          onFilterReset={() => {
+            setRoomTypeFilter('Semua')
+            setStatusFilter('Semua')
+            setPage(1)
+          }}
+          onSearchChange={(value) => {
+            setSearch(value)
+            setPage(1)
+          }}
+          searchPlaceholder="Cari kode atau nama ruangan..."
+          searchQuery={search}
+        />
+
+        <div className="master-desktop-table-container">
         <div className="master-table-scroll">
           <table className="master-reference-table">
             <thead>
@@ -598,6 +659,29 @@ function MasterRoomView({ onNotify }) {
               )}
             </tbody>
           </table>
+        </div>
+        </div>
+
+        <div className="master-mobile-record-container">
+          <MasterMobileRecordList
+            isLoading={isLoading}
+            moduleKey="ruangan"
+            onDelete={(room) => {
+              setSelectedRoom(room)
+              setActiveModal('delete')
+            }}
+            onEdit={(room) => {
+              setSelectedRoom(room)
+              setActiveModal('edit')
+            }}
+            onRetry={() => setRefreshTrigger((prev) => prev + 1)}
+            onViewDetail={(room) => {
+              setSelectedRoom(room)
+              setActiveModal('detail')
+            }}
+            records={rooms}
+            totalCount={meta.total}
+          />
         </div>
 
         {meta.total > 0 && (

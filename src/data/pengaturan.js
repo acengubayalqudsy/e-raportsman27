@@ -39,7 +39,7 @@ export const settingsTabs = [
     route: '/pengaturan/backup-restore',
     icon: 'cloudUpload',
     tone: 'teal',
-    description: 'Simulasi pencadangan dan pemulihan data aplikasi.',
+    description: 'Pencadangan dan pemulihan database aplikasi.',
   },
   {
     key: 'log-aktivitas',

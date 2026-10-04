@@ -8,6 +8,7 @@ import scheduleService from '../../services/scheduleService.js'
 import excelService from '../../services/excelService.js'
 import AcademicModal from './AcademicModal.jsx'
 import AcademicSummary from './AcademicSummary.jsx'
+import MasterMobileToolbar from '../master-data/MasterMobileToolbar.jsx'
 import { useAcademicContext } from '../../context/AcademicContext.jsx'
 
 const DEFAULT_DAYS = ['Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat']
@@ -64,7 +65,7 @@ function TodaySchedulePanel({ dateLabel, items, onOpen, onViewAll }) {
   return (
     <section className="academic-side-card academic-today-card">
       <header className="academic-side-card-header">
-        <h3>Jadwal Hari Ini</h3>
+        <h3 className="academic-table-section-title">Jadwal Hari Ini</h3>
         <span><Icon name="calendar" />{dateLabel}</span>
       </header>
 
@@ -104,7 +105,7 @@ function AnnouncementPanel({ items, onAction }) {
   return (
     <section className="academic-side-card academic-announcement-card">
       <header className="academic-side-card-header">
-        <h3><Icon name="megaphone" />Pengumuman Akademik</h3>
+        <h3 className="academic-table-section-title"><Icon name="megaphone" />Pengumuman Akademik</h3>
         <button onClick={() => onAction('Daftar semua pengumuman dibuka.')} type="button">Lihat Semua</button>
       </header>
 
@@ -265,92 +266,131 @@ function ScheduleFormModal({ initialData = null, onClose, onSave, options = {} }
       wide
     >
       <form className="academic-entity-form" onSubmit={handleSubmit}>
-        <div style={{ background: '#f8fafc', padding: '0.625rem 0.875rem', borderRadius: '0.375rem', border: '1px solid #e2e8f0', fontSize: '0.8125rem', color: '#475569', marginBottom: '0.75rem', display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
-          <Icon name="info" />
-          <span>Tahun Ajaran: <strong>{options.selectedYear?.name ?? '-'}</strong> | Semester: <strong>{options.selectedSemester?.name ?? '-'}</strong></span>
-        </div>
-
-        {errorMessage && (
-          <div className="academic-conflict-alert" role="alert">
-            <Icon name="info" />
-            <div>
-              <strong>Validasi / Bentrok Jadwal:</strong>
-              <span>{errorMessage}</span>
+        <div className="academic-form-grid">
+          <div className="academic-modal-context-card">
+            <div className="academic-modal-context-icon">
+              <Icon name="info" />
+            </div>
+            <div className="academic-modal-context-body">
+              <span className="academic-modal-context-label">Tahun Ajaran &amp; Semester</span>
+              <div className="academic-modal-context-values">
+                <strong>{options.selectedYear?.name ?? '-'}</strong>
+                <span className="context-dot">•</span>
+                <strong>{options.selectedSemester?.name ?? '-'}</strong>
+              </div>
             </div>
           </div>
-        )}
 
-        <div className="academic-form-grid">
+          {errorMessage && (
+            <div className="academic-conflict-alert" role="alert">
+              <Icon name="info" />
+              <div>
+                <strong>Validasi / Bentrok Jadwal:</strong>
+                <span>{errorMessage}</span>
+              </div>
+            </div>
+          )}
+
+          <div className="academic-form-section-title">Penugasan Mengajar</div>
+
           <label className="full-width">
-            <span>Penugasan Mengajar <b>*</b></span>
+            <span>Penugasan Guru &amp; Mapel <b>*</b></span>
             <select onChange={(e) => handleChange('course_assignment_id', e.target.value)} required value={formData.course_assignment_id}>
               {caList.map((ca) => <option key={ca.id} value={ca.id}>{ca.label}</option>)}
             </select>
           </label>
-          {!caList.length && <p className="full-width" role="alert">Belum ada penugasan mengajar aktif pada semester ini. Tambahkan penugasan guru terlebih dahulu.</p>}
-          <label>
-            <span>Kelas / Rombel <b>*</b></span>
-            <select
-              disabled
-              value={formData.class_id}
-            >
-              {classList.map((c) => (
-                <option key={c.id} value={c.id}>{c.name}</option>
-              ))}
-            </select>
-          </label>
 
-          <label>
-            <span>Mata Pelajaran <b>*</b></span>
-            <select
-              disabled
-              value={formData.subject_id}
-            >
-              {subjectList.map((s) => (
-                <option key={s.id} value={s.id}>{s.name} ({s.code})</option>
-              ))}
-            </select>
-          </label>
+          {!caList.length && (
+            <p className="academic-form-empty-warning" role="alert">
+              <Icon name="info" />
+              <span>Belum ada penugasan mengajar aktif pada semester ini. Tambahkan penugasan guru terlebih dahulu.</span>
+            </p>
+          )}
 
-          <label>
-            <span>Guru Pengajar <b>*</b></span>
-            <select
-              disabled
-              value={formData.teacher_id}
-            >
-              {teacherList.map((t) => (
-                <option key={t.id} value={t.id}>{t.name} {t.nip ? `(${t.nip})` : ''}</option>
-              ))}
-            </select>
-          </label>
+          <div className="academic-form-autofill-group">
+            <div className="academic-form-row-2col">
+              <label>
+                <span>Kelas / Rombel</span>
+                <select disabled value={formData.class_id}>
+                  {classList.map((c) => (
+                    <option key={c.id} value={c.id}>{c.name}</option>
+                  ))}
+                </select>
+              </label>
 
-          <label>
-            <span>Ruangan <b>*</b></span>
-            <select
-              onChange={(e) => handleChange('room_id', e.target.value)}
-              required
-              value={formData.room_id}
-            >
-              {roomList.map((r) => (
-                <option key={r.id} value={r.id}>{r.name} ({r.code})</option>
-              ))}
-            </select>
-          </label>
+              <label>
+                <span>Mata Pelajaran</span>
+                <select disabled value={formData.subject_id}>
+                  {subjectList.map((s) => (
+                    <option key={s.id} value={s.id}>{s.name} ({s.code})</option>
+                  ))}
+                </select>
+              </label>
+            </div>
 
-          <label>
-            <span>Hari <b>*</b></span>
-            <select
-              onChange={(e) => handleChange('day_of_week', e.target.value)}
-              required
-              value={formData.day_of_week}
-            >
-              {DEFAULT_DAYS.map((d) => (
-                <option key={d} value={d}>{d}</option>
-              ))}
-            </select>
-          </label>
+            <label className="full-width">
+              <span>Guru Pengajar</span>
+              <select disabled value={formData.teacher_id}>
+                {teacherList.map((t) => (
+                  <option key={t.id} value={t.id}>{t.name} {t.nip ? `(${t.nip})` : ''}</option>
+                ))}
+              </select>
+            </label>
+          </div>
 
-          <label>
+          <div className="academic-form-section-title">Waktu &amp; Tempat Pembelajaran</div>
+
+          <div className="academic-form-row-2col">
+            <label>
+              <span>Ruangan <b>*</b></span>
+              <select
+                onChange={(e) => handleChange('room_id', e.target.value)}
+                required
+                value={formData.room_id}
+              >
+                {roomList.map((r) => (
+                  <option key={r.id} value={r.id}>{r.name} ({r.code})</option>
+                ))}
+              </select>
+            </label>
+
+            <label>
+              <span>Hari <b>*</b></span>
+              <select
+                onChange={(e) => handleChange('day_of_week', e.target.value)}
+                required
+                value={formData.day_of_week}
+              >
+                {DEFAULT_DAYS.map((d) => (
+                  <option key={d} value={d}>{d}</option>
+                ))}
+              </select>
+            </label>
+          </div>
+
+          <div className="academic-form-row-2col">
+            <label>
+              <span>Jam Mulai <b>*</b></span>
+              <input
+                onChange={(e) => handleChange('start_time', e.target.value)}
+                required
+                type="time"
+                value={formData.start_time}
+              />
+            </label>
+
+            <label>
+              <span>Jam Selesai <b>*</b></span>
+              <input
+                onChange={(e) => handleChange('end_time', e.target.value)}
+                required
+                type="time"
+                value={formData.end_time}
+              />
+            </label>
+          </div>
+
+          <label className="full-width">
             <span>Status <b>*</b></span>
             <select
               onChange={(e) => handleChange('status', e.target.value)}
@@ -362,32 +402,15 @@ function ScheduleFormModal({ initialData = null, onClose, onSave, options = {} }
             </select>
           </label>
 
-          <label>
-            <span>Jam Mulai <b>*</b></span>
-            <input
-              onChange={(e) => handleChange('start_time', e.target.value)}
-              required
-              type="time"
-              value={formData.start_time}
-            />
-          </label>
-
-          <label>
-            <span>Jam Selesai <b>*</b></span>
-            <input
-              onChange={(e) => handleChange('end_time', e.target.value)}
-              required
-              type="time"
-              value={formData.end_time}
-            />
-          </label>
+          <div className="academic-form-section-title">Catatan Tambahan</div>
 
           <label className="full-width">
             <span>Catatan / Keterangan</span>
-            <input
+            <textarea
+              className="academic-form-textarea"
               onChange={(e) => handleChange('notes', e.target.value)}
               placeholder="Contoh: Pembelajaran di ruang laboratorium"
-              type="text"
+              rows={2}
               value={formData.notes}
             />
           </label>
@@ -398,7 +421,7 @@ function ScheduleFormModal({ initialData = null, onClose, onSave, options = {} }
             Batal
           </Button>
           <Button className="academic-button primary" disabled={isSubmitting || !caList.length || !roomList.length} type="submit">
-            {isSubmitting ? 'Menyimpan...' : isEdit ? 'Perbarui Jadwal' : 'Simpan Jadwal'}
+            <Icon name="save" /> {isSubmitting ? 'Menyimpan...' : isEdit ? 'Perbarui Jadwal' : 'Simpan Jadwal'}
           </Button>
         </footer>
       </form>
@@ -750,70 +773,180 @@ function AcademicScheduleView({ onNotify }) {
     day: 'numeric',
   })
 
+  const scheduleFilterFields = useMemo(() => [
+    {
+      key: 'className',
+      label: 'Kelas',
+      options: classOptions,
+    },
+    {
+      key: 'grade',
+      label: 'Tingkat',
+      options: gradeOptions,
+    },
+    {
+      key: 'semesterId',
+      label: 'Semester',
+      options: semesterSelectOptions,
+    },
+    {
+      key: 'day',
+      label: 'Hari',
+      options: dayOptions,
+    },
+  ], [classOptions, gradeOptions, semesterSelectOptions, dayOptions])
+
+  const mobileScheduleFilters = useMemo(() => ({
+    className: selectedClass || 'Semua Kelas',
+    grade: selectedGrade || 'Semua Tingkat',
+    semesterId: selectedSemesterId ? String(selectedSemesterId) : '',
+    day: selectedDay || 'Semua Hari',
+  }), [selectedClass, selectedGrade, selectedSemesterId, selectedDay])
+
+  const handleMobileScheduleFilterChange = (key, value) => {
+    if (key === 'className') {
+      selectClass(value)
+    } else if (key === 'grade') {
+      selectGrade(value)
+    } else if (key === 'semesterId') {
+      setSelectedSemesterId(value ? Number(value) : '')
+    } else if (key === 'day') {
+      setSelectedDay(value)
+    }
+  }
+
+  const handleMobileScheduleFilterReset = () => {
+    selectClass('Semua Kelas')
+    selectGrade('Semua Tingkat')
+    setSelectedDay('Semua Hari')
+  }
+
+  const activeScheduleFilterCount = useMemo(() => {
+    let count = 0
+    if (selectedClass && selectedClass !== 'Semua Kelas') count++
+    if (selectedGrade && selectedGrade !== 'Semua Tingkat') count++
+    if (selectedDay && selectedDay !== 'Semua Hari') count++
+    return count
+  }, [selectedClass, selectedGrade, selectedDay])
+
+  const scheduleExtraActions = useMemo(() => [
+    {
+      label: 'Segarkan',
+      icon: 'refresh',
+      onClick: () => {
+        setRefreshTrigger((prev) => prev + 1)
+        notify('Jadwal berhasil disegarkan dari server.')
+      },
+    },
+    {
+      label: 'Filter Lanjutan',
+      icon: 'filter',
+      onClick: () => notify('Filter lanjutan siap digunakan.'),
+    },
+    {
+      label: 'Ekspor Jadwal',
+      icon: 'download',
+      onClick: () => excelService.download('schedules', 'export', {
+        academic_year_id: selectedAcademicYearId,
+        semester_id: selectedSemesterId,
+        class_id: selectedClass && selectedClass !== 'Semua Kelas' ? apiOptions.classes?.find((item) => item.name === selectedClass)?.id : undefined,
+        day_of_week: selectedDay === 'Semua Hari' ? '' : selectedDay,
+        search: query,
+      }).catch((error) => notify(error.message)),
+    },
+    {
+      label: 'Cetak Jadwal',
+      icon: 'printer',
+      onClick: () => notify('Jadwal berhasil disiapkan untuk dicetak.'),
+    },
+  ], [selectedAcademicYearId, selectedSemesterId, selectedClass, apiOptions.classes, selectedDay, query])
+
   return (
     <div className="academic-schedule-view">
       <AcademicSummary items={summaryCards} />
 
-      <section className="academic-filter-card" aria-label="Filter jadwal pelajaran">
-        <div className="academic-filter-row">
-          <div className="academic-filter-fields">
-            <SelectField label="Kelas" onChange={selectClass} options={classOptions} value={selectedClass} />
-            <SelectField label="Tingkat" onChange={selectGrade} options={gradeOptions} value={selectedGrade} />
-            <SelectField label="Semester" onChange={(val) => setSelectedSemesterId(val ? Number(val) : '')} options={semesterSelectOptions} value={selectedSemesterId ? String(selectedSemesterId) : ''} />
-            <SelectField label="Hari" onChange={setSelectedDay} options={dayOptions} value={selectedDay} />
+      {/* Desktop Toolbar & Actions */}
+      <div className="academic-desktop-toolbar-container">
+        <section className="academic-filter-card" aria-label="Filter jadwal pelajaran">
+          <div className="academic-filter-row">
+            <div className="academic-filter-fields">
+              <SelectField label="Kelas" onChange={selectClass} options={classOptions} value={selectedClass} />
+              <SelectField label="Tingkat" onChange={selectGrade} options={gradeOptions} value={selectedGrade} />
+              <SelectField label="Semester" onChange={(val) => setSelectedSemesterId(val ? Number(val) : '')} options={semesterSelectOptions} value={selectedSemesterId ? String(selectedSemesterId) : ''} />
+              <SelectField label="Hari" onChange={setSelectedDay} options={dayOptions} value={selectedDay} />
+            </div>
+
+            <label className="academic-schedule-search">
+              <SearchInput
+                aria-label="Cari mata pelajaran atau guru"
+                onChange={(event) => setQuery(event.target.value)}
+                placeholder="Cari mata pelajaran / guru..."
+                value={query}
+              />
+              <Icon name="search" />
+            </label>
           </div>
 
-          <label className="academic-schedule-search">
-            <SearchInput
-              aria-label="Cari mata pelajaran atau guru"
-              onChange={(event) => setQuery(event.target.value)}
-              placeholder="Cari mata pelajaran / guru..."
-              value={query}
-            />
-            <Icon name="search" />
-          </label>
-        </div>
+          <div className="academic-filter-actions">
+            <Button
+              className="academic-button secondary"
+              onClick={() => {
+                setRefreshTrigger((prev) => prev + 1)
+                notify('Jadwal berhasil disegarkan dari server.')
+              }}
+            >
+              <Icon name="refresh" />Segarkan
+            </Button>
+            <Button className="academic-button secondary" onClick={() => notify('Filter lanjutan siap digunakan.')}>
+              <Icon name="filter" />Filter Lanjutan
+            </Button>
+            <Button className="academic-button secondary" onClick={() => excelService.download('schedules', 'export', {
+              academic_year_id: selectedAcademicYearId, semester_id: selectedSemesterId,
+              class_id: selectedClass && selectedClass !== 'Semua Kelas' ? apiOptions.classes?.find((item) => item.name === selectedClass)?.id : undefined,
+              day_of_week: selectedDay === 'Semua Hari' ? '' : selectedDay,
+              search: query,
+            }).catch((error) => notify(error.message))}>
+              <Icon name="download" />Ekspor Jadwal
+            </Button>
+            <Button className="academic-button secondary" onClick={() => notify('Jadwal berhasil disiapkan untuk dicetak.')}>
+              <Icon name="printer" />Cetak Jadwal
+            </Button>
+            <Button
+              className="academic-button primary"
+              onClick={() => {
+                setModalInitialData(null)
+                setIsModalOpen(true)
+              }}
+            >
+              <Icon name="plus" />Tambah Jadwal
+            </Button>
+          </div>
+        </section>
+      </div>
 
-        <div className="academic-filter-actions">
-          <Button
-            className="academic-button secondary"
-            onClick={() => {
-              setRefreshTrigger((prev) => prev + 1)
-              notify('Jadwal berhasil disegarkan dari server.')
-            }}
-          >
-            <Icon name="refresh" />Segarkan
-          </Button>
-          <Button className="academic-button secondary" onClick={() => notify('Filter lanjutan siap digunakan.')}>
-            <Icon name="filter" />Filter Lanjutan
-          </Button>
-          <Button className="academic-button secondary" onClick={() => excelService.download('schedules', 'export', {
-            academic_year_id: selectedAcademicYearId, semester_id: selectedSemesterId,
-            class_id: selectedClass && selectedClass !== 'Semua Kelas' ? apiOptions.classes?.find((item) => item.name === selectedClass)?.id : undefined,
-            day_of_week: selectedDay === 'Semua Hari' ? '' : selectedDay,
-            search: query,
-          }).catch((error) => notify(error.message))}>
-            <Icon name="download" />Ekspor Jadwal
-          </Button>
-          <Button className="academic-button secondary" onClick={() => notify('Jadwal berhasil disiapkan untuk dicetak.')}>
-            <Icon name="printer" />Cetak Jadwal
-          </Button>
-          <Button
-            className="academic-button primary"
-            onClick={() => {
-              setModalInitialData(null)
-              setIsModalOpen(true)
-            }}
-          >
-            <Icon name="plus" />Tambah Jadwal
-          </Button>
-        </div>
-      </section>
+      {/* Mobile Toolbar */}
+      <MasterMobileToolbar
+        activeFilterCount={activeScheduleFilterCount}
+        addLabel="Tambah Jadwal"
+        extraActions={scheduleExtraActions}
+        filterFields={scheduleFilterFields}
+        filters={mobileScheduleFilters}
+        onAdd={() => {
+          setModalInitialData(null)
+          setIsModalOpen(true)
+        }}
+        onFilterChange={handleMobileScheduleFilterChange}
+        onFilterReset={handleMobileScheduleFilterReset}
+        onSearchChange={(value) => setQuery(value)}
+        searchPlaceholder="Cari mata pelajaran / guru..."
+        searchQuery={query}
+      />
 
       <div className="academic-schedule-layout">
-        <section className="academic-schedule-card">
-          <header className="academic-schedule-card-header">
-            <h2>Jadwal Pelajaran - {selectedClass || 'Semua Kelas'}</h2>
+        <section className="academic-schedule-card academic-table-section-card">
+          <header className="academic-table-section-header">
+            <h4 className="academic-table-section-title">Jadwal Pelajaran</h4>
+            <span className="academic-table-section-count">{selectedClass || 'Semua Kelas'}</span>
           </header>
 
           {visibleRows.length ? (

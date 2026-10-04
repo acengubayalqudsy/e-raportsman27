@@ -31,27 +31,36 @@ function AttendanceTabs({ activeKey }) {
         })}
       </nav>
 
-      {/* Mobile Edlink-style 4-Card Grid (exact match to Gambar 1 Modul Rapor) */}
-      <div className="attendance-mobile-card-grid" aria-label="Menu Modul Absensi">
-        {attendanceTabs.map((tab) => {
-          const meta = tabMeta[tab.key] || { shortLabel: tab.label, tone: 'green', icon: tab.icon }
-          const isActive = activeKey === tab.key
+      {/* Mobile Edlink-style White Section Module Grid (Matching Gambar 1) */}
+      <section className="attendance-mobile-module-grid-wrapper master-mobile-module-grid-wrapper" aria-label="Pilih Modul Absensi">
+        <div className="master-mobile-grid-header">
+          <div className="master-mobile-grid-header-copy">
+            <h3 className="master-mobile-grid-title">Pilih Data</h3>
+            <span className="master-mobile-grid-desc">Kelola kegiatan dan kehadiran siswa</span>
+          </div>
+        </div>
 
-          return (
-            <Link
-              key={tab.key}
-              to={tab.route}
-              className={`attendance-mobile-card ${isActive ? 'active' : ''}`}
-              aria-current={isActive ? 'page' : undefined}
-            >
-              <div className={`attendance-mobile-icon-box tone-${meta.tone} ${isActive ? 'active' : ''}`}>
-                <Icon name={meta.icon || tab.icon} />
-              </div>
-              <span className="attendance-mobile-card-label">{meta.shortLabel}</span>
-            </Link>
-          )
-        })}
-      </div>
+        <div className="attendance-mobile-card-grid master-mobile-grid activity-mobile-grid-4col" aria-label="Menu Modul Absensi">
+          {attendanceTabs.map((tab) => {
+            const meta = tabMeta[tab.key] || { shortLabel: tab.label, tone: 'green', icon: tab.icon }
+            const isActive = activeKey === tab.key
+
+            return (
+              <Link
+                key={tab.key}
+                to={tab.route}
+                className={`attendance-mobile-card master-mobile-grid-item ${isActive ? 'active' : ''}`}
+                aria-current={isActive ? 'page' : undefined}
+              >
+                <div className={`attendance-mobile-icon-box master-mobile-icon-box tone-${meta.tone} ${isActive ? 'active' : ''}`}>
+                  <Icon name={meta.icon || tab.icon} />
+                </div>
+                <span className="attendance-mobile-card-label master-mobile-item-label">{meta.shortLabel}</span>
+              </Link>
+            )
+          })}
+        </div>
+      </section>
     </div>
   )
 }

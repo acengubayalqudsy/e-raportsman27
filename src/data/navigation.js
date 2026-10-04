@@ -45,6 +45,12 @@ export const navItems = [
     route: "/dashboard",
   },
   {
+    key: "jelajah",
+    label: "Jelajah",
+    icon: "rocket",
+    route: "/jelajah",
+  },
+  {
     key: "master-data",
     label: "Master Data",
     icon: "layers",

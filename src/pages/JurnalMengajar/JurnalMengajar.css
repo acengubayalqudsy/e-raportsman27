@@ -937,3 +937,778 @@
   .journal-today-item { grid-template-columns: 25px minmax(0, 1fr) 25px; }
   .journal-room-badge { display: none; }
 }
+
+/* ========================================================
+   EDLINK-INSPIRED MOBILE DESIGN SYSTEM — JURNAL MENGAJAR
+   ======================================================== */
+
+/* Desktop Freeze: Ensure mobile components never appear on desktop */
+@media (min-width: 768px) {
+  .journal-mobile-module-grid-wrapper,
+  .journal-mobile-toolbar-card,
+  .journal-data-section-header,
+  .journal-mobile-record-list,
+  .teaching-journal-page .master-mobile-summary-section,
+  .teaching-journal-page .master-mobile-toolbar-wrapper,
+  .teaching-journal-page .master-mobile-pagination {
+    display: none !important;
+  }
+}
+
+/* Mobile: <=767px Edlink Presentation */
+@media (max-width: 767px) {
+  /* 1. Page Container & Reset */
+  .teaching-journal-page {
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 0 !important;
+    width: 100% !important;
+    padding: 0 !important;
+  }
+
+  /* 2. Hide Desktop Header, Breadcrumb, Desktop Tabs, Desktop Toolbar, Desktop Heading, Desktop Table */
+  .teaching-journal-header,
+  .teaching-journal-breadcrumb,
+  .teaching-journal-tabs,
+  .journal-desktop-only,
+  .journal-workspace-toolbar,
+  .journal-workspace-heading,
+  .journal-workspace-pagination {
+    display: none !important;
+  }
+
+  /* 3. Section 1: Mobile Module Grid (Pilih Data 4 Columns x 1 Row) */
+  .journal-mobile-module-grid-wrapper {
+    display: block !important;
+    background: #FFFFFF !important;
+    border-radius: 18px !important;
+    padding: 14px 14px 14px 14px !important;
+    border: 1px solid rgba(0, 0, 0, 0.06) !important;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.025) !important;
+    box-sizing: border-box !important;
+    width: 100% !important;
+    margin: 0 0 18px 0 !important;
+  }
+
+  .journal-mobile-grid-4col,
+  .journal-mobile-grid-2col {
+    display: grid !important;
+    grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
+    gap: 8px !important;
+    margin-top: 12px !important;
+  }
+
+  .journal-mobile-module-grid-wrapper .master-mobile-grid-item {
+    display: flex !important;
+    flex-direction: column !important;
+    align-items: center !important;
+    text-align: center !important;
+    text-decoration: none !important;
+    gap: 6px !important;
+    padding: 4px 2px !important;
+    border-radius: 12px !important;
+    transition: all 0.2s ease !important;
+    border: none !important;
+    background: transparent !important;
+    min-width: 0 !important;
+    width: 100% !important;
+    box-sizing: border-box !important;
+  }
+
+  .journal-mobile-module-grid-wrapper .master-mobile-icon-box {
+    width: 48px !important;
+    height: 48px !important;
+    min-width: 48px !important;
+    min-height: 48px !important;
+    border-radius: 14px !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    font-size: 20px !important;
+    transition: all 0.2s ease !important;
+    flex-shrink: 0 !important;
+  }
+
+  .journal-mobile-module-grid-wrapper .master-mobile-icon-box .ui-icon {
+    width: 22px !important;
+    height: 22px !important;
+  }
+
+  .journal-mobile-module-grid-wrapper .master-mobile-item-label {
+    font-size: 11px !important;
+    font-weight: 600 !important;
+    color: #334155 !important;
+    line-height: 1.2 !important;
+    max-width: 100% !important;
+    width: 100% !important;
+    text-align: center !important;
+    word-break: normal !important;
+    overflow-wrap: break-word !important;
+    hyphens: auto !important;
+    display: -webkit-box !important;
+    -webkit-line-clamp: 2 !important;
+    -webkit-box-orient: vertical !important;
+    overflow: hidden !important;
+  }
+
+  .journal-mobile-module-grid-wrapper .master-mobile-grid-item.active .master-mobile-item-label {
+    color: #008520 !important;
+    font-weight: 700 !important;
+  }
+
+  @media (max-width: 360px) {
+    .journal-mobile-module-grid-wrapper {
+      padding: 12px 10px 12px 10px !important;
+    }
+
+    .journal-mobile-grid-4col,
+    .journal-mobile-grid-2col {
+      gap: 6px !important;
+    }
+
+    .journal-mobile-module-grid-wrapper .master-mobile-icon-box {
+      width: 44px !important;
+      height: 44px !important;
+      min-width: 44px !important;
+      min-height: 44px !important;
+      border-radius: 12px !important;
+    }
+
+    .journal-mobile-module-grid-wrapper .master-mobile-icon-box .ui-icon {
+      width: 20px !important;
+      height: 20px !important;
+    }
+
+    .journal-mobile-module-grid-wrapper .master-mobile-item-label {
+      font-size: 10px !important;
+      line-height: 1.15 !important;
+    }
+  }
+
+  /* 4. Section 2: Ringkasan Data (White Section 2-col) */
+  .teaching-journal-page .master-summary-wrapper.master-mobile-summary-section,
+  .teaching-journal-page .master-summary-wrapper {
+    display: block !important;
+    background: #FFFFFF !important;
+    border-radius: 18px !important;
+    padding: 16px 18px !important;
+    border: 1px solid rgba(0, 0, 0, 0.06) !important;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.025) !important;
+    box-sizing: border-box !important;
+    width: 100% !important;
+    margin: 0 0 18px 0 !important;
+  }
+
+  .teaching-journal-page .master-summary-header {
+    display: block !important;
+    margin-bottom: 2px !important;
+  }
+
+  .teaching-journal-page .master-summary-title {
+    font-size: 14.5px !important;
+    font-weight: 700 !important;
+    color: #0F172A !important;
+    margin: 0 0 2px !important;
+  }
+
+  .teaching-journal-page .master-summary-desc {
+    font-size: 11px !important;
+    color: #64748B !important;
+  }
+
+  .teaching-journal-page .master-summary-grid {
+    display: grid !important;
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    gap: 8px !important;
+    margin-top: 12px !important;
+    margin-bottom: 0 !important;
+  }
+
+  .teaching-journal-page .master-summary-card {
+    background: #F8FAFC !important;
+    border: 1px solid #E2E8F0 !important;
+    box-shadow: none !important;
+    min-height: 72px !important;
+    height: auto !important;
+    padding: 10px 12px !important;
+    gap: 10px !important;
+    border-radius: 12px !important;
+    display: flex !important;
+    align-items: center !important;
+    box-sizing: border-box !important;
+    transition: background 0.15s ease;
+  }
+
+  .teaching-journal-page .master-summary-card .master-summary-icon {
+    width: 38px !important;
+    height: 38px !important;
+    min-width: 38px !important;
+    flex: 0 0 38px !important;
+    border-radius: 10px !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    margin: 0 !important;
+  }
+
+  .teaching-journal-page .master-summary-card .master-summary-icon .ui-icon {
+    width: 19px !important;
+    height: 19px !important;
+    color: #ffffff !important;
+  }
+
+  .teaching-journal-page .master-summary-card .master-summary-icon.green {
+    color: #ffffff !important;
+    background: linear-gradient(145deg, #07895a, #11b884) !important;
+  }
+
+  .teaching-journal-page .master-summary-card .master-summary-icon.blue {
+    color: #ffffff !important;
+    background: linear-gradient(145deg, #0870c5, #1490e6) !important;
+  }
+
+  .teaching-journal-page .master-summary-card .master-summary-copy {
+    display: flex !important;
+    flex-direction: column !important;
+    min-width: 0 !important;
+    flex: 1 1 auto !important;
+    gap: 1px !important;
+  }
+
+  .teaching-journal-page .master-summary-card .master-summary-copy > small {
+    font-size: 10px !important;
+    font-weight: 600 !important;
+    color: #64748B !important;
+    line-height: 1.2 !important;
+    white-space: nowrap !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+  }
+
+  .teaching-journal-page .master-summary-card .master-summary-copy > strong {
+    font-size: 17px !important;
+    font-weight: 700 !important;
+    color: #0F172A !important;
+    margin: 1px 0 !important;
+    line-height: 1.2 !important;
+  }
+
+  .teaching-journal-page .master-summary-card .master-summary-copy > span {
+    font-size: 8.5px !important;
+    color: #64748B !important;
+    line-height: 1.2 !important;
+    white-space: nowrap !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+  }
+
+  /* 5. Section 3: Toolbar White Section */
+  .journal-mobile-toolbar-card {
+    display: block !important;
+    background: #FFFFFF !important;
+    border-radius: 18px !important;
+    padding: 16px 18px !important;
+    border: 1px solid rgba(0, 0, 0, 0.06) !important;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.025) !important;
+    box-sizing: border-box !important;
+    width: 100% !important;
+    margin: 0 0 18px 0 !important;
+  }
+
+  .teaching-journal-page .master-mobile-toolbar-wrapper {
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 12px !important;
+    margin-bottom: 0 !important;
+    width: 100% !important;
+  }
+
+  .teaching-journal-page .master-mobile-search-row {
+    width: 100% !important;
+    margin: 0 !important;
+  }
+
+  .teaching-journal-page .master-mobile-search-container {
+    display: flex !important;
+    align-items: center !important;
+    gap: 12px !important;
+    width: 100% !important;
+  }
+
+  .teaching-journal-page .master-mobile-search-input-wrap {
+    flex: 1 !important;
+    min-width: 0 !important;
+    position: relative !important;
+    display: flex !important;
+    align-items: center !important;
+    height: 48px !important;
+    min-height: 48px !important;
+    background: #FFFFFF !important;
+    border: 1px solid #CBD5E1 !important;
+    border-radius: 12px !important;
+    box-sizing: border-box !important;
+    transition: border-color 0.15s ease, box-shadow 0.15s ease !important;
+  }
+
+  .teaching-journal-page .master-mobile-search-input-wrap:focus-within {
+    border-color: #008520 !important;
+    box-shadow: 0 0 0 3px rgba(0, 133, 32, 0.12) !important;
+  }
+
+  .teaching-journal-page .master-mobile-search-input-wrap input,
+  .teaching-journal-page .master-mobile-search-field {
+    width: 100% !important;
+    height: 100% !important;
+    border: none !important;
+    background: transparent !important;
+    padding: 0 40px 0 14px !important;
+    font-size: 13.5px !important;
+    font-weight: 500 !important;
+    color: #0F172A !important;
+    outline: none !important;
+    box-sizing: border-box !important;
+  }
+
+  .teaching-journal-page .master-mobile-filter-btn {
+    width: 48px !important;
+    height: 48px !important;
+    min-width: 48px !important;
+    min-height: 48px !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    position: relative !important;
+    background: #FFFFFF !important;
+    border: 1px solid #CBD5E1 !important;
+    border-radius: 12px !important;
+    color: #475569 !important;
+    cursor: pointer !important;
+    flex-shrink: 0 !important;
+    transition: background-color 0.15s ease, border-color 0.15s ease, color 0.15s ease, transform 0.15s ease !important;
+    -webkit-tap-highlight-color: transparent !important;
+  }
+
+  .teaching-journal-page .master-mobile-filter-btn:active {
+    transform: scale(0.96) !important;
+    background: #F1F5F9 !important;
+  }
+
+  .teaching-journal-page .master-mobile-filter-btn.active {
+    background: #F0FDF4 !important;
+    border-color: #008520 !important;
+    color: #008520 !important;
+  }
+
+  .teaching-journal-page .master-mobile-cta-row {
+    display: flex !important;
+    align-items: center !important;
+    gap: 12px !important;
+    width: 100% !important;
+  }
+
+  .teaching-journal-page .master-mobile-primary-cta {
+    flex: 1 !important;
+    min-width: 0 !important;
+    height: 48px !important;
+    min-height: 48px !important;
+    border-radius: 12px !important;
+    font-size: 13.5px !important;
+    font-weight: 700 !important;
+    background: #008520 !important;
+    color: #FFFFFF !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    gap: 8px !important;
+    border: none !important;
+    box-shadow: 0 2px 6px rgba(0, 133, 32, 0.25) !important;
+    padding: 0 16px !important;
+    cursor: pointer !important;
+    transition: all 0.15s ease !important;
+  }
+
+  .teaching-journal-page .master-mobile-primary-cta:active:not(:disabled) {
+    transform: scale(0.98) !important;
+    background: #006818 !important;
+  }
+
+  .teaching-journal-page .master-mobile-primary-cta:disabled {
+    background: #E2E8F0 !important;
+    color: #94A3B8 !important;
+    box-shadow: none !important;
+    cursor: not-allowed !important;
+  }
+
+  .teaching-journal-page .master-mobile-primary-cta .ui-icon {
+    width: 18px !important;
+    height: 18px !important;
+  }
+
+  .teaching-journal-page .master-mobile-overflow-wrap {
+    position: relative !important;
+    flex-shrink: 0 !important;
+  }
+
+  .teaching-journal-page .master-mobile-overflow-btn {
+    width: 48px !important;
+    height: 48px !important;
+    min-width: 48px !important;
+    min-height: 48px !important;
+    border-radius: 12px !important;
+    background: #008520 !important;
+    color: #FFFFFF !important;
+    border: none !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    box-shadow: 0 2px 6px rgba(0, 133, 32, 0.25) !important;
+    cursor: pointer !important;
+    transition: all 0.15s ease !important;
+  }
+
+  .teaching-journal-page .master-mobile-overflow-btn:active,
+  .teaching-journal-page .master-mobile-overflow-btn.active {
+    background: #006818 !important;
+    transform: scale(0.96) !important;
+  }
+
+  .teaching-journal-page .master-mobile-overflow-btn .ui-icon {
+    width: 20px !important;
+    height: 20px !important;
+  }
+
+  /* 6. Section 4: Data White Section Card */
+  .journal-data-section-card {
+    display: block !important;
+    background: #FFFFFF !important;
+    border-radius: 18px !important;
+    padding: 16px 18px !important;
+    border: 1px solid rgba(0, 0, 0, 0.06) !important;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.025) !important;
+    box-sizing: border-box !important;
+    width: 100% !important;
+    margin: 0 !important;
+  }
+
+  .journal-data-section-header {
+    display: flex !important;
+    align-items: flex-start !important;
+    justify-content: space-between !important;
+    gap: 12px !important;
+    margin-bottom: 14px !important;
+    padding-bottom: 12px !important;
+    border-bottom: 1px solid #F1F5F9 !important;
+  }
+
+  .journal-data-section-copy {
+    flex: 1 1 auto !important;
+    min-width: 0 !important;
+  }
+
+  .journal-data-section-title {
+    font-size: 14.5px !important;
+    font-weight: 700 !important;
+    color: #0F172A !important;
+    margin: 0 !important;
+    line-height: 1.35 !important;
+  }
+
+  .journal-data-section-desc {
+    font-size: 11.5px !important;
+    color: #64748B !important;
+    margin: 3px 0 0 !important;
+    line-height: 1.3 !important;
+    display: block !important;
+  }
+
+  .journal-data-section-count {
+    flex-shrink: 0 !important;
+    margin-top: 2px !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    padding: 4px 10px !important;
+    background: #E8F5E9 !important;
+    color: #008520 !important;
+    font-size: 11.5px !important;
+    font-weight: 700 !important;
+    border-radius: 20px !important;
+    white-space: nowrap !important;
+  }
+
+  /* 7. Journal Mobile Record Cards List */
+  .journal-mobile-record-list {
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 12px !important;
+    width: 100% !important;
+  }
+
+  .journal-mobile-card {
+    background: #FFFFFF !important;
+    border: 1px solid #E2E8F0 !important;
+    border-radius: 14px !important;
+    padding: 14px 16px !important;
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 8px !important;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.02) !important;
+    box-sizing: border-box !important;
+    width: 100% !important;
+  }
+
+  .journal-mobile-card-header {
+    display: flex !important;
+    align-items: center !important;
+    justify-content: space-between !important;
+    gap: 10px !important;
+  }
+
+  .journal-mobile-card-date {
+    display: inline-flex !important;
+    align-items: center !important;
+    gap: 6px !important;
+    font-size: 12px !important;
+    font-weight: 600 !important;
+    color: #475569 !important;
+  }
+
+  .journal-mobile-date-icon {
+    width: 15px !important;
+    height: 15px !important;
+    color: #008520 !important;
+  }
+
+  .journal-mobile-card-more-btn {
+    width: 42px !important;
+    height: 42px !important;
+    min-width: 42px !important;
+    min-height: 42px !important;
+    border-radius: 10px !important;
+    border: 1px solid #E2E8F0 !important;
+    background: #F8FAFC !important;
+    color: #64748B !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    cursor: pointer !important;
+  }
+
+  .journal-mobile-card-more-btn .ui-icon {
+    width: 18px !important;
+    height: 18px !important;
+  }
+
+  .journal-mobile-card-body {
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 6px !important;
+  }
+
+  .journal-mobile-card-class {
+    margin: 0 !important;
+    font-size: 14.5px !important;
+    font-weight: 700 !important;
+    color: #0F172A !important;
+    line-height: 1.25 !important;
+  }
+
+  .journal-mobile-card-subject {
+    margin: 0 !important;
+    font-size: 12px !important;
+    color: #475569 !important;
+    line-height: 1.3 !important;
+  }
+
+  .journal-mobile-teacher {
+    color: #64748B !important;
+  }
+
+  .journal-mobile-card-meta-row {
+    display: flex !important;
+    align-items: center !important;
+    gap: 8px !important;
+    flex-wrap: wrap !important;
+    margin-top: 2px !important;
+  }
+
+  .journal-mobile-meeting-badge {
+    display: inline-flex !important;
+    align-items: center !important;
+    padding: 3px 8px !important;
+    background: #EFF6FF !important;
+    color: #1D4ED8 !important;
+    border: 1px solid #BFDBFE !important;
+    border-radius: 6px !important;
+    font-size: 11px !important;
+    font-weight: 700 !important;
+    white-space: nowrap !important;
+  }
+
+  .journal-mobile-status-badge {
+    display: inline-flex !important;
+    align-items: center !important;
+    padding: 3px 8px !important;
+    border-radius: 6px !important;
+    font-size: 11px !important;
+    font-weight: 700 !important;
+    white-space: nowrap !important;
+  }
+
+  .journal-mobile-status-badge.status-success {
+    background: #DFF5EB !important;
+    color: #07895A !important;
+    border: 1px solid #BFEAD7 !important;
+  }
+
+  .journal-mobile-status-badge.status-warning {
+    background: #FFF0DF !important;
+    color: #C96600 !important;
+    border: 1px solid #FCD9B4 !important;
+  }
+
+  .journal-mobile-status-badge.status-neutral {
+    background: #F1F5F9 !important;
+    color: #475569 !important;
+    border: 1px solid #CBD5E1 !important;
+  }
+
+  .journal-mobile-card-detail {
+    margin-top: 4px !important;
+    padding-top: 8px !important;
+    border-top: 1px dashed #E2E8F0 !important;
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 4px !important;
+  }
+
+  .journal-mobile-detail-item {
+    font-size: 12px !important;
+    line-height: 1.4 !important;
+    color: #1E293B !important;
+  }
+
+  .journal-mobile-detail-label {
+    font-weight: 600 !important;
+    color: #64748B !important;
+    margin-right: 4px !important;
+  }
+
+  .journal-mobile-detail-val {
+    font-weight: 500 !important;
+    color: #1E293B !important;
+  }
+
+  .journal-mobile-detail-sub {
+    font-size: 11px !important;
+    color: #64748B !important;
+    display: flex !important;
+    align-items: center !important;
+    gap: 4px !important;
+    margin-top: 2px !important;
+  }
+
+  .journal-mobile-sub-icon {
+    width: 13px !important;
+    height: 13px !important;
+    color: #07895A !important;
+  }
+
+  /* 8. Pagination */
+  .journal-pagination-wrapper {
+    margin-top: 16px !important;
+    padding-top: 14px !important;
+    border-top: 1px solid #F1F5F9 !important;
+  }
+
+  .journal-pagination-wrapper .master-mobile-pagination {
+    display: flex !important;
+    align-items: center !important;
+    justify-content: space-between !important;
+    gap: 10px !important;
+    width: 100% !important;
+    box-sizing: border-box !important;
+  }
+
+  .journal-pagination-wrapper .master-mobile-pag-info {
+    font-size: 12px !important;
+    color: #64748B !important;
+    font-weight: 500 !important;
+  }
+
+  .journal-pagination-wrapper .master-mobile-pag-buttons {
+    display: flex !important;
+    align-items: center !important;
+    gap: 8px !important;
+  }
+
+  .journal-pagination-wrapper .master-mobile-pag-btn {
+    width: 36px !important;
+    height: 36px !important;
+    min-width: 36px !important;
+    border-radius: 8px !important;
+    border: 1px solid #CBD5E1 !important;
+    background: #FFFFFF !important;
+    color: #475569 !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    cursor: pointer !important;
+  }
+
+  .journal-pagination-wrapper .master-mobile-pag-btn:disabled {
+    opacity: 0.4 !important;
+    cursor: not-allowed !important;
+  }
+
+  .journal-pagination-wrapper .master-mobile-pag-current {
+    font-size: 12px !important;
+    font-weight: 600 !important;
+    color: #0F172A !important;
+    padding: 0 4px !important;
+  }
+
+  /* 9. Modal Form Sheets on Mobile */
+  .journal-workspace-modal {
+    width: 100% !important;
+    max-height: 85vh !important;
+    border-radius: 18px !important;
+    margin: 0 !important;
+  }
+
+  .journal-workspace-modal .journal-live-form {
+    grid-template-columns: 1fr !important;
+    padding: 14px 16px !important;
+    gap: 12px !important;
+    overflow-y: auto !important;
+    max-height: calc(85vh - 70px) !important;
+  }
+
+  .journal-workspace-modal .journal-form-field {
+    width: 100% !important;
+    box-sizing: border-box !important;
+  }
+
+  .journal-workspace-modal .journal-form-field input,
+  .journal-workspace-modal .journal-form-field select,
+  .journal-workspace-modal .journal-form-field textarea {
+    min-height: 44px !important;
+    font-size: 13px !important;
+    border-radius: 10px !important;
+    padding: 10px 12px !important;
+    box-sizing: border-box !important;
+  }
+
+  .journal-workspace-modal .journal-live-form-actions {
+    flex-direction: column !important;
+    gap: 8px !important;
+    padding-top: 12px !important;
+  }
+
+  .journal-workspace-modal .journal-live-form-actions .journal-button {
+    width: 100% !important;
+    height: 48px !important;
+    min-height: 48px !important;
+    font-size: 14px !important;
+    border-radius: 12px !important;
+  }
+}

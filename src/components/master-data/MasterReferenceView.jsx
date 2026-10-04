@@ -5,6 +5,8 @@ import SearchInput from '../common/SearchInput.jsx'
 import { masterSchemas } from '../../data/masterData.js'
 import { MasterDeleteModal, MasterDetailModal, MasterEntityModal, MasterImportModal } from './MasterModals.jsx'
 import MasterPagination from './MasterPagination.jsx'
+import MasterMobileToolbar from './MasterMobileToolbar.jsx'
+import MasterMobileRecordList from './MasterMobileRecordList.jsx'
 import academicService from '../../services/academicService.js'
 import { religionService } from '../../services/religionService.js'
 import { extracurricularService } from '../../services/extracurricularService.js'
@@ -80,6 +82,9 @@ function ActivationConfirmation({ entityLabel, isActivating, item, onClose, onCo
         className="master-modal master-confirmation"
         role="dialog"
       >
+        <div className="master-mobile-sheet-handle-wrapper" aria-hidden="true">
+          <div className="master-mobile-sheet-handle" />
+        </div>
         <header>
           <div>
             <h3 id="master-activation-title">Jadikan {entityLabel} Aktif?</h3>
@@ -378,6 +383,22 @@ function MasterReferenceView({ activeKey, onNotify }) {
     return schema.formFields
   }, [schema, activeKey, availableYears, availableRoles, availableTeachers, modal])
 
+  const mobileFilterFields = useMemo(() => {
+    if (!config) return []
+    return [
+      {
+        key: config.filterKey,
+        label: config.filterLabel,
+        options: [config.allLabel, ...filterOptions],
+      },
+    ]
+  }, [config, filterOptions])
+
+  const activeFilterCount = useMemo(() => {
+    if (!config || !filterValue || filterValue === config.allLabel) return 0
+    return 1
+  }, [config, filterValue])
+
   if (!schema || !config) return null
 
   // Pagination calculation
@@ -472,6 +493,7 @@ function MasterReferenceView({ activeKey, onNotify }) {
   return (
     <>
       <section className="master-data-workspace master-reference-workspace">
+        <div className="master-desktop-toolbar-container">
         <div className="master-data-toolbar master-reference-toolbar">
           <div className="master-filter-grid master-reference-filters">
             <label className="master-field">
@@ -530,6 +552,41 @@ function MasterReferenceView({ activeKey, onNotify }) {
             </Button>
           </div>
         </div>
+        </div>
+
+        <MasterMobileToolbar
+          activeFilterCount={activeFilterCount}
+          addLabel={`Tambah ${schema.singular}`}
+          exportDisabled={visibleRecords.length === 0}
+          exportLabel="Export"
+          filterFields={mobileFilterFields}
+          filters={{ [config.filterKey]: filterValue }}
+          importLabel={activeKey !== 'pengguna-role' ? 'Import' : undefined}
+          onAdd={() => setModal({ key: activeKey, type: 'add' })}
+          onExport={() => excelService.download(excelModules[activeKey], 'export', {
+            search: searchQuery,
+            academic_year_id: availableYears.find((year) => year.name === filterValue)?.id,
+            status: config.filterKey === 'status' && filterValue !== config.allLabel ? filterValue : '',
+            group: config.filterKey === 'group' && filterValue !== config.allLabel ? filterValue : '',
+            type: config.filterKey === 'type' && filterValue !== config.allLabel ? filterValue : '',
+            role: config.filterKey === 'role' && filterValue !== config.allLabel ? filterValue : '',
+          }).catch((error) => onNotify(error.message))}
+          onFilterChange={(key, val) => {
+            setFilterValues((current) => ({ ...current, [activeKey]: val }))
+            setPage(1)
+          }}
+          onFilterReset={() => {
+            setFilterValues((current) => ({ ...current, [activeKey]: config.allLabel }))
+            setPage(1)
+          }}
+          onImport={activeKey !== 'pengguna-role' ? () => setShowImport(true) : undefined}
+          onSearchChange={(val) => {
+            setSearchQueries((current) => ({ ...current, [activeKey]: val }))
+            setPage(1)
+          }}
+          searchPlaceholder={schema.searchPlaceholder}
+          searchQuery={searchQuery}
+        />
 
         {showImport && <MasterImportModal
           entityLabel={schema.title}
@@ -556,6 +613,7 @@ function MasterReferenceView({ activeKey, onNotify }) {
           </div>
         )}
 
+        <div className="master-desktop-table-container">
         <div className="master-table-heading">
           <h3>
             Daftar {schema.title} ({totalItems} Total)
@@ -701,6 +759,25 @@ function MasterReferenceView({ activeKey, onNotify }) {
               )}
             </tbody>
           </table>
+        </div>
+        </div>
+
+        <div className="master-mobile-record-container">
+          <MasterMobileRecordList
+            canActivate={Boolean(config.canActivate)}
+            canToggleStatus={Boolean(config.canToggleStatus)}
+            fetchError={fetchError}
+            isLoading={isLoading}
+            moduleKey={activeKey}
+            onActivate={(record) => setActivationItem({ key: activeKey, item: record })}
+            onDelete={(record) => setModal({ key: activeKey, type: 'delete', item: record })}
+            onEdit={(record) => setModal({ key: activeKey, type: 'edit', item: record })}
+            onRetry={() => setRefreshTrigger((k) => k + 1)}
+            onToggleStatus={toggleUserStatus}
+            onViewDetail={(record) => setModal({ key: activeKey, type: 'detail', item: record })}
+            records={visibleRecords}
+            totalCount={totalItems}
+          />
         </div>
 
         <MasterPagination

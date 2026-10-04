@@ -7,6 +7,8 @@ import MasterPagination from '../master-data/MasterPagination.jsx'
 import assessmentService from '../../services/assessmentService.js'
 import excelService from '../../services/excelService.js'
 import { extracurricularService } from '../../services/extracurricularService.js'
+import MasterSummary from '../master-data/MasterSummary.jsx'
+import MasterMobileToolbar from '../master-data/MasterMobileToolbar.jsx'
 import { activityOptions } from '../../data/kegiatanSiswa.js'
 
 const DEFAULT_ROWS_PER_PAGE = 8
@@ -27,7 +29,13 @@ function SelectFilter({ label, options, value, onChange }) {
   )
 }
 
-function StudentScoreView({ classId: requestedClassId, semesterId: requestedSemesterId, onNotify }) {
+function StudentScoreView({
+  classId: requestedClassId,
+  semesterId: requestedSemesterId,
+  classes = [],
+  onClassChange,
+  onNotify,
+}) {
   const [scoreRows, setScoreRows] = useState([])
   const [context, setContext] = useState(null)
   const [availableExtracurriculars, setAvailableExtracurriculars] = useState([])
@@ -240,9 +248,150 @@ function StudentScoreView({ classId: requestedClassId, semesterId: requestedSeme
     }
   }
 
+  const summaryItems = useMemo(() => [
+    {
+      title: 'Total Siswa',
+      value: String(scoreRows.length),
+      caption: 'Siswa dinilai',
+      icon: 'users',
+      tone: 'green',
+    },
+    {
+      title: 'Sudah Dinilai',
+      value: String(scoreRows.filter((r) => r.predicate && r.description.trim()).length),
+      caption: 'Lengkap',
+      icon: 'checkCircle',
+      tone: 'blue',
+    },
+    {
+      title: 'Belum Dinilai',
+      value: String(scoreRows.filter((r) => !r.predicate || !r.description.trim()).length),
+      caption: 'Perlu dilengkapi',
+      icon: 'clock',
+      tone: 'orange',
+    },
+    {
+      title: 'Belum Disimpan',
+      value: String(dirtyCount),
+      caption: dirtyCount > 0 ? 'Perlu disimpan' : 'Semua tersimpan',
+      icon: 'save',
+      tone: dirtyCount > 0 ? 'orange' : 'teal',
+    },
+  ], [scoreRows, dirtyCount])
+
+  const mobileFilterFields = useMemo(() => {
+    const fields = []
+    if (classes && classes.length > 0) {
+      fields.push({
+        name: 'classId',
+        label: 'Kelas',
+        type: 'select',
+        options: classes.map((c) => ({ value: String(c.id), label: c.name })),
+      })
+    }
+    fields.push(
+      {
+        name: 'academicYear',
+        label: 'Tahun Ajaran',
+        type: 'select',
+        options: [
+          { value: 'Semua Tahun', label: 'Semua Tahun' },
+          ...filterOptions.academicYears.map((opt) => ({ value: opt, label: opt })),
+        ],
+      },
+      {
+        name: 'semester',
+        label: 'Semester',
+        type: 'select',
+        options: [
+          { value: 'Semua Semester', label: 'Semua Semester' },
+          ...filterOptions.semesters.map((opt) => ({ value: opt, label: opt })),
+        ],
+      },
+      {
+        name: 'extracurricular',
+        label: 'Ekstrakurikuler',
+        type: 'select',
+        options: [
+          { value: 'Semua Ekskul', label: 'Semua Ekskul' },
+          ...filterOptions.extracurriculars.map((opt) => ({ value: opt, label: opt })),
+        ],
+      },
+      {
+        name: 'status',
+        label: 'Status Nilai',
+        type: 'select',
+        options: (activityOptions.scoreStatuses || ['Semua Status', 'Sudah Dinilai', 'Belum Dinilai']).map((opt) => ({ value: opt, label: opt })),
+      },
+    )
+    return fields
+  }, [classes, filterOptions])
+
+  const handleMobileFilterChange = (key, value) => {
+    if (key === 'classId') {
+      onClassChange?.(value)
+    } else {
+      updateFilter(key, value)
+    }
+  }
+
+  const handleMobileFilterReset = () => {
+    setFilters({
+      className: 'Semua Kelas',
+      academicYear: 'Semua Tahun',
+      semester: 'Semua Semester',
+      extracurricular: 'Semua Ekskul',
+      status: 'Semua Status',
+      searchQuery: '',
+    })
+    setCurrentPage(1)
+  }
+
+  const activeMobileFilterCount = useMemo(() => {
+    let count = 0
+    if (filters.className !== 'Semua Kelas') count++
+    if (filters.academicYear !== 'Semua Tahun') count++
+    if (filters.semester !== 'Semua Semester') count++
+    if (filters.extracurricular !== 'Semua Ekskul') count++
+    if (filters.status !== 'Semua Status') count++
+    return count
+  }, [filters])
+
   return (
     <section className="activity-score-view">
-      <div className="activity-score-toolbar">
+      <MasterSummary items={summaryItems} title="Ringkasan Data" subtitle="Statistik terkini kegiatan siswa" />
+
+      <div className="activity-mobile-toolbar-section">
+        <MasterMobileToolbar
+          searchQuery={filters.searchQuery}
+          onSearchChange={(value) => updateFilter('searchQuery', value)}
+          searchPlaceholder="Cari siswa (NIS/Nama)..."
+          filterFields={mobileFilterFields}
+          filters={{
+            classId: String(classId || ''),
+            ...filters,
+          }}
+          onFilterChange={handleMobileFilterChange}
+          onFilterReset={handleMobileFilterReset}
+          activeFilterCount={activeMobileFilterCount}
+          primaryAction={
+            <button
+              type="button"
+              className="master-mobile-primary-cta"
+              disabled={isSaving || dirtyCount === 0}
+              onClick={saveAll}
+            >
+              <Icon name="save" />
+              <span>Simpan Semua Nilai{dirtyCount > 0 ? ` (${dirtyCount})` : ''}</span>
+            </button>
+          }
+          onExport={() => excelService.download('participations', 'export', { class_id: classId, semester_id: semesterId, activity_name: filters.extracurricular === 'Semua Ekskul' ? '' : filters.extracurricular, search: filters.searchQuery, status: filters.status === 'Semua Status' ? '' : filters.status }).catch((error) => onNotify?.(error.message))}
+          exportLabel="Export Excel"
+          exportDisabled={!classId || !semesterId || isLoading}
+        />
+      </div>
+
+      <div className="activity-score-toolbar activity-desktop-score-toolbar">
         <div className="activity-filter-grid activity-score-filters">
           <SelectFilter
             label="Kelas"
@@ -309,7 +458,7 @@ function StudentScoreView({ classId: requestedClassId, semesterId: requestedSeme
             <h2>Daftar Nilai Ekstrakurikuler</h2>
             <p>Lengkapi predikat dan deskripsi perkembangan kegiatan siswa.</p>
           </div>
-          <span className="activity-score-total">{filteredScores.length.toLocaleString('id-ID')} data</span>
+          <span className="master-record-count-badge activity-score-total">{filteredScores.length.toLocaleString('id-ID')} data</span>
         </header>
 
         {loadError ? (

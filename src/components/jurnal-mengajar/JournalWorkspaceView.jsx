@@ -1,8 +1,13 @@
 import { useEffect, useMemo, useState } from 'react'
+import { useBreakpoint } from '../../hooks/useBreakpoint.js'
 import { useAcademicContext } from '../../context/AcademicContext.jsx'
 import journalService from '../../services/journalService.js'
 import excelService from '../../services/excelService.js'
 import { MasterImportModal } from '../master-data/MasterModals.jsx'
+import MasterSummary from '../master-data/MasterSummary.jsx'
+import MasterMobileToolbar from '../master-data/MasterMobileToolbar.jsx'
+import MasterPagination from '../master-data/MasterPagination.jsx'
+import JournalMobileRecordCard from './JournalMobileRecordCard.jsx'
 import Button from '../common/Button.jsx'
 import EmptyState from '../common/EmptyState.jsx'
 import Icon from '../common/Icon.jsx'
@@ -77,6 +82,8 @@ function FormField({ label, children, wide = false }) {
 }
 
 function JournalWorkspaceView({ mode = 'jurnal', onNotify }) {
+  const breakpoint = useBreakpoint()
+  const isMobile = breakpoint.isMobile
   const { selectedYearId, selectedSemesterId, availableYears, availableSemesters } = useAcademicContext()
   const [assignments, setAssignments] = useState([])
   const [journals, setJournals] = useState([])
@@ -140,6 +147,19 @@ function JournalWorkspaceView({ mode = 'jurnal', onNotify }) {
     return () => window.removeEventListener('keydown', onKeyDown)
   }, [form, isSaving])
 
+  // Lock scroll / hide bottom nav while form modal is open (mobile only)
+  useEffect(() => {
+    const isMobileViewport = typeof window !== 'undefined' && window.innerWidth < 768
+    if (form && isMobileViewport) {
+      document.body.classList.add('mobile-sheet-open')
+    } else {
+      document.body.classList.remove('mobile-sheet-open')
+    }
+    return () => {
+      document.body.classList.remove('mobile-sheet-open')
+    }
+  }, [form])
+
   const classes = useMemo(() => [...new Map(assignments.map((assignment) => [assignment.class_id, assignment.class_name])).entries()], [assignments])
   const subjects = useMemo(() => [...new Map(assignments
     .filter((assignment) => !filters.class_id || String(assignment.class_id) === filters.class_id)
@@ -148,6 +168,96 @@ function JournalWorkspaceView({ mode = 'jurnal', onNotify }) {
 
   const updateFilter = (key, value) => {
     setFilters((current) => ({ ...current, [key]: value, ...(key === 'class_id' ? { subject_id: '' } : {}) }))
+    setPage(1)
+  }
+
+  // Active filter count: count only selectable optional filters (Kelas, Mapel)
+  const activeFilterCount = useMemo(() => {
+    let count = 0
+    if (filters.class_id) count += 1
+    if (filters.subject_id) count += 1
+    return count
+  }, [filters.class_id, filters.subject_id])
+
+  const searchPlaceholder = useMemo(() => {
+    if (mode === 'materi') return 'Cari materi...'
+    if (mode === 'aktivitas-kelas') return 'Cari aktivitas...'
+    if (mode === 'catatan') return 'Cari catatan...'
+    return 'Cari materi, aktivitas, catatan...'
+  }, [mode])
+
+  const addLabel = useMemo(() => {
+    if (mode === 'jurnal') return 'Tambah Jurnal'
+    if (mode === 'materi') return 'Tambah Materi'
+    if (mode === 'aktivitas-kelas') return 'Tambah Aktivitas'
+    if (mode === 'catatan') return 'Tambah Catatan'
+    return 'Tambah'
+  }, [mode])
+
+  // Ringkasan Data: only 100% REAL metrics from authoritative state
+  const summaryItems = useMemo(() => [
+    {
+      title: mode === 'jurnal' ? 'Total Jurnal' : mode === 'materi' ? 'Total Materi' : mode === 'aktivitas-kelas' ? 'Total Aktivitas' : 'Total Catatan',
+      value: (meta.total ?? 0).toLocaleString('id-ID'),
+      icon: mode === 'materi' ? 'book' : mode === 'aktivitas-kelas' ? 'users' : mode === 'catatan' ? 'clipboard' : 'journal',
+      tone: 'green',
+      caption: 'Catatan tersimpan',
+      positive: true,
+    },
+    {
+      title: 'Penugasan Aktif',
+      value: (assignments.length || 0).toLocaleString('id-ID'),
+      icon: 'award',
+      tone: 'blue',
+      caption: 'Semester ini',
+      positive: assignments.length > 0,
+    },
+  ], [assignments.length, meta.total, mode])
+
+  const currentYearName = availableYears.find((year) => String(year.id) === String(selectedYearId))?.name || '-'
+  const currentSemesterName = availableSemesters.find((semester) => String(semester.id) === String(selectedSemesterId))?.name || '-'
+
+  const filterFields = useMemo(() => [
+    {
+      key: 'year_context',
+      label: 'Tahun Ajaran',
+      disabled: true,
+      options: [{ value: selectedYearId, label: currentYearName }],
+    },
+    {
+      key: 'semester_context',
+      label: 'Semester',
+      disabled: true,
+      options: [{ value: selectedSemesterId, label: currentSemesterName }],
+    },
+    {
+      key: 'class_id',
+      label: 'Kelas',
+      options: [
+        { value: '', label: 'Semua kelas' },
+        ...classes.map(([id, name]) => ({ value: String(id), label: name })),
+      ],
+    },
+    {
+      key: 'subject_id',
+      label: 'Mata Pelajaran',
+      options: [
+        { value: '', label: 'Semua mapel' },
+        ...subjects.map(([id, name]) => ({ value: String(id), label: name })),
+      ],
+    },
+  ], [classes, currentSemesterName, currentYearName, selectedSemesterId, selectedYearId, subjects])
+
+  const handleMobileFilterChange = (key, val) => {
+    if (key === 'class_id') {
+      updateFilter('class_id', val)
+    } else if (key === 'subject_id') {
+      updateFilter('subject_id', val)
+    }
+  }
+
+  const handleMobileFilterReset = () => {
+    setFilters((prev) => ({ ...prev, class_id: '', subject_id: '' }))
     setPage(1)
   }
 
@@ -270,6 +380,17 @@ function JournalWorkspaceView({ mode = 'jurnal', onNotify }) {
     onNotify?.('Jurnal mengajar berhasil dihapus.')
   }
 
+  const handleExport = () => {
+    if (!selectedSemesterId) return
+    excelService.download('journals', 'export', {
+      academic_year_id: selectedYearId,
+      semester_id: selectedSemesterId,
+      class_id: filters.class_id,
+      subject_id: filters.subject_id,
+      search: filters.search,
+    }).catch((cause) => onNotify?.(cause.message))
+  }
+
   const renderDetails = (journal) => {
     if (mode === 'materi') return <><strong>{journal.material || 'Belum diisi'}</strong><small>{[journal.chapter, journal.method, journal.media].filter(Boolean).join(' · ') || '-'}</small></>
     if (mode === 'aktivitas-kelas') return <><strong>{journal.activities || 'Belum diisi'}</strong><small>Kehadiran: {journal.attendance_present}/{journal.attendance_total}</small></>
@@ -279,35 +400,360 @@ function JournalWorkspaceView({ mode = 'jurnal', onNotify }) {
 
   return (
     <section className="journal-workspace">
-      <div className="journal-workspace-toolbar">
-        <label className="journal-filter-field"><span>Tahun Ajaran</span><select disabled value={selectedYearId}><option value={selectedYearId}>{availableYears.find((year) => String(year.id) === String(selectedYearId))?.name || '-'}</option></select></label>
-        <label className="journal-filter-field"><span>Semester</span><select disabled value={selectedSemesterId}><option value={selectedSemesterId}>{availableSemesters.find((semester) => String(semester.id) === String(selectedSemesterId))?.name || '-'}</option></select></label>
-        <label className="journal-filter-field"><span>Kelas</span><select value={filters.class_id} onChange={(event) => updateFilter('class_id', event.target.value)}><option value="">Semua kelas</option>{classes.map(([id, name]) => <option key={id} value={id}>{name}</option>)}</select></label>
-        <label className="journal-filter-field"><span>Mata Pelajaran</span><select value={filters.subject_id} onChange={(event) => updateFilter('subject_id', event.target.value)}><option value="">Semua mapel</option>{subjects.map(([id, name]) => <option key={id} value={id}>{name}</option>)}</select></label>
-        <label className="journal-filter-field"><span>Cari</span><input type="search" value={filters.search} onChange={(event) => updateFilter('search', event.target.value)} placeholder="Materi, aktivitas, catatan..." /></label>
-      </div>
-
-      <div className="journal-workspace-heading"><div><h3>{title}</h3><p>{meta.total} catatan pertemuan pada konteks yang dipilih.</p></div><div><Button className="journal-button journal-button-secondary" disabled={!selectedSemesterId} onClick={() => setShowImport(true)}><Icon name="download" />Import Excel</Button><Button className="journal-button journal-button-secondary" disabled={!selectedSemesterId} onClick={() => excelService.download('journals', 'export', {
-        academic_year_id: selectedYearId, semester_id: selectedSemesterId, class_id: filters.class_id, subject_id: filters.subject_id, search: filters.search,
-      }).catch((cause) => onNotify?.(cause.message))}><Icon name="download" />Export Excel</Button><Button className="journal-button journal-button-primary" disabled={!selectedSemesterId || assignments.length === 0} onClick={openCreate}><Icon name="plus" />Tambah {mode === 'jurnal' ? 'Jurnal' : mode === 'materi' ? 'Materi' : mode === 'catatan' ? 'Catatan' : 'Aktivitas'}</Button></div></div>
-      {showImport && <MasterImportModal entityLabel="Jurnal Mengajar" module="journals" context={{ semester_id: selectedSemesterId, class_id: filters.class_id }} onClose={() => setShowImport(false)} onComplete={(count) => { setShowImport(false); setRefresh((value) => value + 1); onNotify?.(`${count} jurnal berhasil diperbarui.`) }} />}
-      {(error || optionsError) && <div className="journal-live-error" role="alert">{error || optionsError}</div>}
-      {!selectedSemesterId ? <div className="journal-live-state" role="status">Pilih semester untuk melihat jurnal mengajar.</div> : isLoading ? <div className="journal-live-state" role="status">Memuat {title.toLowerCase()}...</div> : journals.length === 0 ? <EmptyState className="journal-empty-state"><strong>Belum ada {title.toLowerCase()}</strong><p>{assignments.length === 0 ? 'Tambahkan penugasan mengajar aktif pada modul Akademik.' : 'Klik tombol tambah untuk membuat catatan pertemuan.'}</p></EmptyState> : (
-        <div className="journal-live-table-wrap"><table className="journal-live-table journal-workspace-table"><thead><tr><th>Tanggal</th><th>Kelas / Mapel</th><th>Pertemuan</th><th>{mode === 'jurnal' ? 'Materi / Aktivitas' : title}</th><th>Status</th><th>Aksi</th></tr></thead><tbody>{journals.map((journal) => <tr key={journal.id}><td>{journal.date}</td><td><strong>{journal.class_name}</strong><small>{journal.subject_name} · {journal.teacher_name}</small></td><td>{journal.meeting}</td><td className="journal-workspace-detail">{renderDetails(journal)}</td><td>{journal.status}</td><td><Button aria-label={`Edit ${title} ${journal.id}`} className="journal-workspace-icon-button" onClick={() => openEdit(journal)}><Icon name="edit" /></Button>{mode === 'jurnal' && <Button aria-label={`Hapus jurnal ${journal.id}`} className="journal-workspace-icon-button is-danger" onClick={() => remove(journal)}><Icon name="trash" /></Button>}</td></tr>)}</tbody></table></div>
+      {/* Desktop Filter Toolbar */}
+      {!isMobile && (
+        <div className="journal-workspace-toolbar journal-desktop-only">
+          <label className="journal-filter-field"><span>Tahun Ajaran</span><select disabled value={selectedYearId}><option value={selectedYearId}>{availableYears.find((year) => String(year.id) === String(selectedYearId))?.name || '-'}</option></select></label>
+          <label className="journal-filter-field"><span>Semester</span><select disabled value={selectedSemesterId}><option value={selectedSemesterId}>{availableSemesters.find((semester) => String(semester.id) === String(selectedSemesterId))?.name || '-'}</option></select></label>
+          <label className="journal-filter-field"><span>Kelas</span><select value={filters.class_id} onChange={(event) => updateFilter('class_id', event.target.value)}><option value="">Semua kelas</option>{classes.map(([id, name]) => <option key={id} value={id}>{name}</option>)}</select></label>
+          <label className="journal-filter-field"><span>Mata Pelajaran</span><select value={filters.subject_id} onChange={(event) => updateFilter('subject_id', event.target.value)}><option value="">Semua mapel</option>{subjects.map(([id, name]) => <option key={id} value={id}>{name}</option>)}</select></label>
+          <label className="journal-filter-field"><span>Cari</span><input type="search" value={filters.search} onChange={(event) => updateFilter('search', event.target.value)} placeholder="Materi, aktivitas, catatan..." /></label>
+        </div>
       )}
-      {meta.last_page > 1 && <div className="journal-workspace-pagination"><span>Halaman {meta.current_page} dari {meta.last_page}</span><Button className="journal-button journal-button-secondary" disabled={page <= 1} onClick={() => setPage((current) => current - 1)}>Sebelumnya</Button><Button className="journal-button journal-button-secondary" disabled={page >= meta.last_page} onClick={() => setPage((current) => current + 1)}>Berikutnya</Button></div>}
 
-      {form && <div className="journal-modal-backdrop" onMouseDown={(event) => { if (event.target === event.currentTarget && !isSaving) setForm(null) }} role="presentation"><section aria-labelledby="journal-workspace-form-title" aria-modal="true" className="journal-modal journal-form-modal journal-workspace-modal" role="dialog"><header className="journal-modal-header"><div><small>{form.id ? 'Ubah catatan pertemuan' : 'Catat pertemuan baru'}</small><h2 id="journal-workspace-form-title">{form.id ? 'Edit' : 'Tambah'} {title}</h2></div><button aria-label="Tutup form" disabled={isSaving} onClick={() => setForm(null)} type="button">&times;</button></header><form className="journal-live-form" onSubmit={save}>
-        {formError && <div className="journal-live-error journal-form-field-wide" role="alert">{formError}</div>}
-        <FormField label="Penugasan Mengajar" wide><select name="assignmentId" required value={form.assignmentId} onChange={updateForm}><option value="">Pilih kelas, mapel, dan guru</option>{assignments.map((assignment) => <option key={assignment.id} value={assignment.id}>{assignmentLabel(assignment)}</option>)}</select></FormField>
-        <FormField label="Tanggal"><input name="date" type="date" required min={formAssignment?.start_date} max={formAssignment?.end_date} value={form.date} onChange={updateForm} /></FormField>
-        <FormField label="Pertemuan Ke"><input name="meeting" type="number" required min="1" value={form.meeting} onChange={updateForm} /></FormField>
-        {(mode === 'jurnal' || mode === 'materi') && <><FormField label="Materi Pembelajaran" wide><textarea name="material" rows="3" value={form.material} onChange={updateForm} placeholder="Materi yang diajarkan..." /></FormField><FormField label="Bab / Topik"><input name="chapter" maxLength="255" value={form.chapter} onChange={updateForm} /></FormField><FormField label="Metode"><input name="method" maxLength="100" value={form.method} onChange={updateForm} /></FormField><FormField label="Media" wide><input name="media" maxLength="255" value={form.media} onChange={updateForm} /></FormField></>}
-        {(mode === 'jurnal' || mode === 'aktivitas-kelas') && <><FormField label="Aktivitas Kelas" wide><textarea name="activities" rows="3" value={form.activities} onChange={updateForm} placeholder="Kegiatan siswa dan guru di kelas..." /></FormField><FormField label="Jumlah Hadir"><input name="attendance_present" type="number" min="0" value={form.attendance_present} onChange={updateForm} /></FormField><FormField label="Total Siswa"><input name="attendance_total" type="number" min="0" value={form.attendance_total} onChange={updateForm} /></FormField></>}
-        {(mode === 'jurnal' || mode === 'catatan') && <FormField label="Catatan Mengajar" wide><textarea name="notes" rows="3" value={form.notes} onChange={updateForm} placeholder="Refleksi atau tindak lanjut pembelajaran..." /></FormField>}
-        <FormField label="Status"><select name="status" value={form.status} onChange={updateForm}><option value="Belum Lengkap">Belum Lengkap</option><option value="Lengkap">Lengkap</option><option value="Perlu Diperiksa">Perlu Diperiksa</option></select></FormField>
-        <div className="journal-live-form-actions"><Button className="journal-button journal-button-secondary" disabled={isSaving} onClick={() => setForm(null)} type="button">Batal</Button><Button className="journal-button journal-button-primary" disabled={isSaving} type="submit">{isSaving ? 'Menyimpan...' : 'Simpan'}</Button></div>
-      </form></section></div>}
+      {/* Desktop Heading with Action Buttons */}
+      {!isMobile && (
+        <div className="journal-workspace-heading journal-desktop-only">
+          <div>
+            <h3>{title}</h3>
+            <p>{meta.total} catatan pertemuan pada konteks yang dipilih.</p>
+          </div>
+          <div>
+            <Button className="journal-button journal-button-secondary" disabled={!selectedSemesterId} onClick={() => setShowImport(true)}>
+              <Icon name="download" />Import Excel
+            </Button>
+            <Button className="journal-button journal-button-secondary" disabled={!selectedSemesterId} onClick={handleExport}>
+              <Icon name="download" />Export Excel
+            </Button>
+            <Button className="journal-button journal-button-primary" disabled={!selectedSemesterId || assignments.length === 0} onClick={openCreate}>
+              <Icon name="plus" />Tambah {mode === 'jurnal' ? 'Jurnal' : mode === 'materi' ? 'Materi' : mode === 'catatan' ? 'Catatan' : 'Aktivitas'}
+            </Button>
+          </div>
+        </div>
+      )}
+
+      {/* Mobile-Only Flow: Ringkasan Data + Toolbar */}
+      {isMobile && (
+        <>
+          <MasterSummary
+            items={summaryItems}
+            title="Ringkasan Data"
+            subtitle="Statistik terkini jurnal mengajar"
+          />
+
+          <div className="journal-mobile-toolbar-card">
+            <MasterMobileToolbar
+              searchQuery={filters.search}
+              onSearchChange={(val) => updateFilter('search', val)}
+              searchPlaceholder={searchPlaceholder}
+              filterFields={filterFields}
+              filters={{
+                year_context: selectedYearId,
+                semester_context: selectedSemesterId,
+                class_id: filters.class_id,
+                subject_id: filters.subject_id,
+              }}
+              onFilterChange={handleMobileFilterChange}
+              onFilterReset={handleMobileFilterReset}
+              activeFilterCount={activeFilterCount}
+              onAdd={openCreate}
+              addLabel={addLabel}
+              onImport={() => setShowImport(true)}
+              importLabel="Import Excel"
+              onExport={handleExport}
+              exportLabel="Export Excel"
+              exportDisabled={!selectedSemesterId}
+            />
+          </div>
+        </>
+      )}
+
+      {/* Data Section Card (Desktop table or Mobile Cards) */}
+      <section className="journal-data-section-card" aria-label={`Daftar ${title}`}>
+        {isMobile && (
+          <div className="journal-data-section-header">
+            <div className="journal-data-section-copy">
+              <h3 className="journal-data-section-title">{title}</h3>
+              <span className="journal-data-section-desc">Daftar catatan pertemuan pembelajaran</span>
+            </div>
+            <span className="journal-data-section-count">
+              {meta.total} data
+            </span>
+          </div>
+        )}
+
+        {(error || optionsError) && <div className="journal-live-error" role="alert">{error || optionsError}</div>}
+
+        {!selectedSemesterId ? (
+          <div className="journal-live-state" role="status">Pilih semester untuk melihat jurnal mengajar.</div>
+        ) : isLoading ? (
+          <div className="journal-live-state" role="status">Memuat {title.toLowerCase()}...</div>
+        ) : journals.length === 0 ? (
+          <EmptyState className="journal-empty-state">
+            <strong>Belum ada {title.toLowerCase()}</strong>
+            <p>{assignments.length === 0 ? 'Tambahkan penugasan mengajar aktif pada modul Akademik.' : 'Klik tombol tambah untuk membuat catatan pertemuan.'}</p>
+          </EmptyState>
+        ) : (
+          <>
+            {/* Desktop Table View */}
+            {!isMobile && (
+              <div className="journal-live-table-wrap journal-desktop-only">
+                <table className="journal-live-table journal-workspace-table">
+                  <thead>
+                    <tr>
+                      <th>Tanggal</th>
+                      <th>Kelas / Mapel</th>
+                      <th>Pertemuan</th>
+                      <th>{mode === 'jurnal' ? 'Materi / Aktivitas' : title}</th>
+                      <th>Status</th>
+                      <th>Aksi</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {journals.map((journal) => (
+                      <tr key={journal.id}>
+                        <td>{journal.date}</td>
+                        <td>
+                          <strong>{journal.class_name}</strong>
+                          <small>{journal.subject_name} · {journal.teacher_name}</small>
+                        </td>
+                        <td>{journal.meeting}</td>
+                        <td className="journal-workspace-detail">{renderDetails(journal)}</td>
+                        <td>{journal.status}</td>
+                        <td>
+                          <Button aria-label={`Edit ${title} ${journal.id}`} className="journal-workspace-icon-button" onClick={() => openEdit(journal)}>
+                            <Icon name="edit" />
+                          </Button>
+                          {mode === 'jurnal' && (
+                            <Button aria-label={`Hapus jurnal ${journal.id}`} className="journal-workspace-icon-button is-danger" onClick={() => remove(journal)}>
+                              <Icon name="trash" />
+                            </Button>
+                          )}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+
+            {/* Mobile Record Cards List */}
+            {isMobile && (
+              <div className="journal-mobile-record-list">
+                {journals.map((journal) => (
+                  <JournalMobileRecordCard
+                    key={journal.id}
+                    journal={journal}
+                    mode={mode}
+                    onEdit={openEdit}
+                    onDelete={mode === 'jurnal' ? remove : null}
+                  />
+                ))}
+              </div>
+            )}
+          </>
+        )}
+
+        {/* Pagination */}
+        {meta.last_page > 1 && (
+          <div className="journal-pagination-wrapper">
+            {!isMobile && (
+              <div className="journal-workspace-pagination journal-desktop-only">
+                <span>Halaman {meta.current_page} dari {meta.last_page}</span>
+                <Button className="journal-button journal-button-secondary" disabled={page <= 1} onClick={() => setPage((current) => current - 1)}>
+                  Sebelumnya
+                </Button>
+                <Button className="journal-button journal-button-secondary" disabled={page >= meta.last_page} onClick={() => setPage((current) => current + 1)}>
+                  Berikutnya
+                </Button>
+              </div>
+            )}
+
+            {isMobile && (
+              <MasterPagination
+                currentPage={meta.current_page}
+                totalPages={meta.last_page}
+                totalItems={meta.total}
+                rowsPerPage={25}
+                onPageChange={(p) => setPage(p)}
+                onRowsPerPageChange={() => {}}
+              />
+            )}
+          </div>
+        )}
+      </section>
+
+      {/* Import Modal */}
+      {showImport && (
+        <MasterImportModal
+          entityLabel="Jurnal Mengajar"
+          module="journals"
+          context={{ semester_id: selectedSemesterId, class_id: filters.class_id }}
+          onClose={() => setShowImport(false)}
+          onComplete={(count) => {
+            setShowImport(false)
+            setRefresh((value) => value + 1)
+            onNotify?.(`${count} jurnal berhasil diperbarui.`)
+          }}
+        />
+      )}
+
+      {/* Create / Edit Form Modal */}
+      {form && (
+        <div
+          className="journal-modal-backdrop"
+          onMouseDown={(event) => { if (event.target === event.currentTarget && !isSaving) setForm(null) }}
+          role="presentation"
+        >
+          <section
+            aria-labelledby="journal-workspace-form-title"
+            aria-modal="true"
+            className="journal-modal journal-form-modal journal-workspace-modal"
+            role="dialog"
+          >
+            <header className="journal-modal-header">
+              <div>
+                <small>{form.id ? 'Ubah catatan pertemuan' : 'Catat pertemuan baru'}</small>
+                <h2 id="journal-workspace-form-title">{form.id ? 'Edit' : 'Tambah'} {title}</h2>
+              </div>
+              <button
+                aria-label="Tutup form"
+                disabled={isSaving}
+                onClick={() => setForm(null)}
+                type="button"
+              >
+                &times;
+              </button>
+            </header>
+            <form className="journal-live-form" onSubmit={save}>
+              {formError && <div className="journal-live-error journal-form-field-wide" role="alert">{formError}</div>}
+              <FormField label="Penugasan Mengajar" wide>
+                <select name="assignmentId" required value={form.assignmentId} onChange={updateForm}>
+                  <option value="">Pilih kelas, mapel, dan guru</option>
+                  {assignments.map((assignment) => (
+                    <option key={assignment.id} value={assignment.id}>{assignmentLabel(assignment)}</option>
+                  ))}
+                </select>
+              </FormField>
+              <FormField label="Tanggal">
+                <input
+                  name="date"
+                  type="date"
+                  required
+                  min={formAssignment?.start_date}
+                  max={formAssignment?.end_date}
+                  value={form.date}
+                  onChange={updateForm}
+                />
+              </FormField>
+              <FormField label="Pertemuan Ke">
+                <input
+                  name="meeting"
+                  type="number"
+                  required
+                  min="1"
+                  value={form.meeting}
+                  onChange={updateForm}
+                />
+              </FormField>
+              {(mode === 'jurnal' || mode === 'materi') && (
+                <>
+                  <FormField label="Materi Pembelajaran" wide>
+                    <textarea
+                      name="material"
+                      rows="3"
+                      value={form.material}
+                      onChange={updateForm}
+                      placeholder="Materi yang diajarkan..."
+                    />
+                  </FormField>
+                  <FormField label="Bab / Topik">
+                    <input
+                      name="chapter"
+                      maxLength="255"
+                      value={form.chapter}
+                      onChange={updateForm}
+                    />
+                  </FormField>
+                  <FormField label="Metode">
+                    <input
+                      name="method"
+                      maxLength="100"
+                      value={form.method}
+                      onChange={updateForm}
+                    />
+                  </FormField>
+                  <FormField label="Media" wide>
+                    <input
+                      name="media"
+                      maxLength="255"
+                      value={form.media}
+                      onChange={updateForm}
+                    />
+                  </FormField>
+                </>
+              )}
+              {(mode === 'jurnal' || mode === 'aktivitas-kelas') && (
+                <>
+                  <FormField label="Aktivitas Kelas" wide>
+                    <textarea
+                      name="activities"
+                      rows="3"
+                      value={form.activities}
+                      onChange={updateForm}
+                      placeholder="Kegiatan siswa dan guru di kelas..."
+                    />
+                  </FormField>
+                  <FormField label="Jumlah Hadir">
+                    <input
+                      name="attendance_present"
+                      type="number"
+                      min="0"
+                      value={form.attendance_present}
+                      onChange={updateForm}
+                    />
+                  </FormField>
+                  <FormField label="Total Siswa">
+                    <input
+                      name="attendance_total"
+                      type="number"
+                      min="0"
+                      value={form.attendance_total}
+                      onChange={updateForm}
+                    />
+                  </FormField>
+                </>
+              )}
+              {(mode === 'jurnal' || mode === 'catatan') && (
+                <FormField label="Catatan Mengajar" wide>
+                  <textarea
+                    name="notes"
+                    rows="3"
+                    value={form.notes}
+                    onChange={updateForm}
+                    placeholder="Refleksi atau tindak lanjut pembelajaran..."
+                  />
+                </FormField>
+              )}
+              <FormField label="Status">
+                <select name="status" value={form.status} onChange={updateForm}>
+                  <option value="Belum Lengkap">Belum Lengkap</option>
+                  <option value="Lengkap">Lengkap</option>
+                  <option value="Perlu Diperiksa">Perlu Diperiksa</option>
+                </select>
+              </FormField>
+              <div className="journal-live-form-actions">
+                <Button className="journal-button journal-button-secondary" disabled={isSaving} onClick={() => setForm(null)} type="button">
+                  Batal
+                </Button>
+                <Button className="journal-button journal-button-primary" disabled={isSaving} type="submit">
+                  {isSaving ? 'Menyimpan...' : 'Simpan'}
+                </Button>
+              </div>
+            </form>
+          </section>
+        </div>
+      )}
     </section>
   )
 }

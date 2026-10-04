@@ -7,9 +7,17 @@ function MasterModalFrame({ children, description, onClose, size = 'regular', ti
   return (
     <div className="master-modal-backdrop" role="presentation">
       <section aria-labelledby="master-modal-title" aria-modal="true" className={`master-modal ${size}`} role="dialog">
+        <div className="master-mobile-sheet-handle-wrapper" aria-hidden="true">
+          <div className="master-mobile-sheet-handle" />
+        </div>
         <header>
-          <div><h3 id="master-modal-title">{title}</h3>{description && <p>{description}</p>}</div>
-          <button aria-label="Tutup modal" onClick={onClose} type="button">&times;</button>
+          <div>
+            <h3 id="master-modal-title">{title}</h3>
+            {description && <p>{description}</p>}
+          </div>
+          <button aria-label="Tutup modal" className="master-modal-close-btn" onClick={onClose} type="button">
+            &times;
+          </button>
         </header>
         {children}
       </section>
@@ -71,60 +79,89 @@ export function MasterEntityModal({ entityLabel, fields, initialData = {}, mode 
             <fieldset key={section}>
               <legend>{section}</legend>
               <div className="master-form-grid">
-                {fields.filter((field) => (field.section ?? 'Informasi Utama') === section).map((field) => field.type === 'multiselect' ? (
-                  <div className="master-form-multiselect full-width" key={field.key}>
-                    <span>{field.label}{field.required && <b>*</b>}</span>
-                    <div className="master-checkbox-options">
-                      {(field.options ?? []).map((option) => {
-                        const value = typeof option === 'string' ? option : option.value
-                        const label = typeof option === 'string' ? option : option.label
-                        return <label key={value}><input checked={(formData[field.key] || []).includes(value)} onChange={(event) => handleChange(field.key, event.target.checked ? [...(formData[field.key] || []), value] : (formData[field.key] || []).filter((item) => item !== value))} type="checkbox" /><span>{label}</span></label>
-                      })}
-                    </div>
-                  </div>
-                ) : field.type === 'password' ? (
-                  <div className={`master-password-field${field.fullWidth ? ' full-width' : ''}`} key={field.key}>
-                    <label htmlFor={`master-field-${field.key}`}>
-                      {field.label}{field.required && <b>*</b>}
-                    </label>
-                    <div className="master-password-input">
-                      <input
-                        id={`master-field-${field.key}`}
-                        onChange={(event) => handleChange(field.key, event.target.value)}
-                        required={field.required}
-                        type={visiblePasswords[field.key] ? 'text' : 'password'}
-                        value={formData[field.key]}
-                      />
-                      <button
-                        aria-label={visiblePasswords[field.key] ? 'Sembunyikan password' : 'Tampilkan password'}
-                        aria-pressed={Boolean(visiblePasswords[field.key])}
-                        onClick={() => setVisiblePasswords((current) => ({ ...current, [field.key]: !current[field.key] }))}
-                        title={visiblePasswords[field.key] ? 'Sembunyikan password' : 'Tampilkan password'}
-                        type="button"
-                      >
-                        <Icon name={visiblePasswords[field.key] ? 'eyeOff' : 'eye'} />
-                      </button>
-                    </div>
-                  </div>
-                ) : (
-                  <label className={field.fullWidth ? 'full-width' : ''} key={field.key}>
-                    <span>{field.label}{field.required && <b>*</b>}</span>
-                    {field.type === 'select' ? (
-                      <select required={field.required} value={formData[field.key]} onChange={(event) => handleChange(field.key, event.target.value)}>
-                        <option value="">Pilih {field.label}</option>
+                {fields.filter((field) => (field.section ?? 'Informasi Utama') === section).map((field) => {
+                  const fieldId = `master-field-${field.key}`
+                  return field.type === 'multiselect' ? (
+                    <div className="master-form-multiselect full-width" key={field.key}>
+                      <span className="master-field-label">{field.label}{field.required && <b>*</b>}</span>
+                      <div className="master-checkbox-options">
                         {(field.options ?? []).map((option) => {
                           const value = typeof option === 'string' ? option : option.value
                           const label = typeof option === 'string' ? option : option.label
-                          return <option key={value} value={value}>{label}</option>
+                          return <label key={value}><input checked={(formData[field.key] || []).includes(value)} onChange={(event) => handleChange(field.key, event.target.checked ? [...(formData[field.key] || []), value] : (formData[field.key] || []).filter((item) => item !== value))} type="checkbox" /><span>{label}</span></label>
                         })}
-                      </select>
-                    ) : field.type === 'textarea' ? (
-                      <textarea required={field.required} value={formData[field.key]} onChange={(event) => handleChange(field.key, event.target.value)} />
-                    ) : (
-                      <input required={field.required} type={field.type ?? 'text'} value={formData[field.key]} onChange={(event) => handleChange(field.key, event.target.value)} />
-                    )}
-                  </label>
-                ))}
+                      </div>
+                    </div>
+                  ) : field.type === 'password' ? (
+                    <div className={`master-password-field${field.fullWidth ? ' full-width' : ''}`} key={field.key}>
+                      <label htmlFor={fieldId} className="master-field-label">
+                        {field.label}{field.required && <b>*</b>}
+                      </label>
+                      <div className="master-password-input">
+                        <input
+                          id={fieldId}
+                          className="master-form-input"
+                          onChange={(event) => handleChange(field.key, event.target.value)}
+                          required={field.required}
+                          type={visiblePasswords[field.key] ? 'text' : 'password'}
+                          value={formData[field.key]}
+                        />
+                        <button
+                          aria-label={visiblePasswords[field.key] ? 'Sembunyikan password' : 'Tampilkan password'}
+                          aria-pressed={Boolean(visiblePasswords[field.key])}
+                          onClick={() => setVisiblePasswords((current) => ({ ...current, [field.key]: !current[field.key] }))}
+                          title={visiblePasswords[field.key] ? 'Sembunyikan password' : 'Tampilkan password'}
+                          type="button"
+                        >
+                          <Icon name={visiblePasswords[field.key] ? 'eyeOff' : 'eye'} />
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className={`master-form-group${field.fullWidth ? ' full-width' : ''}`} key={field.key}>
+                      <label htmlFor={fieldId} className="master-field-label">
+                        {field.label}{field.required && <b>*</b>}
+                      </label>
+                      {field.type === 'select' ? (
+                        <div className="master-form-select-wrap">
+                          <select
+                            id={fieldId}
+                            className="master-form-select"
+                            required={field.required}
+                            value={formData[field.key]}
+                            onChange={(event) => handleChange(field.key, event.target.value)}
+                          >
+                            <option value="">Pilih {field.label}</option>
+                            {(field.options ?? []).map((option) => {
+                              const value = typeof option === 'string' ? option : option.value
+                              const label = typeof option === 'string' ? option : option.label
+                              return <option key={value} value={value}>{label}</option>
+                            })}
+                          </select>
+                          <Icon name="chevron" className="master-select-chevron" />
+                        </div>
+                      ) : field.type === 'textarea' ? (
+                        <textarea
+                          id={fieldId}
+                          className="master-form-textarea"
+                          required={field.required}
+                          rows={3}
+                          value={formData[field.key]}
+                          onChange={(event) => handleChange(field.key, event.target.value)}
+                        />
+                      ) : (
+                        <input
+                          id={fieldId}
+                          className="master-form-input"
+                          required={field.required}
+                          type={field.type ?? 'text'}
+                          value={formData[field.key]}
+                          onChange={(event) => handleChange(field.key, event.target.value)}
+                        />
+                      )}
+                    </div>
+                  )
+                })}
               </div>
             </fieldset>
           ))}
@@ -168,6 +205,9 @@ export function MasterDeleteModal({ entityLabel = 'Siswa', item, onClose, onConf
         className="master-modal master-confirmation"
         role="dialog"
       >
+        <div className="master-mobile-sheet-handle-wrapper" aria-hidden="true">
+          <div className="master-mobile-sheet-handle" />
+        </div>
         <header>
           <div>
             <h3 id="master-delete-title">Hapus Data {entityLabel}?</h3>

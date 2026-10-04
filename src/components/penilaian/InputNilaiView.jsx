@@ -5,6 +5,8 @@ import ScoreTable from './ScoreTable.jsx'
 import assessmentService from '../../services/assessmentService.js'
 import excelService from '../../services/excelService.js'
 import { MasterImportModal } from '../master-data/MasterModals.jsx'
+import Icon from '../common/Icon.jsx'
+import MasterMobileToolbar from '../master-data/MasterMobileToolbar.jsx'
 
 const assessmentTypes = ['Semua Jenis', 'Formatif', 'Sumatif Lingkup Materi', 'Sumatif Akhir Semester']
 
@@ -417,35 +419,119 @@ function InputNilaiView({ onNotify }) {
     }
   }
 
+  const activeFilterCount = useMemo(() => {
+    let count = 0
+    if (filters.className) count++
+    if (filters.subject) count++
+    if (filters.assessmentType && filters.assessmentType !== 'Semua Jenis') count++
+    if (filters.semester) count++
+    return count
+  }, [filters])
+
+  const mobileFilterFields = useMemo(() => [
+    {
+      key: 'className',
+      label: 'Kelas',
+      options: classOptions.length ? classOptions : ['Belum tersedia'],
+    },
+    {
+      key: 'subject',
+      label: 'Mata Pelajaran',
+      options: subjectOptions.length ? subjectOptions : ['Belum tersedia'],
+    },
+    {
+      key: 'assessmentType',
+      label: 'Jenis Penilaian',
+      options: assessmentTypes,
+    },
+    {
+      key: 'semester',
+      label: 'Semester',
+      options: semesterOptions.length ? semesterOptions : ['Belum tersedia'],
+    },
+  ], [classOptions, subjectOptions, semesterOptions])
+
   return (
     <section className="assessment-workspace">
-      <AssessmentFilters
-        classOptions={classOptions}
-        canSave={Boolean(selectedCourseId && assessments.length && students.length && !isLoading && !loadError)}
-        semesterOptions={semesterOptions}
-        assessmentTypes={assessmentTypes}
-        filters={filters}
-        isLocked={isLocked}
-        isSaving={isSaving}
-        onFilterChange={handleFilterChange}
-        onSaveAll={handleSaveAll}
-        onSearchChange={handleSearchChange}
-        searchQuery={searchQuery}
-        subjectOptions={subjectOptions}
-      />
+      {/* Desktop Toolbar */}
+      <div className="assessment-desktop-toolbar-container">
+        <AssessmentFilters
+          classOptions={classOptions}
+          canSave={Boolean(selectedCourseId && assessments.length && students.length && !isLoading && !loadError)}
+          semesterOptions={semesterOptions}
+          assessmentTypes={assessmentTypes}
+          filters={filters}
+          isLocked={isLocked}
+          isSaving={isSaving}
+          onFilterChange={handleFilterChange}
+          onSaveAll={handleSaveAll}
+          onSearchChange={handleSearchChange}
+          searchQuery={searchQuery}
+          subjectOptions={subjectOptions}
+        />
+
+        {selectedCourseId && !loadError && (
+          <div className="assessment-create-area">
+            <button className="assessment-button secondary" disabled={isLocked || isSaving} onClick={() => setShowImport(true)} type="button">Import Excel</button>
+            <button className="assessment-button secondary" onClick={() => excelService.download('scores', 'export', { course_assignment_id: selectedCourseId }).catch((error) => onNotify(error.message))} type="button">Export Excel</button>
+            <button className="assessment-button secondary" disabled={isLocked || isSaving} onClick={() => setShowCreate((current) => !current)} type="button">
+              {showCreate ? 'Tutup Formulir' : '+ Tambah Instrumen Penilaian'}
+            </button>
+            {!assessments.length && !isLoading && <span>Belum ada instrumen penilaian. Tambahkan instrumen untuk mulai mengisi nilai.</span>}
+          </div>
+        )}
+      </div>
+
+      {/* Mobile Toolbar (Search + Filter Sheet + Primary CTA + Overflow) */}
+      <div className="assessment-mobile-toolbar-wrapper">
+        <MasterMobileToolbar
+          activeFilterCount={activeFilterCount}
+          exportLabel="Export Excel"
+          extraActions={[
+            {
+              label: showCreate ? 'Tutup Form Tambah' : '+ Tambah Instrumen Penilaian',
+              icon: 'plus',
+              disabled: isLocked || isSaving || !selectedCourseId,
+              onClick: () => setShowCreate((prev) => !prev),
+            },
+          ]}
+          filterFields={mobileFilterFields}
+          filters={filters}
+          importLabel="Import Excel"
+          onExport={selectedCourseId ? () => excelService.download('scores', 'export', { course_assignment_id: selectedCourseId }).catch((error) => onNotify(error.message)) : undefined}
+          onFilterChange={handleFilterChange}
+          onFilterReset={() => {
+            const first = assignedCourses[0]
+            if (first) {
+              setSelectedCourseId(first.course_assignment_id)
+              setFilters({
+                className: first.class_name,
+                subject: first.subject_name,
+                assessmentType: assessmentTypes[0],
+                semester: first.semester_name || '',
+              })
+            }
+          }}
+          onImport={selectedCourseId && !isLocked ? () => setShowImport(true) : undefined}
+          onSearchChange={handleSearchChange}
+          primaryAction={
+            <button
+              aria-label="Simpan Semua Nilai"
+              className="master-mobile-primary-cta"
+              disabled={isLocked || isSaving || !selectedCourseId || !assessments.length || !students.length || isLoading || Boolean(loadError)}
+              onClick={handleSaveAll}
+              type="button"
+            >
+              <Icon name={isLocked ? "lock" : "save"} />
+              <span>{isLocked ? 'Nilai Terkunci' : isSaving ? 'Menyimpan...' : 'Simpan Semua Nilai'}</span>
+            </button>
+          }
+          searchPlaceholder="Cari siswa (NIS/Nama)..."
+          searchQuery={searchQuery}
+        />
+      </div>
 
       {loadError && <div className="assessment-data-message" role="alert">{loadError}</div>}
-
-      {selectedCourseId && !loadError && (
-        <div className="assessment-create-area">
-          <button className="assessment-button secondary" disabled={isLocked || isSaving} onClick={() => setShowImport(true)} type="button">Import Excel</button>
-          <button className="assessment-button secondary" onClick={() => excelService.download('scores', 'export', { course_assignment_id: selectedCourseId }).catch((error) => onNotify(error.message))} type="button">Export Excel</button>
-          <button className="assessment-button secondary" disabled={isLocked || isSaving} onClick={() => setShowCreate((current) => !current)} type="button">
-            {showCreate ? 'Tutup Formulir' : '+ Tambah Instrumen Penilaian'}
-          </button>
-          {!assessments.length && !isLoading && <span>Belum ada instrumen penilaian. Tambahkan instrumen untuk mulai mengisi nilai.</span>}
-        </div>
-      )}
 
       {showCreate && selectedCourse && !isLocked && (
         <div className="assessment-create-panel">
