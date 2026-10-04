@@ -4142,3 +4142,240 @@
     padding: 15mm 20mm !important;
   }
 }
+
+
+/* Per-student report document: official three-page A4 preview */
+.student-report-pages {
+  display: grid;
+  gap: 24px;
+  justify-items: center;
+  margin: 24px auto;
+}
+
+.student-report-page {
+  width: min(100%, 794px);
+  min-height: 1123px;
+  background: #fff;
+  border: 1px solid #d1d5db;
+  box-shadow: 0 2px 10px rgba(15, 23, 42, 0.08);
+  padding: 54px 58px 48px;
+  box-sizing: border-box;
+  color: #111827;
+  font-family: Arial, Helvetica, sans-serif;
+  font-size: 11px;
+}
+
+.student-report-identity {
+  display: grid;
+  grid-template-columns: 1fr 0.82fr;
+  gap: 48px;
+  margin-bottom: 22px;
+  line-height: 1.45;
+}
+
+.student-report-identity > div {
+  display: grid;
+  grid-template-columns: 112px 10px 1fr;
+  align-content: start;
+  row-gap: 2px;
+}
+
+.student-report-identity span,
+.student-report-identity b,
+.student-report-identity strong {
+  min-width: 0;
+}
+
+.student-report-table {
+  width: 100%;
+  border-collapse: collapse;
+  table-layout: fixed;
+  font-size: 10px;
+}
+
+.student-report-table th,
+.student-report-table td {
+  border: 1px solid #111;
+  padding: 7px 6px;
+  vertical-align: top;
+  line-height: 1.35;
+}
+
+.student-report-table th {
+  text-align: center;
+  font-weight: 700;
+}
+
+.student-report-academic-table th:nth-child(1),
+.student-report-academic-table td:nth-child(1) {
+  width: 42px;
+  text-align: center;
+}
+
+.student-report-academic-table th:nth-child(2),
+.student-report-academic-table td:nth-child(2) {
+  width: 28%;
+}
+
+.student-report-academic-table th:nth-child(3),
+.student-report-academic-table td:nth-child(3) {
+  width: 58px;
+  text-align: center;
+}
+
+.student-report-academic-table tbody tr {
+  min-height: 82px;
+}
+
+.student-report-academic-table td {
+  height: 82px;
+}
+
+.student-report-empty-row td {
+  height: 140px;
+  text-align: center;
+  vertical-align: middle;
+  color: #64748b;
+}
+
+.student-report-section {
+  margin-top: 14px;
+}
+
+.student-report-section h4 {
+  margin: 0 0 6px;
+  font-size: 10px;
+  font-weight: 700;
+}
+
+.student-report-box {
+  border: 1px solid #111;
+  min-height: 46px;
+  padding: 8px;
+  box-sizing: border-box;
+}
+
+.student-report-box p {
+  margin: 4px 0 0;
+  line-height: 1.4;
+}
+
+.student-report-small-table th:nth-child(1),
+.student-report-small-table td:nth-child(1) {
+  width: 42px;
+  text-align: center;
+}
+
+.student-report-small-table th:nth-child(3),
+.student-report-small-table td:nth-child(3) {
+  width: 88px;
+  text-align: center;
+}
+
+.student-report-attendance-section {
+  width: 48%;
+}
+
+.student-report-attendance-table td:nth-child(2) {
+  width: 46px;
+  text-align: center;
+}
+
+.student-report-attendance-table td:nth-child(3) {
+  width: 46px;
+}
+
+.student-report-note {
+  min-height: 52px;
+}
+
+.student-report-muted {
+  margin: 0;
+  color: #64748b;
+}
+
+.student-report-signatures {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 24px 72px;
+  margin-top: 18px;
+  text-align: center;
+}
+
+.student-report-signatures > div {
+  min-height: 112px;
+  display: flex;
+  flex-direction: column;
+}
+
+.student-report-signatures strong {
+  margin-top: auto;
+  text-decoration: underline;
+}
+
+.student-report-signatures small {
+  margin-top: 2px;
+}
+
+.student-report-principal {
+  grid-column: 1 / -1;
+  width: 46%;
+  justify-self: center;
+}
+
+@media (max-width: 767px) {
+  .student-report-pages {
+    gap: 16px;
+    margin: 18px 0;
+    overflow-x: auto;
+    justify-items: start;
+    padding-bottom: 8px;
+  }
+
+  .student-report-page {
+    width: 794px;
+    min-width: 794px;
+    min-height: 1123px;
+    padding: 54px 58px 48px;
+    transform-origin: top left;
+  }
+}
+
+@media print {
+  body * {
+    visibility: hidden !important;
+  }
+
+  .student-report-pages,
+  .student-report-pages * {
+    visibility: visible !important;
+  }
+
+  .student-report-pages {
+    position: absolute;
+    inset: 0;
+    display: block;
+    margin: 0;
+  }
+
+  .student-report-page {
+    width: 210mm;
+    min-height: 297mm;
+    margin: 0;
+    padding: 14mm 15mm 12mm;
+    border: 0;
+    box-shadow: none;
+    page-break-after: always;
+    break-after: page;
+  }
+
+  .student-report-page:last-child {
+    page-break-after: auto;
+    break-after: auto;
+  }
+
+  @page {
+    size: A4 portrait;
+    margin: 0;
+  }
+}
