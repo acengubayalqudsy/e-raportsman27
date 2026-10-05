@@ -48,6 +48,15 @@
 .journal-workspace-toolbar .journal-filter-field { font-size: 11px; }
 .journal-workspace-toolbar .journal-filter-field input,
 .journal-workspace-toolbar .journal-filter-field select { min-height: 38px; font-size: 12px; }
+
+@media (min-width: 1024px) {
+  .journal-workspace { container-type: inline-size; }
+
+  @container (max-width: 920px) {
+    .journal-workspace-toolbar { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .journal-workspace-toolbar .journal-filter-field:last-child { grid-column: 1 / -1; }
+  }
+}
 .journal-workspace-heading { display: flex; align-items: center; justify-content: space-between; gap: 14px; }
 .journal-workspace-heading h3 { margin: 0 0 4px; color: #17243a; font-size: 17px; }
 .journal-workspace-heading p { margin: 0; color: #64748b; font-size: 12px; }
@@ -344,6 +353,10 @@
   font-weight: 800;
   line-height: 1;
   white-space: nowrap;
+}
+
+@media (min-width: 1024px) {
+  .journal-button { min-height: 36px; font-size: 12px; line-height: 1.35; }
 }
 
 .journal-button .ui-icon { width: 14px; height: 14px; }

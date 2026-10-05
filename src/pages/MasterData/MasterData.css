@@ -2329,3 +2329,15 @@
     width: calc(100vw - 24px) !important;
   }
 }
+
+@media (min-width: 1024px) {
+  .master-modal .master-select-chevron { display: none; }
+
+  .master-page .master-student-table th,
+  .master-page .master-student-table td,
+  .master-page .master-teacher-table th,
+  .master-page .master-teacher-table td {
+    font-size: 12px;
+    line-height: 1.4;
+  }
+}

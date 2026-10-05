@@ -1,12 +1,27 @@
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import Button from '../common/Button.jsx'
 import Icon from '../common/Icon.jsx'
 import excelService from '../../services/excelService.js'
 
 function MasterModalFrame({ children, description, onClose, size = 'regular', title }) {
+  const dialogRef = useRef(null)
+
+  useEffect(() => {
+    if (!window.matchMedia('(min-width: 1024px)').matches) return undefined
+
+    const opener = document.activeElement
+    const focusTarget = dialogRef.current?.querySelector('input:not(:disabled), select:not(:disabled), textarea:not(:disabled)')
+      || dialogRef.current?.querySelector('button:not(:disabled)')
+    focusTarget?.focus()
+
+    return () => {
+      if (opener instanceof HTMLElement && opener.isConnected) opener.focus()
+    }
+  }, [])
+
   return (
     <div className="master-modal-backdrop" role="presentation">
-      <section aria-labelledby="master-modal-title" aria-modal="true" className={`master-modal ${size}`} role="dialog">
+      <section aria-labelledby="master-modal-title" aria-modal="true" className={`master-modal ${size}`} ref={dialogRef} role="dialog">
         <div className="master-mobile-sheet-handle-wrapper" aria-hidden="true">
           <div className="master-mobile-sheet-handle" />
         </div>

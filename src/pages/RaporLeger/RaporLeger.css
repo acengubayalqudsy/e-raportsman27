@@ -739,6 +739,26 @@
   font-size: 8px;
 }
 
+@media (min-width: 1024px) {
+  .report-list-table th,
+  .report-list-table td { font-size: 12px; line-height: 1.4; }
+  .report-list-table th { font-size: 12px; }
+  .report-list-table .report-status,
+  .report-legend-grid .report-status { font-size: 11px; line-height: 1.35; }
+  .report-legend-grid { grid-template-columns: minmax(0, 1fr); }
+  .report-legend-grid > div {
+    display: flex;
+    min-width: 0;
+    flex-direction: column;
+    align-items: flex-start;
+  }
+  .report-legend-grid .report-status {
+    max-width: 100%;
+    white-space: normal;
+    text-align: left;
+  }
+}
+
 .report-quick-grid {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));

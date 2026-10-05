@@ -26,9 +26,9 @@ function PeriodSelectors({ className = '' }) {
     isLoading,
   } = useAcademicContext()
 
-  const yearDisplay = selectedYear?.name || activeAcademicYear?.name || (isLoading ? 'Memuat...' : '2026/2027')
-  const rawSem = selectedSemester?.name || activeSemester?.name || (isLoading ? 'Memuat...' : 'Ganjil')
-  const semDisplay = rawSem.toLowerCase().startsWith('semester') ? rawSem : `Semester ${rawSem}`
+  const yearDisplay = selectedYear?.name || activeAcademicYear?.name || (isLoading ? 'Memuat...' : 'Belum tersedia')
+  const rawSem = selectedSemester?.name || activeSemester?.name || (isLoading ? 'Memuat...' : 'Belum tersedia')
+  const semDisplay = rawSem.toLowerCase().startsWith('semester') || rawSem === 'Belum tersedia' || rawSem === 'Memuat...' ? rawSem : `Semester ${rawSem}`
 
   return (
     <div className={`period-selectors ${className}`} aria-label="Konteks tahun ajaran">

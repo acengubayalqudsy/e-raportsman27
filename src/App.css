@@ -2584,6 +2584,22 @@ tbody tr:hover {
   }
 }
 
+@media (min-width: 1024px) {
+  .dashboard-content {
+    container-type: inline-size;
+  }
+
+  @container (max-width: 1200px) {
+    .stats-grid {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .dashboard-grid {
+      grid-template-columns: minmax(0, 1fr);
+    }
+  }
+}
+
 
 
 /* ==========================================================================

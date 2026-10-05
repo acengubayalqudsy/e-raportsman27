@@ -5,10 +5,15 @@ import sman27Logo from '../../assets/logo/sman-27-garut-logo.png'
 import { navItems } from '../../data/navigation.js'
 import { useAuth } from '../../auth/AuthContext.jsx'
 import { canAccessModule } from '../../constants/roles.js'
+import { useAcademicContext } from '../../context/AcademicContext.jsx'
 
 function Sidebar({ collapsed, onNavigate }) {
   const location = useLocation()
   const { roles } = useAuth()
+  const { selectedYear, selectedSemester, activeAcademicYear, activeSemester, isLoading } = useAcademicContext()
+  const yearDisplay = selectedYear?.name || activeAcademicYear?.name || (isLoading ? 'Memuat...' : 'Belum tersedia')
+  const rawSemester = selectedSemester?.name || activeSemester?.name
+  const semesterDisplay = rawSemester ? rawSemester.replace(/^Semester\s+/i, '') : (isLoading ? 'Memuat...' : 'Belum tersedia')
   const visibleNavItems = navItems.filter((item) => canAccessModule(roles, item.key))
 
   // Helper to determine the active section key based on pathname
@@ -146,10 +151,10 @@ function Sidebar({ collapsed, onNavigate }) {
 
         <div className="academic-card">
           <p>Tahun Ajaran Aktif</p>
-          <strong>2024/2025</strong>
+          <strong>{yearDisplay}</strong>
           <div className="semester-line">
             <span>Semester</span>
-            <b>Genap</b>
+            <b>{semesterDisplay}</b>
           </div>
           <button type="button">
             <Icon name="calendar" />
