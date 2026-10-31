@@ -24,6 +24,8 @@ function ProfileMenu({ compact = false }) {
   const navigate = useNavigate()
   const menuRef = useRef(null)
   const [isOpen, setIsOpen] = useState(false)
+  const [isLoggingOut, setIsLoggingOut] = useState(false)
+  const [logoutError, setLogoutError] = useState('')
   const displayName = user?.name || 'Administrator'
   const displayRole = user?.role || 'Super Admin'
 
@@ -51,10 +53,22 @@ function ProfileMenu({ compact = false }) {
     }
   }, [isOpen])
 
-  const handleLogout = () => {
-    setIsOpen(false)
-    logout()
-    navigate('/login', { replace: true })
+  const handleLogout = async () => {
+    if (isLoggingOut) return
+    setLogoutError('')
+    setIsLoggingOut(true)
+    try {
+      const result = await logout()
+      if (result.success) {
+        setIsOpen(false)
+        navigate('/login', { replace: true })
+      } else {
+        setIsOpen(true)
+        setLogoutError(result.message || 'Logout gagal. Silakan coba lagi.')
+      }
+    } finally {
+      setIsLoggingOut(false)
+    }
   }
 
   return (
@@ -87,10 +101,11 @@ function ProfileMenu({ compact = false }) {
             <strong>{displayName}</strong>
             <small>{user?.email || displayRole}</small>
           </div>
-          <button type="button" role="menuitem" onClick={handleLogout}>
+          <button type="button" role="menuitem" onClick={handleLogout} disabled={isLoggingOut}>
             <Icon name="logout" />
-            Keluar
+            {isLoggingOut ? 'Memproses...' : 'Keluar'}
           </button>
+          {logoutError && <p role="alert">{logoutError}</p>}
         </div>
       )}
     </div>
