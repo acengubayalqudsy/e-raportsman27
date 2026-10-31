@@ -158,16 +158,30 @@ function AuthProvider({ children }) {
    * Real user logout via Laravel Sanctum
    */
   const logout = useCallback(async () => {
+    let response
+
     try {
-      await authApi.logout()
+      response = await authApi.logout()
     } catch {
-      // Continue clearing local state even if network fails
-    } finally {
-      setCurrentUser(null)
-      setIsAuthenticated(false)
-      setAuthError(null)
-      setAuthorizationError(null)
+      response = {
+        success: false,
+        status: 0,
+        message: 'Tidak dapat menghubungi server untuk mengakhiri sesi. Silakan coba lagi.',
+      }
     }
+
+    // A 401 means the session is already invalid; otherwise only a confirmed
+    // server logout may clear the client state.
+    if (!response?.success && response?.status !== 401) {
+      const message = response?.message || 'Logout gagal. Silakan coba lagi.'
+      setAuthError(message)
+      return { success: false, status: response?.status ?? 0, message }
+    }
+
+    setCurrentUser(null)
+    setIsAuthenticated(false)
+    setAuthError(null)
+    setAuthorizationError(null)
     return { success: true }
   }, [])
 
